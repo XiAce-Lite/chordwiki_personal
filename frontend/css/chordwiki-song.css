@@ -42,8 +42,6 @@ body {
   line-height: 1.4;
 }
 
-/* ===== 行（1行のブロック） ===== */
-
 .cw-line {
   margin: 0 0 12px;
 }
@@ -53,44 +51,46 @@ body {
   margin: 12px 0 8px;
 }
 
-/* ===== セル方式（ChordWiki互換の同期を保証） =====
-   1セル = 2段（コード / 歌詞）
-   幅はブラウザが自然に決める（＝スペース調整不要）
+/* ===== セル（重要）=====
+   1セル = (上)コード + (下)歌詞
+   Gridに依存せず “必ず2段” になる構造にする
 */
 .cw-cell {
-  display: inline-grid;
-  grid-template-rows: auto auto;
-  row-gap: 2px;              /* コードと歌詞の間隔 */
+  display: inline-block;
   vertical-align: bottom;
-  white-space: pre;          /* 半角スペースの保持 */
+  white-space: pre;      /* スペース保持 */
+  margin-right: 0;       /* 余計な隙間を作らない */
 }
 
-/* ===== コード（上段） ===== */
+/* 上段：コード */
 .cw-chord {
+  display: block;        /* ← これで必ず上段になる */
   font-family: sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
   font-weight: 500;
+  margin-bottom: 2px;    /* コードと歌詞の距離 */
 }
 
-/* ===== 歌詞（下段） ===== */
+/* 下段：歌詞 */
 .cw-word {
+  display: block;        /* ← これで必ず下段になる */
   font-family: system-ui, -apple-system, "Segoe UI",
                "Noto Sans JP", "Hiragino Kaku Gothic ProN",
                "Yu Gothic", sans-serif;
   font-size: 14px;
   line-height: 1.7;
   color: #222;
-  white-space: pre;          /* 歌詞のスペースも保持 */
+  white-space: pre;
 }
 
-/* ===== 小節線 | を薄く ===== */
+/* 小節線 | を薄く */
 .cw-bar {
   color: #bbb;
 }
 
-/* ===== コメント（C は太字・非イタリック） ===== */
+/* コメント（C は太字・非イタリック） */
 .cw-comment {
   display: inline-block;     /* 背景を文字幅だけに */
   background-color: #e6e6e6;
@@ -103,14 +103,14 @@ body {
   color: #444;
 }
 
-/* CI のみイタリック */
+/* CI のみイタリック（ChordWikiヘルプでも ci はイタリック指定） */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
   color: #666;
 }
 
-/* ===== N.C. 特別表示（上段コードの装飾） ===== */
+/* N.C. 特別表示 */
 .cw-nc {
   color: #444;
   font-style: italic;
@@ -121,7 +121,6 @@ body {
   background: #f6f6f6;
 }
 
-/* ===== 印刷 ===== */
 @media print {
   .cw-chord {
     color: #000;
@@ -137,4 +136,3 @@ body {
     padding: 0;
   }
 }
-``
