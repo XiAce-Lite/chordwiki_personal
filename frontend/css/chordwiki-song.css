@@ -44,7 +44,7 @@ body {
 
 /* 1行ブロック */
 .cw-line {
-  margin: 0 0 6px;   /* ← ここが重要（余白を確保） */
+  margin: 0 0 10px;   /* 6px → 10px */
 }
 
 /* pre 共通 */
@@ -61,17 +61,17 @@ body {
   color: #0000cc;
   font-family: sans-serif;
   font-size: 0.85em;
-  line-height: 1.0;
+  line-height: 1.15;
 
   /* ↓ ここを修正 */
-  transform: translateY(0.4em); /* 0.8em → 0.4em に減らす */
+  transform: translateY(0.45em); 
 }
 
 /* ===== 歌詞行 ===== */
 
 .cw-lyrics {
   color: #222;
-  line-height: 1.6; /* 歌詞は読みやすく */
+  line-height: 1.7; /* 歌詞は読みやすく */
 }
 
 /* ===== コメント ===== */
@@ -87,6 +87,12 @@ body {
   font-weight: normal;
   font-style: italic;
   color: #666;
+}
+
+.cw-lyrics.cw-comment {
+  background-color: #e6e6e6;
+  padding: 2px 6px;
+  border-radius: 3px;
 }
 
 /* ===== 小節線 ===== */
