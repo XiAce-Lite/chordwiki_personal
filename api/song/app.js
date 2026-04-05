@@ -34,5 +34,4 @@ module.exports = async function (context, req) {
       body: 'Internal Server Error'
     };
   }
-};</content>
-<parameter name="filePath">d:\Documents\GitHub\chordwiki_personal\api\song\app.js
+};
