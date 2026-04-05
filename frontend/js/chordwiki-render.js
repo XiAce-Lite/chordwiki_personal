@@ -19,18 +19,10 @@ function parseChordPro(chordProText) {
       const key = m[1].trim().toLowerCase();
       const value = m[2].trim();
 
-      if (key === "title" || key === "t") {
-        result.title = value;
-        continue;
-      }
-      if (key === "subtitle" || key === "st") {
-        result.subtitle = value;
-        continue;
-      }
-      if (key === "key") {
-        result.key = value;
-        continue;
-      }
+      if (key === "title" || key === "t") { result.title = value; continue; }
+      if (key === "subtitle" || key === "st") { result.subtitle = value; continue; }
+      if (key === "key") { result.key = value; continue; }
+
       if (key === "comment" || key === "c") {
         result.lines.push({ type: "comment", text: value });
         continue;
@@ -40,7 +32,6 @@ function parseChordPro(chordProText) {
         continue;
       }
 
-      // 未対応は無視
       continue;
     }
 
@@ -55,6 +46,12 @@ function isNoChordToken(token) {
   return t === "N.C." || t === "N.C" || t === "NC";
 }
 
+function isBarChordToken(token) {
+  // [|] をコードとして使うケースに対応（全角の｜も）
+  const t = (token || "").trim();
+  return t === "|" || t === "｜";
+}
+
 function createSpan(className, text) {
   const s = document.createElement("span");
   if (className) s.className = className;
@@ -63,8 +60,8 @@ function createSpan(className, text) {
 }
 
 /**
- * ✅ 正しいセル分割：
- * [C] の直後歌詞は必ず同じセルの lyric に入る（同期保証）
+ * ✅ 同期保証のセル分割：
+ * [C] の直後歌詞は必ず同じセルの lyric に入る
  */
 function splitToCells(lineText) {
   const line = lineText || "";
@@ -75,8 +72,7 @@ function splitToCells(lineText) {
   let match;
 
   while ((match = regex.exec(line)) !== null) {
-    const between = line.slice(lastIndex, match.index);
-    cells[cells.length - 1].lyric += between;
+    cells[cells.length - 1].lyric += line.slice(lastIndex, match.index);
 
     const chordText = match[0].slice(1, -1);
     cells.push({ chord: chordText, lyric: "" });
@@ -90,13 +86,19 @@ function splitToCells(lineText) {
 }
 
 /**
- * 3) ---- や -> や > を | と同色にするため、装飾トークンとして span 化
- * 1) | の左右余白は CSS（cw-bar）で実現
+ * 1) | は cw-bar（左右余白あり：CSSで padding）
+ * 3) ---- / -> / >- / >-> / >> / ≫ / ≧=≫ / ＞- 等は cw-mark（色は cw-bar と同じ）
  */
 function appendLyricWithMarks(targetSpan, lyricText) {
   const text = lyricText || "";
-  // | / 連続ハイフン / -> / 連続 > をトークンとして扱う
-  const re = /(\||-{2,}|->|>+)/g;
+
+  // 長いものを先にマッチさせる（順序重要）
+  // - ≧=≫ / >=>> も含めて拾う
+  // - ＞-（全角）や >-（半角）
+  // - >-> / -> / >> / ≫
+  // - ----（2個以上のハイフン）
+  // - 連続 >（>>>>> など）
+  const re = /(≧=≫|>=>>|＞-+|>->|>-\s*|->|≫+|>>+|\|)|(-{2,})|(>+)/g;
 
   let last = 0;
   let m;
@@ -106,11 +108,12 @@ function appendLyricWithMarks(targetSpan, lyricText) {
     if (before) targetSpan.appendChild(document.createTextNode(before));
 
     const tok = m[0];
+
     if (tok === "|") {
       targetSpan.appendChild(createSpan("cw-bar", "|"));
     } else {
-      // ---- や -> や > は拍・アクセント記号として同色に
-      targetSpan.appendChild(createSpan("cw-mark", tok));
+      // 色は cw-bar と同じにしたいので cw-bar を併用
+      targetSpan.appendChild(createSpan("cw-mark cw-bar", tok));
     }
 
     last = m.index + tok.length;
@@ -121,8 +124,8 @@ function appendLyricWithMarks(targetSpan, lyricText) {
 }
 
 /**
- * 2) コード右端＝歌詞開始 を作るために、
- * 各セルに “コード幅(px)” を CSS 変数としてセットする。
+ * 2) コード右端＝歌詞開始：コード幅(px)を計測して CSS 変数へ
+ * ※ cw-bar の左右余白は padding にしているので、ここで測った幅に含まれる
  */
 function applyChordPadding(lineEl) {
   const cells = lineEl.querySelectorAll(".cw-cell");
@@ -130,14 +133,12 @@ function applyChordPadding(lineEl) {
     const chordEl = cell.querySelector(".cw-chord");
     if (!chordEl) continue;
 
-    // chord が空なら 0
     const raw = (chordEl.textContent || "").trim();
     if (!raw) {
       cell.style.setProperty("--cw-chord-pad", "0px");
       continue;
     }
 
-    // 表示後の実幅を測って列幅にする（N.C. の枠も含めて確保）
     const w = Math.ceil(chordEl.getBoundingClientRect().width);
     cell.style.setProperty("--cw-chord-pad", `${w}px`);
   }
@@ -148,7 +149,6 @@ function renderChordWikiLike(chordProText, containerEl) {
   const parsed = parseChordPro(chordProText || "");
 
   for (const line of parsed.lines) {
-    // コメント
     if (line.type === "comment" || line.type === "comment_italic") {
       const lineEl = document.createElement("div");
       lineEl.className = "cw-line cw-comment-line";
@@ -161,7 +161,6 @@ function renderChordWikiLike(chordProText, containerEl) {
       continue;
     }
 
-    // 通常行
     const lineEl = document.createElement("div");
     lineEl.className = "cw-line";
 
@@ -177,6 +176,10 @@ function renderChordWikiLike(chordProText, containerEl) {
       if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
+      } else if (cell.chord && isBarChordToken(cell.chord)) {
+        // [|] はバー専用（高さ・色・余白を揃える）
+        chordEl.classList.add("cw-bar-chord", "cw-bar");
+        chordEl.textContent = "|";
       } else {
         chordEl.textContent = cell.chord || "";
       }
@@ -191,8 +194,6 @@ function renderChordWikiLike(chordProText, containerEl) {
     }
 
     containerEl.appendChild(lineEl);
-
-    // ここで幅計測 → CSS変数へ反映
     applyChordPadding(lineEl);
   }
 

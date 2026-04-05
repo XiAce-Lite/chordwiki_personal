@@ -40,12 +40,7 @@ body {
 .cw-line { margin: 0 0 12px; }
 .cw-comment-line { margin: 12px 0 8px; }
 
-/*
-  ✅ セル方式（重要）
-  2) コード右端＝歌詞開始：
-     セルを2列グリッドにして、左列幅を --cw-chord-pad にする
-     左列内のコードは右寄せ、歌詞は右列から開始
-*/
+/* ===== セル方式：コード右端＝歌詞開始（左列=コード幅） ===== */
 .cw-cell {
   --cw-chord-pad: 0px;
 
@@ -59,7 +54,7 @@ body {
   white-space: pre;
 }
 
-/* 上段コード：左列に置いて右寄せ（コード右端＝歌詞開始） */
+/* 上段：コード（左列で右寄せ） */
 .cw-chord {
   grid-column: 1;
   grid-row: 1;
@@ -76,7 +71,13 @@ body {
   min-height: 1em;
 }
 
-/* 下段歌詞：右列から開始（左にコード幅分の余白が生まれる） */
+/* [|] 用：高さ・見た目を通常コードと揃える（青ではなく記号色） */
+.cw-bar-chord {
+  color: #bbb;
+  font-weight: 400;
+}
+
+/* 下段：歌詞（右列から開始） */
 .cw-word {
   grid-column: 2;
   grid-row: 2;
@@ -89,20 +90,25 @@ body {
   min-height: 1em;
 }
 
-/* 1) 小節線 |：左右に少し余白 */
+/* ===== 記号色の基準（| と同色） ===== */
 .cw-bar {
   color: #bbb;
   display: inline-block;
-  margin: 0 0.25em; /* ←ここが要件1 */
+  font-weight: 400;
+
+  /* ★ margin ではなく padding にする（幅計測に含めるため） */
+  padding: 0 0.25em;   /* 要件：| の左右に少し余白 */
 }
 
-/* 3) ---- / -> / > ：| と同色 */
+/* 拍・アクセント記号（---- / -> / >- / ≧=≫ / ≫ / >> など）
+   色は cw-bar と同じ。padding は不要なので打ち消す */
 .cw-mark {
-  color: #bbb;
-  display: inline-block;
+  padding: 0;
+  margin: 0;
+  color: inherit;
 }
 
-/* コメント（C は太字・非イタリック） */
+/* ===== コメント ===== */
 .cw-comment {
   display: inline-block;
   background-color: #e6e6e6;
@@ -115,7 +121,6 @@ body {
   color: #444;
 }
 
-/* CI のみイタリック */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
@@ -133,7 +138,6 @@ body {
   background: #f6f6f6;
 }
 
-/* 印刷 */
 @media print {
   .cw-chord { color: #000; font-style: italic; }
   .cw-nc { color: #000; border-color: #999; background: transparent; }
