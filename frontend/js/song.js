@@ -1,6 +1,13 @@
 let originalChordPro = '';
 let transposeSemitones = 0;
 
+const MIN_TRANSPOSE = -6;
+const MAX_TRANSPOSE = 6;
+
+function clampTranspose(value) {
+  return Math.max(MIN_TRANSPOSE, Math.min(MAX_TRANSPOSE, value));
+}
+
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
   return params.get(name);
@@ -61,7 +68,15 @@ async function loadSong() {
 
 function updateTransposeDisplay() {
   const displayEl = document.getElementById('transpose-display');
-  displayEl.textContent = `Transpose: ${transposeSemitones}`;
+  if (displayEl) {
+    displayEl.textContent = `Transpose: ${transposeSemitones}`;
+  }
+
+  const downButton = document.getElementById('transpose-down');
+  const upButton = document.getElementById('transpose-up');
+
+  if (downButton) downButton.disabled = transposeSemitones <= MIN_TRANSPOSE;
+  if (upButton) upButton.disabled = transposeSemitones >= MAX_TRANSPOSE;
 }
 
 function reRender() {
@@ -72,12 +87,12 @@ function reRender() {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transpose-down').addEventListener('click', () => {
-    transposeSemitones -= 1;
+    transposeSemitones = clampTranspose(transposeSemitones - 1);
     reRender();
   });
 
   document.getElementById('transpose-up').addEventListener('click', () => {
-    transposeSemitones += 1;
+    transposeSemitones = clampTranspose(transposeSemitones + 1);
     reRender();
   });
 
@@ -86,5 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reRender();
   });
 
+  updateTransposeDisplay();
   loadSong();
 });
