@@ -39,6 +39,8 @@ function parseChordPro(chordProText) {
         result.lines.push({ type: 'comment_italic', text: value });
         continue;
       }
+
+      // 未対応ディレクティブは無視
       continue;
     }
 
@@ -70,6 +72,7 @@ function splitLineSegments(line) {
       }
     }
 
+    // 表示では [] を外してコード名だけにする
     segments.push({ chord: match[0].slice(1, -1), lyric: '' });
     lastIndex = match.index + match[0].length;
   }
@@ -96,8 +99,26 @@ function createPre(className) {
   return pre;
 }
 
-function setPreWithBars(pre, text) {
+function isNoChordToken(token) {
+  // N.C. / N.C / NC / N C などにゆるく対応（大文字小文字も吸収）
+  const t = (token || '').replace(/\s+/g, '').toUpperCase();
+  return t === 'N.C.' || t === 'N.C' || t === 'NC';
+}
+
+function appendText(pre, text) {
+  if (!text) return;
+  pre.appendChild(document.createTextNode(text));
+}
+
+/**
+ * pre にテキストを流し込みつつ、
+ * - '|' を <span class="cw-bar"> にする（両方の行でOK）
+ * - コード行の場合のみ N.C. を <span class="cw-nc"> にする
+ */
+function setPreWithDecor(pre, text, isChordLine) {
   pre.textContent = '';
+
+  // まず '|' を保持しつつ分割
   const parts = (text || '').split(/(\|)/);
 
   for (const p of parts) {
@@ -106,9 +127,44 @@ function setPreWithBars(pre, text) {
       span.className = 'cw-bar';
       span.textContent = '|';
       pre.appendChild(span);
-    } else if (p !== '') {
-      pre.appendChild(document.createTextNode(p));
+      continue;
     }
+
+    if (!p) continue;
+
+    // 歌詞行はそのまま流し込み（N.C. の特別扱いはしない）
+    if (!isChordLine) {
+      appendText(pre, p);
+      continue;
+    }
+
+    // コード行だけ N.C. を検出して span 化
+    // N.C. は単独で入るケースが多いが、念のため文中も検出する
+    // ここは「トークンとして N.C. が現れたら装飾」の方針
+    const ncRegex = /\bN\s*\.?\s*C\s*\.?\b/gi;
+    let last = 0;
+    let m;
+
+    while ((m = ncRegex.exec(p)) !== null) {
+      const before = p.slice(last, m.index);
+      appendText(pre, before);
+
+      const raw = m[0];
+      // トークン判定に通るものだけ cw-nc にする
+      if (isNoChordToken(raw)) {
+        const span = document.createElement('span');
+        span.className = 'cw-nc';
+        span.textContent = 'N.C.';
+        pre.appendChild(span);
+      } else {
+        // 判定外はそのまま
+        appendText(pre, raw);
+      }
+
+      last = m.index + raw.length;
+    }
+
+    appendText(pre, p.slice(last));
   }
 }
 
@@ -140,8 +196,8 @@ function renderChordWikiLike(chordProText, containerEl) {
         lyricParts.push(seg.lyric.padEnd(w, ' '));
       }
 
-      setPreWithBars(chordsPre, chordParts.join(''));
-      setPreWithBars(lyricsPre, lyricParts.join(''));
+      setPreWithDecor(chordsPre, chordParts.join(''), true);
+      setPreWithDecor(lyricsPre, lyricParts.join(''), false);
     }
 
     lineEl.appendChild(chordsPre);

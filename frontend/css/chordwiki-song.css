@@ -39,13 +39,15 @@ body {
 /* ===== 曲本文 ===== */
 
 .cw-sheet {
-  line-height: 1.5em;
+  line-height: 1.4;
 }
 
+/* 1行ブロック */
 .cw-line {
-  margin: 0 0 4px;
+  margin: 0 0 6px;   /* ← ここが重要（余白を確保） */
 }
 
+/* pre 共通 */
 .cw-line pre {
   margin: 0;
   padding: 0;
@@ -53,20 +55,23 @@ body {
   font-size: 14px;
 }
 
-/* ===== コード ===== */
+/* ===== コード行 ===== */
 
 .cw-chords {
   color: #0000cc;
   font-family: sans-serif;
-  font-size: 0.9em;
-  line-height: 1.1;
-  transform: translateY(0.8em);
+  font-size: 0.85em;
+  line-height: 1.0;
+
+  /* ↓ ここを修正 */
+  transform: translateY(0.4em); /* 0.8em → 0.4em に減らす */
 }
 
-/* ===== 歌詞 ===== */
+/* ===== 歌詞行 ===== */
 
 .cw-lyrics {
   color: #222;
+  line-height: 1.6; /* 歌詞は読みやすく */
 }
 
 /* ===== コメント ===== */
@@ -90,11 +95,31 @@ body {
   color: #bbb;
 }
 
+/* ===== N.C. 特別表示 ===== */
+
+.cw-nc {
+  color: #444;
+  font-style: italic;
+  font-weight: 700;
+  padding: 0 2px;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: #f6f6f6;
+}
+
 /* ===== 印刷 ===== */
 
 @media print {
   .cw-chords {
     color: #000;
     font-style: italic;
+    transform: translateY(0.3em);
+  }
+
+  .cw-nc {
+    color: #000;
+    border-color: #999;
+    background: transparent;
   }
 }
+``
