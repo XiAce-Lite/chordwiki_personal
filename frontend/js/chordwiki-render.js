@@ -118,7 +118,39 @@ function applyChordPadding(lineEl) {
   }
 }
 
-function renderChordWikiLike(chordProText, containerEl) {
+// 移調用定数
+const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+function noteToSemitone(note) {
+  const idx = NOTES.indexOf(note.toUpperCase());
+  return idx >= 0 ? idx : null;
+}
+
+function semitoneToNote(semitone) {
+  return NOTES[(semitone % 12 + 12) % 12];
+}
+
+function transposeChordString(chord, semitones) {
+  if (!chord || semitones === 0) return chord;
+  const trimmed = chord.trim();
+  if (trimmed === 'N.C.' || trimmed === '|' || trimmed === '｜') return chord;
+
+  // Slash chord: C/E -> transpose C and E
+  const parts = trimmed.split('/');
+  const transposedParts = parts.map(part => {
+    const match = part.match(/^([A-Ga-g][#b]?)(.*)$/);
+    if (!match) return part;
+    const root = match[1];
+    const suffix = match[2];
+    const semitone = noteToSemitone(root);
+    if (semitone === null) return part;
+    const newRoot = semitoneToNote(semitone + semitones);
+    return newRoot + suffix;
+  });
+  return transposedParts.join('/');
+}
+
+function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) {
   containerEl.innerHTML = "";
   const parsed = parseChordPro(chordProText || "");
 
@@ -156,7 +188,7 @@ function renderChordWikiLike(chordProText, containerEl) {
         chordEl.textContent = "N.C.";
     } else {
         const chordText = cell.chord || "";
-        chordEl.textContent = chordText;
+        chordEl.textContent = transposeChordString(chordText, transposeSemitones);
 
         // ★追加：コードが | のときだけ縦位置補正用クラス
         if (chordText.trim() === "|" || chordText.trim() === "｜") {

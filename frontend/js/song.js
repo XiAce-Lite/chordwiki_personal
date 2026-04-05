@@ -1,3 +1,6 @@
+let originalChordPro = '';
+let transposeSemitones = 0;
+
 function getQueryParam(name) {
   const params = new URLSearchParams(window.location.search);
   return params.get(name);
@@ -35,7 +38,8 @@ async function loadSong() {
     }
 
     const song = await response.json();
-    const renderResult = renderChordWikiLike(song.chordPro || '', sheetEl);
+    originalChordPro = song.chordPro || '';
+    const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones);
 
     titleEl.textContent = renderResult.title || song.title || 'タイトルなし';
     artistEl.textContent = renderResult.subtitle || song.artist || '';
@@ -55,4 +59,32 @@ async function loadSong() {
   }
 }
 
-window.onload = loadSong;
+function updateTransposeDisplay() {
+  const displayEl = document.getElementById('transpose-display');
+  displayEl.textContent = `Transpose: ${transposeSemitones}`;
+}
+
+function reRender() {
+  const sheetEl = document.getElementById('sheet');
+  renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones);
+  updateTransposeDisplay();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('transpose-down').addEventListener('click', () => {
+    transposeSemitones -= 1;
+    reRender();
+  });
+
+  document.getElementById('transpose-up').addEventListener('click', () => {
+    transposeSemitones += 1;
+    reRender();
+  });
+
+  document.getElementById('transpose-reset').addEventListener('click', () => {
+    transposeSemitones = 0;
+    reRender();
+  });
+
+  loadSong();
+});
