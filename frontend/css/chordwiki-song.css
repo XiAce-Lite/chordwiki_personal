@@ -42,81 +42,75 @@ body {
   line-height: 1.4;
 }
 
-/* ===== 行コンテナ ===== */
-/* 余白制御はすべてここで行う */
+/* ===== 行（1行のブロック） ===== */
 
 .cw-line {
-  margin: 0 0 12px;   /* 行と行の基本間隔 */
+  margin: 0 0 12px;
 }
 
-/* コード行を含む行：下を少し広げる */
-.cw-line:has(.cw-chords) {
-  margin-bottom: 16px;
+/* コメント行は少し空ける */
+.cw-comment-line {
+  margin: 12px 0 8px;
 }
 
-/* コメント行：上を少し広げる */
-.cw-line:has(.cw-comment) {
-  margin-top: 12px;
+/* ===== セル方式（ChordWiki互換の同期を保証） =====
+   1セル = 2段（コード / 歌詞）
+   幅はブラウザが自然に決める（＝スペース調整不要）
+*/
+.cw-cell {
+  display: inline-grid;
+  grid-template-rows: auto auto;
+  row-gap: 2px;              /* コードと歌詞の間隔 */
+  vertical-align: bottom;
+  white-space: pre;          /* 半角スペースの保持 */
 }
 
-/* ===== pre 共通 ===== */
-/* pre は “表示専用” に徹する */
-
-.cw-line pre {
-  margin: 0;
-  padding: 0;
-  white-space: pre;
-  font-size: 14px;
-}
-
-/* ===== コード行 ===== */
-
-.cw-chords {
-  color: #0000cc;
+/* ===== コード（上段） ===== */
+.cw-chord {
   font-family: sans-serif;
-  font-size: 0.85em !important;
-  line-height: 1.8;
+  font-size: 0.85em;
+  line-height: 1.0;
+  color: #0000cc;
+  font-weight: 500;
 }
 
-/* ===== 歌詞行 ===== */
-
-.cw-lyrics {
+/* ===== 歌詞（下段） ===== */
+.cw-word {
+  font-family: system-ui, -apple-system, "Segoe UI",
+               "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+               "Yu Gothic", sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
   color: #222;
-  line-height: 1.8;
+  white-space: pre;          /* 歌詞のスペースも保持 */
 }
 
-/* ===== コメント ===== */
+/* ===== 小節線 | を薄く ===== */
+.cw-bar {
+  color: #bbb;
+}
 
+/* ===== コメント（C は太字・非イタリック） ===== */
 .cw-comment {
+  display: inline-block;     /* 背景を文字幅だけに */
+  background-color: #e6e6e6;
+  padding: 2px 6px;
+  border-radius: 3px;
+
   font-size: 14px;
   font-weight: bold;
   font-style: normal;
   color: #444;
 }
 
+/* CI のみイタリック */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
   color: #666;
 }
 
-/* コメント背景は文字幅のみ */
-
-.cw-lyrics.cw-comment {
-  display: inline-block;
-  background-color: #e6e6e6;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-/* ===== 小節線 ===== */
-
-.cw-bar {
-  color: #bbb;
-}
-
-/* ===== N.C. 特別表示 ===== */
-
+/* ===== N.C. 特別表示（上段コードの装飾） ===== */
 .cw-nc {
   color: #444;
   font-style: italic;
@@ -128,22 +122,19 @@ body {
 }
 
 /* ===== 印刷 ===== */
-
 @media print {
-  .cw-chords {
+  .cw-chord {
     color: #000;
     font-style: italic;
-    transform: translateY(0.3em);
   }
-
   .cw-nc {
     color: #000;
     border-color: #999;
     background: transparent;
   }
-
-  .cw-lyrics.cw-comment {
+  .cw-comment {
     background: transparent;
     padding: 0;
   }
 }
+``

@@ -1,9 +1,9 @@
 function normalizeNewlines(text) {
-  return (text || '').replace(/\r\n|\n\r|\r/g, '\n');
+  return (text || "").replace(/\r\n|\n\r|\r/g, "\n");
 }
 
 function parseChordPro(chordProText) {
-  const lines = normalizeNewlines(chordProText).split('\n');
+  const lines = normalizeNewlines(chordProText).split("\n");
   const result = {
     title: null,
     subtitle: null,
@@ -13,195 +13,169 @@ function parseChordPro(chordProText) {
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
-    const directiveMatch = line.match(/^\{\s*([^:}]+)\s*:\s*(.*)\}$/);
 
-    if (directiveMatch) {
-      const key = directiveMatch[1].trim().toLowerCase();
-      const value = directiveMatch[2].trim();
+    // {key:value} directives
+    const m = line.match(/^\{\s*([^:}]+)\s*:\s*(.*)\}$/);
+    if (m) {
+      const key = m[1].trim().toLowerCase();
+      const value = m[2].trim();
 
-      if (key === 'title' || key === 't') {
+      if (key === "title" || key === "t") {
         result.title = value;
         continue;
       }
-      if (key === 'subtitle' || key === 'st') {
+      if (key === "subtitle" || key === "st") {
         result.subtitle = value;
         continue;
       }
-      if (key === 'key') {
+      if (key === "key") {
         result.key = value;
         continue;
       }
-      if (key === 'comment' || key === 'c') {
-        result.lines.push({ type: 'comment', text: value });
+      if (key === "comment" || key === "c") {
+        result.lines.push({ type: "comment", text: value });
         continue;
       }
-      if (key === 'comment_italic' || key === 'ci') {
-        result.lines.push({ type: 'comment_italic', text: value });
+      if (key === "comment_italic" || key === "ci") {
+        result.lines.push({ type: "comment_italic", text: value });
         continue;
       }
 
-      // 未対応ディレクティブは無視
+      // ignore unsupported directives
       continue;
     }
 
-    result.lines.push({ type: 'text', text: line });
+    result.lines.push({ type: "text", text: line });
   }
 
   return result;
 }
 
-function splitLineSegments(line) {
+function isNoChordToken(token) {
+  // N.C. / N.C / NC / N C をゆるく吸収
+  const t = (token || "").replace(/\s+/g, "").toUpperCase();
+  return t === "N.C." || t === "N.C" || t === "NC";
+}
+
+function createSpan(className, text) {
+  const s = document.createElement("span");
+  if (className) s.className = className;
+  if (text != null) s.textContent = text;
+  return s;
+}
+
+/**
+ * ChordPro 1行を「セル列」に分解する
+ * - 先頭の歌詞（コード無し）も 1セルにする
+ * - [C] の直後〜次のコード直前までが同一セルの lyric
+ * - コードは [] を外して chord に入れる
+ */
+function splitToCells(lineText) {
+  const line = lineText || "";
   const regex = /\[[^\]]+\]/g;
-  const segments = [];
+
+  const cells = [];
   let lastIndex = 0;
   let match;
 
   while ((match = regex.exec(line)) !== null) {
-    const leadingText = line.slice(lastIndex, match.index);
+    const chordToken = match[0];           // like "[F#m7]"
+    const chordText = chordToken.slice(1, -1); // "F#m7"
+    const leadingLyric = line.slice(lastIndex, match.index);
 
-    if (segments.length === 0) {
-      if (leadingText !== '') {
-        segments.push({ chord: '', lyric: leadingText });
-      }
-    } else {
-      const prev = segments[segments.length - 1];
-      if (prev.lyric === '') {
-        prev.lyric = leadingText;
-      } else if (leadingText !== '') {
-        segments.push({ chord: '', lyric: leadingText });
-      }
+    // 先に「コード無し lyric」セルを必要なら追加
+    if (leadingLyric !== "") {
+      cells.push({ chord: "", lyric: leadingLyric });
+    } else if (cells.length === 0) {
+      // 行頭がコードの場合、位置を保持するために空セルを入れても良いが、
+      // ChordWiki的には不要なので入れない
     }
 
-    // 表示では [] を外してコード名だけにする
-    segments.push({ chord: match[0].slice(1, -1), lyric: '' });
-    lastIndex = match.index + match[0].length;
+    // chord セルは一旦 lyric を空で作り、後で次の lyric を入れる
+    cells.push({ chord: chordText, lyric: "" });
+
+    lastIndex = match.index + chordToken.length;
   }
 
-  const trailingText = line.slice(lastIndex);
-
-  if (segments.length === 0) {
-    segments.push({ chord: '', lyric: trailingText });
-  } else if (trailingText !== '') {
-    const prev = segments[segments.length - 1];
-    if (prev.lyric === '') {
-      prev.lyric = trailingText;
-    } else {
-      segments.push({ chord: '', lyric: trailingText });
-    }
+  // trailing lyric
+  const trailing = line.slice(lastIndex);
+  if (cells.length === 0) {
+    cells.push({ chord: "", lyric: trailing });
+  } else if (trailing !== "") {
+    // 直前が chord セルならそこに lyric を入れる
+    const last = cells[cells.length - 1];
+    if (last.lyric === "") last.lyric = trailing;
+    else cells.push({ chord: "", lyric: trailing });
   }
 
-  return segments;
-}
-
-function createPre(className) {
-  const pre = document.createElement('pre');
-  pre.className = className;
-  return pre;
-}
-
-function isNoChordToken(token) {
-  // N.C. / N.C / NC / N C などにゆるく対応（大文字小文字も吸収）
-  const t = (token || '').replace(/\s+/g, '').toUpperCase();
-  return t === 'N.C.' || t === 'N.C' || t === 'NC';
-}
-
-function appendText(pre, text) {
-  if (!text) return;
-  pre.appendChild(document.createTextNode(text));
+  return cells;
 }
 
 /**
- * pre にテキストを流し込みつつ、
- * - '|' を <span class="cw-bar"> にする（両方の行でOK）
- * - コード行の場合のみ N.C. を <span class="cw-nc"> にする
+ * lyric 内の '|' を span 化して薄く表示（セルの lyric 内で処理）
  */
-function setPreWithDecor(pre, text, isChordLine) {
-  pre.textContent = '';
-
-  // まず '|' を保持しつつ分割
-  const parts = (text || '').split(/(\|)/);
-
+function appendLyricWithBars(targetSpan, lyricText) {
+  const parts = (lyricText || "").split(/(\|)/);
   for (const p of parts) {
-    if (p === '|') {
-      const span = document.createElement('span');
-      span.className = 'cw-bar';
-      span.textContent = '|';
-      pre.appendChild(span);
-      continue;
+    if (p === "|") {
+      targetSpan.appendChild(createSpan("cw-bar", "|"));
+    } else if (p !== "") {
+      targetSpan.appendChild(document.createTextNode(p));
     }
-
-    if (!p) continue;
-
-    // 歌詞行はそのまま流し込み（N.C. の特別扱いはしない）
-    if (!isChordLine) {
-      appendText(pre, p);
-      continue;
-    }
-
-    // コード行だけ N.C. を検出して span 化
-    // N.C. は単独で入るケースが多いが、念のため文中も検出する
-    // ここは「トークンとして N.C. が現れたら装飾」の方針
-    const ncRegex = /\bN\s*\.?\s*C\s*\.?\b/gi;
-    let last = 0;
-    let m;
-
-    while ((m = ncRegex.exec(p)) !== null) {
-      const before = p.slice(last, m.index);
-      appendText(pre, before);
-
-      const raw = m[0];
-      // トークン判定に通るものだけ cw-nc にする
-      if (isNoChordToken(raw)) {
-        const span = document.createElement('span');
-        span.className = 'cw-nc';
-        span.textContent = 'N.C.';
-        pre.appendChild(span);
-      } else {
-        // 判定外はそのまま
-        appendText(pre, raw);
-      }
-
-      last = m.index + raw.length;
-    }
-
-    appendText(pre, p.slice(last));
   }
 }
 
 function renderChordWikiLike(chordProText, containerEl) {
-  containerEl.innerHTML = '';
-  const parsed = parseChordPro(chordProText || '');
+  containerEl.innerHTML = "";
+  const parsed = parseChordPro(chordProText || "");
 
   for (const line of parsed.lines) {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'cw-line';
+    // comment / ci: comment line block
+    if (line.type === "comment" || line.type === "comment_italic") {
+      const lineEl = document.createElement("div");
+      lineEl.className = "cw-line cw-comment-line";
 
-    const chordsPre = createPre('cw-chords');
-    const lyricsPre = createPre('cw-lyrics');
+      const label = createSpan("cw-comment", "");
+      if (line.type === "comment_italic") label.classList.add("cw-ci");
 
-    if (line.type === 'comment') {
-      lyricsPre.classList.add('cw-comment');
-      lyricsPre.textContent = line.text;
-    } else if (line.type === 'comment_italic') {
-      lyricsPre.classList.add('cw-comment', 'cw-ci');
-      lyricsPre.textContent = line.text;
-    } else {
-      const segments = splitLineSegments(line.text);
-      const chordParts = [];
-      const lyricParts = [];
+      // 背景は文字幅だけにするため span に入れる
+      label.textContent = line.text;
 
-      for (const seg of segments) {
-        const w = Math.max(seg.chord.length, seg.lyric.length);
-        chordParts.push(seg.chord.padEnd(w, ' '));
-        lyricParts.push(seg.lyric.padEnd(w, ' '));
-      }
-
-      setPreWithDecor(chordsPre, chordParts.join(''), true);
-      setPreWithDecor(lyricsPre, lyricParts.join(''), false);
+      lineEl.appendChild(label);
+      containerEl.appendChild(lineEl);
+      continue;
     }
 
-    lineEl.appendChild(chordsPre);
-    lineEl.appendChild(lyricsPre);
+    // normal text line
+    const lineEl = document.createElement("div");
+    lineEl.className = "cw-line";
+
+    const cells = splitToCells(line.text);
+
+    for (const cell of cells) {
+      const cellEl = document.createElement("span");
+      cellEl.className = "cw-cell";
+
+      // chord (top row)
+      const chordEl = document.createElement("span");
+      chordEl.className = "cw-chord";
+      if (cell.chord && isNoChordToken(cell.chord)) {
+        chordEl.classList.add("cw-nc");
+        chordEl.textContent = "N.C.";
+      } else {
+        chordEl.textContent = cell.chord || "";
+      }
+
+      // lyric (bottom row)
+      const wordEl = document.createElement("span");
+      wordEl.className = "cw-word";
+      appendLyricWithBars(wordEl, cell.lyric || "");
+
+      cellEl.appendChild(chordEl);
+      cellEl.appendChild(wordEl);
+      lineEl.appendChild(cellEl);
+    }
+
     containerEl.appendChild(lineEl);
   }
 
