@@ -83,7 +83,7 @@ function splitToCells(lineText) {
 }
 
 /**
- * ✅ 歌詞内の | だけを cw-bar にする（cw-markは廃止）
+ * ✅ 歌詞内の | だけを cw-bar にする
  */
 function appendLyricWithBars(targetSpan, lyricText) {
   const text = lyricText || "";
@@ -118,37 +118,132 @@ function applyChordPadding(lineEl) {
   }
 }
 
-// 移調用定数
-const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+/* ==========================
+   Transpose（移調）ロジック
+   ========================== */
+
+// 出力は # 表記に正規化
+const NOTES_SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+// b / 例外音も解決して半音にする
+const NOTE_ALIAS_TO_SHARP = {
+  "DB": "C#",
+  "EB": "D#",
+  "GB": "F#",
+  "AB": "G#",
+  "BB": "A#",
+  "CB": "B",
+  "FB": "E",
+  "E#": "F",
+  "B#": "C"
+};
 
 function noteToSemitone(note) {
-  const idx = NOTES.indexOf(note.toUpperCase());
+  if (!note) return null;
+  const n = note.trim().toUpperCase();  // e.g. "Bb", "F#"
+  const mapped = NOTE_ALIAS_TO_SHARP[n] || n; // normalize flats to sharps when possible
+  const idx = NOTES_SHARP.indexOf(mapped);
   return idx >= 0 ? idx : null;
 }
 
 function semitoneToNote(semitone) {
-  return NOTES[(semitone % 12 + 12) % 12];
+  return NOTES_SHARP[(semitone % 12 + 12) % 12];
 }
 
+/**
+ * chordPart の先頭のルート音だけを移調し、残り(suffix)は保持する
+ * 例: "F#m7(b13)" -> root "F#" + suffix "m7(b13)"
+ */
+function transposeChordHead(chordPart, semitones) {
+  const m = chordPart.match(/^([A-Ga-g])([#b]?)(.*)$/);
+  if (!m) return chordPart;
+
+  const root = (m[1] + (m[2] || "")).toUpperCase(); // "Bb" etc
+  const suffix = m[3] || "";
+
+  const s = noteToSemitone(root);
+  if (s === null) return chordPart;
+
+  const newRoot = semitoneToNote(s + semitones);
+  return newRoot + suffix;
+}
+
+/**
+ * 入力の slash / on 表記を正規化して分解する
+ * - "D/F#" -> ["D", "F#"]
+ * - "D on F#" -> ["D", "F#"]
+ * - "DonF#" -> ["D", "F#"]
+ * - "Dm7onG" -> ["Dm7", "G"]
+ *
+ * 見つからなければ [whole] を返す
+ */
+function splitSlashOrOn(chord) {
+  const s = chord.trim();
+
+  // 1) slash
+  if (s.includes("/")) {
+    const i = s.indexOf("/");
+    return [s.slice(0, i).trim(), s.slice(i + 1).trim()];
+    // ベース側に余計な suffix があっても一応許容（後段で root抽出）
+  }
+
+  // 2) " on " (space-separated)
+  let m = s.match(/^(.*?)(?:\s+on\s+)([A-Ga-g][#b]?)(.*)$/i);
+  if (m) {
+    // bass は通常 note 単体のはずだが、念のため suffix を許容
+    const left = m[1].trim();
+    const right = (m[2] + (m[3] || "")).trim();
+    return [left, right];
+  }
+
+  // 3) "on" without spaces (e.g. DonF#, Dm7onG)
+  //    右側は必ず音名から始まる想定で、最後に現れる "on" を区切りとみなす
+  const lower = s.toLowerCase();
+  const idx = lower.lastIndexOf("on");
+  if (idx > 0 && idx < s.length - 2) {
+    const left = s.slice(0, idx).trim();
+    const right = s.slice(idx + 2).trim();
+    // right が音名っぽいなら採用
+    if (/^[A-Ga-g][#b]?/.test(right)) {
+      return [left, right];
+    }
+  }
+
+  return [s];
+}
+
+/**
+ * 移調本体：
+ * - N.C. と | はそのまま
+ * - slash と on を両方受け付ける
+ * - 出力は "/" で統一（#表記）
+ */
 function transposeChordString(chord, semitones) {
   if (!chord || semitones === 0) return chord;
-  const trimmed = chord.trim();
-  if (trimmed === 'N.C.' || trimmed === '|' || trimmed === '｜') return chord;
 
-  // Slash chord: C/E -> transpose C and E
-  const parts = trimmed.split('/');
-  const transposedParts = parts.map(part => {
-    const match = part.match(/^([A-Ga-g][#b]?)(.*)$/);
-    if (!match) return part;
-    const root = match[1];
-    const suffix = match[2];
-    const semitone = noteToSemitone(root);
-    if (semitone === null) return part;
-    const newRoot = semitoneToNote(semitone + semitones);
-    return newRoot + suffix;
-  });
-  return transposedParts.join('/');
+  const trimmed = chord.trim();
+  if (trimmed === "" || trimmed.toUpperCase() === "N.C." || trimmed === "|" || trimmed === "｜") {
+    return chord;
+  }
+
+  const parts = splitSlashOrOn(trimmed);
+
+  if (parts.length === 1) {
+    return transposeChordHead(parts[0], semitones);
+  }
+
+  // parts[0] = chord, parts[1] = bass
+  const transChord = transposeChordHead(parts[0], semitones);
+
+  // bass は "F#" や "Bb" などの note 起点と仮定し、先頭だけ移調して残りは保持
+  const transBass = transposeChordHead(parts[1], semitones);
+
+  return `${transChord}/${transBass}`;
 }
+
+/* ==========================
+   Render
+   ========================== */
 
 function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) {
   containerEl.innerHTML = "";
@@ -181,20 +276,19 @@ function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) 
       const chordEl = document.createElement("span");
       chordEl.className = "cw-chord";
 
-
-    // [] の中身はすべてコード扱い（優先度ルール）
-    if (cell.chord && isNoChordToken(cell.chord)) {
+      // [] の中身はすべてコード扱い（優先度ルール）
+      if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
-    } else {
+      } else {
         const chordText = cell.chord || "";
         chordEl.textContent = transposeChordString(chordText, transposeSemitones);
 
-        // ★追加：コードが | のときだけ縦位置補正用クラス
+        // ★縦棒コード（[|]）の見た目調整（あなたのCSSで position: inherit）
         if (chordText.trim() === "|" || chordText.trim() === "｜") {
-            chordEl.classList.add("cw-chord-bar");
+          chordEl.classList.add("cw-chord-bar");
         }
-    }
+      }
 
       const wordEl = document.createElement("span");
       wordEl.className = "cw-word";
