@@ -71,12 +71,6 @@ body {
   min-height: 1em;
 }
 
-/* [|] 用：高さ・見た目を通常コードと揃える（青ではなく記号色） */
-.cw-bar-chord {
-  color: #bbb;
-  font-weight: 400;
-}
-
 /* 下段：歌詞（右列から開始） */
 .cw-word {
   grid-column: 2;
@@ -90,22 +84,34 @@ body {
   min-height: 1em;
 }
 
-/* ===== 記号色の基準（| と同色） ===== */
+/* ===== 記号（| と同色） ===== */
+
+/* 1) 歌詞内 | ：左右に余白（paddingで） */
 .cw-bar {
   color: #bbb;
   display: inline-block;
   font-weight: 400;
-
-  /* ★ margin ではなく padding にする（幅計測に含めるため） */
-  padding: 0 0.25em;   /* 要件：| の左右に少し余白 */
+  padding: 0 0.25em;   /* ← | の左右余白 */
 }
 
-/* 拍・アクセント記号（---- / -> / >- / ≧=≫ / ≫ / >> など）
-   色は cw-bar と同じ。padding は不要なので打ち消す */
+/* 3) ---- / -> / >- / ≧=≫ / ≧==≧ / ≫ / >> / >...：| と同色 */
 .cw-mark {
-  padding: 0;
-  margin: 0;
-  color: inherit;
+  color: #bbb;
+  display: inline-block;
+  font-weight: 400;
+}
+
+/* [|] 用：縦位置を通常コードに揃える */
+.cw-bar-chord {
+  color: #bbb;
+  font-weight: 400;
+
+  /* ★ここが縦位置のズレ対策：コードと同じline-height/align */
+  line-height: 1.0;
+  min-height: 1em;
+
+  /* ★コード幅計測に左右余白を含めたいならここで付ける（padding推奨） */
+  padding: 0 0.25em;
 }
 
 /* ===== コメント ===== */
