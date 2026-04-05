@@ -4,58 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChordWiki - Song</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-    }
-    #content {
-      max-width: 800px;
-      margin: 0 auto;
-    }
-    pre {
-      background-color: #f4f4f4;
-      padding: 10px;
-      border: 1px solid #ccc;
-      white-space: pre-wrap;
-    }
-  </style>
+  <link rel="stylesheet" href="css/chordwiki-song.css">
 </head>
 <body>
-  <div id="content">
-    <h1 id="title"></h1>
-    <p id="artist"></p>
-    <pre id="chordPro"></pre>
+  <div class="container">
+    <h1 id="title" class="song-title"></h1>
+    <div id="artist" class="song-artist"></div>
+    <div id="sheet" class="cw-sheet"></div>
   </div>
-
-  <script>
-    async function loadSong() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const artist = urlParams.get('artist');
-      const id = urlParams.get('id');
-
-      if (!artist || !id) {
-        document.getElementById('content').innerHTML = '<p>Invalid parameters.</p>';
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/song/${encodeURIComponent(artist)}/${encodeURIComponent(id)}`);
-        if (response.status === 404) {
-          document.getElementById('content').innerHTML = '<p>Song not found.</p>';
-          return;
-        }
-        const song = await response.json();
-        document.getElementById('title').textContent = song.title;
-        document.getElementById('artist').textContent = `Artist: ${song.artist}`;
-        document.getElementById('chordPro').textContent = song.chordPro;
-      } catch (error) {
-        console.error('Error loading song:', error);
-        document.getElementById('content').innerHTML = '<p>Error loading song.</p>';
-      }
-    }
-
-    window.onload = loadSong;
-  </script>
+  <script src="js/chordwiki-render.js"></script>
+  <script src="js/song.js"></script>
 </body>
 </html>

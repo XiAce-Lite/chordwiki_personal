@@ -1,0 +1,51 @@
+body{
+  margin:0;
+  background:#fff;
+  color:#222;
+  font-family: system-ui, -apple-system, "Segoe UI",
+               "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+.container{
+  max-width:980px;
+  margin:0 auto;
+  padding:20px 16px 40px;
+}
+
+.song-title{
+  font-size:24px;
+  font-weight:700;
+  margin:0 0 6px;
+}
+
+.song-artist{
+  font-size:14px;
+  color:#666;
+  margin:0 0 14px;
+}
+
+.cw-sheet{
+  margin-top:10px;
+}
+
+.cw-line{
+  margin:0 0 6px;
+}
+
+.cw-line pre{
+  margin:0;
+  padding:0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
+  font-size:15px;
+  line-height:1.45;
+  white-space: pre; /* 桁を揃える */
+}
+
+.cw-chords{
+  color:#1a1a1a;
+  font-weight:600;
+}
+
+.cw-lyrics{
+  color:#222;
+}
