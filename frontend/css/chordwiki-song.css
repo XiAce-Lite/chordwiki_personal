@@ -52,4 +52,15 @@ body{
   color:#222;
   line-height:1.6;
 }
-``
+
+/* comment 行：グレー＆イタリック */
+.cw-comment {
+  color: #777;
+  font-style: italic;
+}
+
+/* 小節線 | を薄く */
+.cw-bar {
+  color: #aaa;       /* 薄いグレー */
+  font-weight: 400;  /* 太くしない */
+}

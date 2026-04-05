@@ -86,6 +86,26 @@ function createPre(className, text) {
   return pre;
 }
 
+function setPreWithBars(pre, text) {
+  // preは white-space: pre でスペース保持
+  pre.textContent = ""; // 一旦クリア
+
+  // '|' を保持しつつ分割（キャプチャ付き）
+  const parts = (text || "").split(/(\|)/);
+
+  for (const p of parts) {
+    if (p === "|") {
+      const span = document.createElement("span");
+      span.className = "cw-bar";
+      span.textContent = "|";
+      pre.appendChild(span);
+    } else if (p !== "") {
+      // それ以外はそのままテキストノードでOK（スペース含む）
+      pre.appendChild(document.createTextNode(p));
+    }
+  }
+}
+
 function renderChordWikiLike(chordProText, containerEl) {
   containerEl.innerHTML = '';
   const parsed = parseChordPro(chordProText || '');
@@ -98,6 +118,9 @@ function renderChordWikiLike(chordProText, containerEl) {
     const lyricsPre = createPre('cw-lyrics', '');
 
     if (line.type === 'comment') {
+      lineEl.classList.add("cw-comment-line");
+      lyricsPre.classList.add("cw-comment");
+      // コメントは小節線の装飾いらないので textContent でOK
       lyricsPre.textContent = line.text;
     } else {
       const segments = splitLineSegments(line.text);
@@ -106,8 +129,8 @@ function renderChordWikiLike(chordProText, containerEl) {
 
       for (const segment of segments) {
         const width = Math.max(segment.chord.length, segment.lyric.length);
-        chordParts.push(segment.chord.padEnd(width, ' '));
-        lyricParts.push(segment.lyric.padEnd(width, ' '));
+        setPreWithBars(chordsPre, chordParts.join(''));
+        setPreWithBars(lyricsPre, lyricParts.join(''));
       }
 
       chordsPre.textContent = chordParts.join('');
