@@ -25,6 +25,12 @@
         },
         {
             "allowedRoles": [
+                "editor"
+            ],
+            "route": "/add.html"
+        },
+        {
+            "allowedRoles": [
                 "authenticated"
             ],
             "route": "/song/*"

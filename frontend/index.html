@@ -36,10 +36,15 @@
 </head>
 <body>
   <h1>ChordWiki</h1>
+  <button id="add-button" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <input type="text" id="search" placeholder="検索...">
   <div id="song-list"></div>
 
   <script>
+    document.getElementById('add-button').addEventListener('click', () => {
+      location.href = '/add.html';
+    });
+
     async function loadSongs() {
       try {
         const response = await fetch('/api/songs');
