@@ -84,33 +84,11 @@ body {
   min-height: 1em;
 }
 
-/* ===== 記号（| と同色） ===== */
-
-/* 1) 歌詞内 | ：左右に余白（paddingで） */
+/* 歌詞内の | ：左右に少し余白（paddingで） */
 .cw-bar {
   color: #bbb;
   display: inline-block;
   font-weight: 400;
-  padding: 0 0.25em;   /* ← | の左右余白 */
-}
-
-/* 3) ---- / -> / >- / ≧=≫ / ≧==≧ / ≫ / >> / >...：| と同色 */
-.cw-mark {
-  color: #bbb;
-  display: inline-block;
-  font-weight: 400;
-}
-
-/* [|] 用：縦位置を通常コードに揃える */
-.cw-bar-chord {
-  color: #bbb;
-  font-weight: 400;
-
-  /* ★ここが縦位置のズレ対策：コードと同じline-height/align */
-  line-height: 1.0;
-  min-height: 1em;
-
-  /* ★コード幅計測に左右余白を含めたいならここで付ける（padding推奨） */
   padding: 0 0.25em;
 }
 

@@ -4,7 +4,12 @@ function normalizeNewlines(text) {
 
 function parseChordPro(chordProText) {
   const lines = normalizeNewlines(chordProText).split("\n");
-  const result = { title: null, subtitle: null, key: null, lines: [] };
+  const result = {
+    title: null,
+    subtitle: null,
+    key: null,
+    lines: []
+  };
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
@@ -41,11 +46,6 @@ function isNoChordToken(token) {
   return t === "N.C." || t === "N.C" || t === "NC";
 }
 
-function isBarChordToken(token) {
-  const t = (token || "").trim();
-  return t === "|" || t === "｜";
-}
-
 function createSpan(className, text) {
   const s = document.createElement("span");
   if (className) s.className = className;
@@ -53,7 +53,10 @@ function createSpan(className, text) {
   return s;
 }
 
-/** [C] の直後歌詞を必ず同じセルに入れる（同期保証） */
+/**
+ * ✅ 同期保証のセル分割：
+ * [C] の直後歌詞は必ず同じセルの lyric に入る
+ */
 function splitToCells(lineText) {
   const line = lineText || "";
   const regex = /\[[^\]]+\]/g;
@@ -63,8 +66,10 @@ function splitToCells(lineText) {
   let match;
 
   while ((match = regex.exec(line)) !== null) {
+    // 直前セルに歌詞を追記
     cells[cells.length - 1].lyric += line.slice(lastIndex, match.index);
 
+    // 新しいコードセル開始（[]は外す。中身はすべてコード扱い）
     const chordText = match[0].slice(1, -1);
     cells.push({ chord: chordText, lyric: "" });
 
@@ -73,44 +78,29 @@ function splitToCells(lineText) {
 
   cells[cells.length - 1].lyric += line.slice(lastIndex);
 
+  // 完全空セルのみ除去
   return cells.filter(c => !(c.chord === "" && c.lyric === ""));
 }
 
 /**
- * 歌詞内記号のトークン化：
- * 1) '|' は cw-bar（左右に余白）
- * 3) ---- / -> / >- / >-> / >> / ≫ / ≧=≫ / ≧==≧ / >=>> / ＞- 等は cw-mark
+ * ✅ 歌詞内の | だけを cw-bar にする（cw-markは廃止）
  */
-function appendLyricWithMarks(targetSpan, lyricText) {
+function appendLyricWithBars(targetSpan, lyricText) {
   const text = lyricText || "";
+  const parts = text.split(/(\|)/);
 
-  // 長い候補を先に（順序重要）
-  const re =
-    /(≧=+≫|≧=+≧|>=+>>|＞-+|>->|>-\s*|->|≫+|>>+|\|)|(-{2,})|(>+)/g;
-
-  let last = 0;
-  let m;
-
-  while ((m = re.exec(text)) !== null) {
-    const before = text.slice(last, m.index);
-    if (before) targetSpan.appendChild(document.createTextNode(before));
-
-    const tok = m[0];
-
-    if (tok === "|") {
+  for (const p of parts) {
+    if (p === "|") {
       targetSpan.appendChild(createSpan("cw-bar", "|"));
-    } else {
-      targetSpan.appendChild(createSpan("cw-mark", tok));
+    } else if (p !== "") {
+      targetSpan.appendChild(document.createTextNode(p));
     }
-
-    last = m.index + tok.length;
   }
-
-  const rest = text.slice(last);
-  if (rest) targetSpan.appendChild(document.createTextNode(rest));
 }
 
-/** コード右端＝歌詞開始：コード表示幅(px)を計測して CSS 変数へ */
+/**
+ * ✅ コード右端＝歌詞開始：コード表示幅(px)を計測して CSS 変数へ
+ */
 function applyChordPadding(lineEl) {
   const cells = lineEl.querySelectorAll(".cw-cell");
   for (const cell of cells) {
@@ -133,6 +123,7 @@ function renderChordWikiLike(chordProText, containerEl) {
   const parsed = parseChordPro(chordProText || "");
 
   for (const line of parsed.lines) {
+    // コメント
     if (line.type === "comment" || line.type === "comment_italic") {
       const lineEl = document.createElement("div");
       lineEl.className = "cw-line cw-comment-line";
@@ -145,6 +136,7 @@ function renderChordWikiLike(chordProText, containerEl) {
       continue;
     }
 
+    // 通常行
     const lineEl = document.createElement("div");
     lineEl.className = "cw-line";
 
@@ -157,20 +149,17 @@ function renderChordWikiLike(chordProText, containerEl) {
       const chordEl = document.createElement("span");
       chordEl.className = "cw-chord";
 
+      // [] の中身はすべてコード扱い（優先度ルール）
       if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
-      } else if (cell.chord && isBarChordToken(cell.chord)) {
-        // ★重要：cw-bar は付けない（縦位置がズレる原因）
-        chordEl.classList.add("cw-bar-chord");
-        chordEl.textContent = "|";
       } else {
         chordEl.textContent = cell.chord || "";
       }
 
       const wordEl = document.createElement("span");
       wordEl.className = "cw-word";
-      appendLyricWithMarks(wordEl, cell.lyric || "");
+      appendLyricWithBars(wordEl, cell.lyric || "");
 
       cellEl.appendChild(chordEl);
       cellEl.appendChild(wordEl);
