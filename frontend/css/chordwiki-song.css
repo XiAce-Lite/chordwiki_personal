@@ -75,7 +75,8 @@ body {
 /* [|] など、コードが縦棒だけのケースはグリフ都合で下がって見えるため補正 */
 .cw-chord-bar {
   position: relative;
-  top: -0.15em;   /* 0.10〜0.20em で好み調整 */
+  top: -0.8em;
+  margin-right: 0.1em;
 }
 
 
@@ -94,7 +95,6 @@ body {
 
 /* 歌詞内の | ：左右に少し余白（paddingで） */
 .cw-bar {
-  color: #bbb;
   display: inline-block;
   font-weight: 400;
   padding: 0 0.25em;
