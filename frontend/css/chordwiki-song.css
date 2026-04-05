@@ -74,9 +74,8 @@ body {
 .cw-chords {
   color: #0000cc;
   font-family: sans-serif;
-  font-size: 0.85em;
-  line-height: 1.2;
-  transform: translateY(0.6em);
+  font-size: 0.85em !important;
+  line-height: 1.8;
 }
 
 /* ===== 歌詞行 ===== */
