@@ -13,11 +13,30 @@ body {
   padding: 0 16px 40px;
 }
 
-/* ===== タイトル ===== */
+/* タイトル行全体 */
+.song-header {
+  display: flex;
+  align-items: center;     /* ← 高さを title に揃える核心 */
+  margin-bottom: 4px;
+}
+
+/* 戻るリンク */
+.back-link {
+  margin-right: 16px;      /* ← 左側にそれなりのマージン */
+  font-size: 14px;
+  text-decoration: none;
+  color: #0066cc;
+  white-space: nowrap;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+/* 既存 title はそのまま使う */
 .song-title {
   font-size: 18px;
-  text-align: center;
-  margin: 12px 0 4px;
+  margin: 0;               /* flex 内なので上下 margin は消す */
 }
 
 .song-artist {
