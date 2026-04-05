@@ -4,9 +4,63 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChordWiki</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    #search {
+      width: 300px;
+      padding: 10px;
+      font-size: 16px;
+    }
+    #song-list {
+      margin-top: 20px;
+      text-align: left;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .song-item {
+      display: block;
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+      text-decoration: none;
+      color: #000;
+    }
+    .song-item:hover {
+      background-color: #f0f0f0;
+    }
+  </style>
 </head>
 <body>
   <h1>ChordWiki</h1>
-  <p>検索ページへようこそ。</p>
+  <input type="text" id="search" placeholder="検索...">
+  <div id="song-list"></div>
+
+  <script>
+    async function loadSongs() {
+      try {
+        const response = await fetch('/api/songs');
+        const songs = await response.json();
+        const songList = document.getElementById('song-list');
+        songs.forEach(song => {
+          const link = document.createElement('a');
+          link.className = 'song-item';
+          link.href = `song.html?artist=${encodeURIComponent(song.artist)}&id=${encodeURIComponent(song.id)}`;
+          link.textContent = `${song.title} - ${song.artist}`;
+          link.setAttribute('data-id', song.id);
+          link.setAttribute('data-artist', song.artist);
+          link.setAttribute('data-slug', song.slug);
+          songList.appendChild(link);
+        });
+      } catch (error) {
+        console.error('Error loading songs:', error);
+      }
+    }
+
+    window.onload = loadSongs;
+  </script>
 </body>
 </html>
