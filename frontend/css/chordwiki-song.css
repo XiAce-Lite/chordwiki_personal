@@ -13,7 +13,6 @@ body {
   padding: 0 16px 40px;
 }
 
-/* ===== タイトル ===== */
 .song-title {
   font-size: 18px;
   text-align: center;
@@ -35,76 +34,58 @@ body {
   margin-bottom: 12px;
 }
 
-/* ===== 曲本文 ===== */
-.cw-sheet {
-  line-height: 1.4;
-}
+.cw-sheet { line-height: 1.4; }
+.cw-line { margin: 0 0 12px; }
+.cw-comment-line { margin: 12px 0 8px; }
 
-.cw-line {
-  margin: 0 0 12px;
-}
-
-/* コメント行の余白 */
-.cw-comment-line {
-  margin: 12px 0 8px;
-}
-
-/* ===== ここが本体：セル方式 =====
-   1セル = 上段(コード) + 下段(歌詞)
-   display が上書きされると崩れるので、重要部分は !important で固定
-*/
+/* 1セル = 上段コード + 下段歌詞 */
 .cw-cell {
   display: inline-block !important;
   vertical-align: bottom;
-  white-space: pre;  /* スペース保持 */
+  white-space: pre;
 }
 
-/* 上段：コード */
+/* 上段コード */
 .cw-chord {
-  display: block !important;        /* ←これが効かないと同じ行になる */
+  display: block !important;
   font-family: sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
   font-weight: 500;
-  margin-bottom: 2px;               /* コードと歌詞の距離 */
+  margin-bottom: 2px;
+  min-height: 1em;           /* ← 空コードでも高さを確保 */
 }
 
-/* 下段：歌詞 */
+/* 下段歌詞 */
 .cw-word {
-  display: block !important;        /* ←これが効かないと同じ行になる */
+  display: block !important;
   font-size: 14px;
   line-height: 1.7;
   color: #222;
   white-space: pre;
+  min-height: 1em;           /* ← 空歌詞でも高さを確保 */
 }
 
-/* 小節線 | を薄く */
-.cw-bar {
-  color: #bbb;
-}
+.cw-bar { color: #bbb; }
 
-/* コメント（C は太字・非イタリック） */
 .cw-comment {
   display: inline-block;
   background-color: #e6e6e6;
   padding: 2px 6px;
   border-radius: 3px;
-
   font-size: 14px;
   font-weight: bold;
   font-style: normal;
   color: #444;
 }
 
-/* CI のみイタリック */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
   color: #666;
 }
 
-/* N.C. 特別表示 */
 .cw-nc {
   color: #444;
   font-style: italic;
@@ -116,17 +97,7 @@ body {
 }
 
 @media print {
-  .cw-chord {
-    color: #000;
-    font-style: italic;
-  }
-  .cw-nc {
-    color: #000;
-    border-color: #999;
-    background: transparent;
-  }
-  .cw-comment {
-    background: transparent;
-    padding: 0;
-  }
+  .cw-chord { color: #000; font-style: italic; }
+  .cw-nc { color: #000; border-color: #999; background: transparent; }
+  .cw-comment { background: transparent; padding: 0; }
 }
