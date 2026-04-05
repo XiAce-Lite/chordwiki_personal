@@ -13,9 +13,11 @@ function parseChordPro(chordProText) {
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
     const directiveMatch = line.match(/^\{\s*([^:}]+)\s*:\s*(.*)\}$/);
+
     if (directiveMatch) {
       const key = directiveMatch[1].trim().toLowerCase();
       const value = directiveMatch[2].trim();
+
       if (key === 'title' || key === 't') {
         result.title = value;
         continue;
@@ -28,6 +30,8 @@ function parseChordPro(chordProText) {
         result.lines.push({ type: 'comment', text: value });
         continue;
       }
+
+      // 未対応ディレクティブは無視
       continue;
     }
 
@@ -59,6 +63,7 @@ function splitLineSegments(line) {
       }
     }
 
+    // 重要：表示では [] を外してコード名だけにする
     segments.push({ chord: match[0].slice(1, -1), lyric: '' });
     lastIndex = match.index + match[0].length;
   }
@@ -82,24 +87,24 @@ function splitLineSegments(line) {
 function createPre(className, text) {
   const pre = document.createElement('pre');
   pre.className = className;
-  pre.textContent = text;
+  pre.textContent = text || '';
   return pre;
 }
 
 function setPreWithBars(pre, text) {
-  // preは white-space: pre でスペース保持
-  pre.textContent = ""; // 一旦クリア
+  // pre は white-space: pre でスペース保持
+  pre.textContent = '';
 
   // '|' を保持しつつ分割（キャプチャ付き）
-  const parts = (text || "").split(/(\|)/);
+  const parts = (text || '').split(/(\|)/);
 
   for (const p of parts) {
-    if (p === "|") {
-      const span = document.createElement("span");
-      span.className = "cw-bar";
-      span.textContent = "|";
+    if (p === '|') {
+      const span = document.createElement('span');
+      span.className = 'cw-bar';
+      span.textContent = '|';
       pre.appendChild(span);
-    } else if (p !== "") {
+    } else if (p !== '') {
       // それ以外はそのままテキストノードでOK（スペース含む）
       pre.appendChild(document.createTextNode(p));
     }
@@ -107,43 +112,3 @@ function setPreWithBars(pre, text) {
 }
 
 function renderChordWikiLike(chordProText, containerEl) {
-  containerEl.innerHTML = '';
-  const parsed = parseChordPro(chordProText || '');
-
-  for (const line of parsed.lines) {
-    const lineEl = document.createElement('div');
-    lineEl.className = 'cw-line';
-
-    const chordsPre = createPre('cw-chords', '');
-    const lyricsPre = createPre('cw-lyrics', '');
-
-    if (line.type === 'comment') {
-      lineEl.classList.add("cw-comment-line");
-      lyricsPre.classList.add("cw-comment");
-      // コメントは小節線の装飾いらないので textContent でOK
-      lyricsPre.textContent = line.text;
-    } else {
-      const segments = splitLineSegments(line.text);
-      const chordParts = [];
-      const lyricParts = [];
-
-      for (const segment of segments) {
-        const width = Math.max(segment.chord.length, segment.lyric.length);
-        setPreWithBars(chordsPre, chordParts.join(''));
-        setPreWithBars(lyricsPre, lyricParts.join(''));
-      }
-
-      chordsPre.textContent = chordParts.join('');
-      lyricsPre.textContent = lyricParts.join('');
-    }
-
-    lineEl.appendChild(chordsPre);
-    lineEl.appendChild(lyricsPre);
-    containerEl.appendChild(lineEl);
-  }
-
-  return {
-    title: parsed.title,
-    subtitle: parsed.subtitle
-  };
-}
