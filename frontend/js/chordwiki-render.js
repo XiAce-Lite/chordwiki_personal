@@ -149,13 +149,20 @@ function renderChordWikiLike(chordProText, containerEl) {
       const chordEl = document.createElement("span");
       chordEl.className = "cw-chord";
 
-      // [] の中身はすべてコード扱い（優先度ルール）
-      if (cell.chord && isNoChordToken(cell.chord)) {
+
+    // [] の中身はすべてコード扱い（優先度ルール）
+    if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
-      } else {
-        chordEl.textContent = cell.chord || "";
-      }
+    } else {
+        const chordText = cell.chord || "";
+        chordEl.textContent = chordText;
+
+        // ★追加：コードが | のときだけ縦位置補正用クラス
+        if (chordText.trim() === "|" || chordText.trim() === "｜") {
+            chordEl.classList.add("cw-chord-bar");
+        }
+    }
 
       const wordEl = document.createElement("span");
       wordEl.className = "cw-word";

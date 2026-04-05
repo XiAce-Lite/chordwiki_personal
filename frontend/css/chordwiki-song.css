@@ -71,6 +71,14 @@ body {
   min-height: 1em;
 }
 
+
+/* [|] など、コードが縦棒だけのケースはグリフ都合で下がって見えるため補正 */
+.cw-chord-bar {
+  position: relative;
+  top: -0.15em;   /* 0.10〜0.20em で好み調整 */
+}
+
+
 /* 下段：歌詞（右列から開始） */
 .cw-word {
   grid-column: 2;
