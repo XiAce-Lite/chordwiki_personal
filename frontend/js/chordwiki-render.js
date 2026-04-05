@@ -39,6 +39,8 @@ function parseChordPro(chordProText) {
         result.lines.push({ type: "comment_italic", text: value });
         continue;
       }
+
+      // 未対応は無視
       continue;
     }
 
@@ -62,48 +64,82 @@ function createSpan(className, text) {
 
 /**
  * ✅ 正しいセル分割：
- * - 行頭から最初のコードまでは「先頭セル(コード無し)の lyric」
- * - [C] を見つけたら「新しい chord セル」を開始
- * - 次のコードまでのテキストは「その chord セルの lyric」に入る
- * これで chord と “直後の歌詞” が必ず同一セルになり同期が取れる
+ * [C] の直後歌詞は必ず同じセルの lyric に入る（同期保証）
  */
 function splitToCells(lineText) {
   const line = lineText || "";
   const regex = /\[[^\]]+\]/g;
 
-  // 先頭セル（コード無し）を必ず用意して、そこに先頭の歌詞を溜める
   const cells = [{ chord: "", lyric: "" }];
-
   let lastIndex = 0;
   let match;
 
   while ((match = regex.exec(line)) !== null) {
-    // 今のコードの直前までの歌詞を「直前セル」に追記
     const between = line.slice(lastIndex, match.index);
     cells[cells.length - 1].lyric += between;
 
-    // コードセル開始
-    const chordText = match[0].slice(1, -1); // []除去
+    const chordText = match[0].slice(1, -1);
     cells.push({ chord: chordText, lyric: "" });
 
     lastIndex = match.index + match[0].length;
   }
 
-  // 最後の残り歌詞を直前セルに追記
   cells[cells.length - 1].lyric += line.slice(lastIndex);
 
-  // 末尾に空のセルが増えるのを防ぐ（完全空セルだけ削除）
   return cells.filter(c => !(c.chord === "" && c.lyric === ""));
 }
 
-function appendLyricWithBars(targetSpan, lyricText) {
-  const parts = (lyricText || "").split(/(\|)/);
-  for (const p of parts) {
-    if (p === "|") {
+/**
+ * 3) ---- や -> や > を | と同色にするため、装飾トークンとして span 化
+ * 1) | の左右余白は CSS（cw-bar）で実現
+ */
+function appendLyricWithMarks(targetSpan, lyricText) {
+  const text = lyricText || "";
+  // | / 連続ハイフン / -> / 連続 > をトークンとして扱う
+  const re = /(\||-{2,}|->|>+)/g;
+
+  let last = 0;
+  let m;
+
+  while ((m = re.exec(text)) !== null) {
+    const before = text.slice(last, m.index);
+    if (before) targetSpan.appendChild(document.createTextNode(before));
+
+    const tok = m[0];
+    if (tok === "|") {
       targetSpan.appendChild(createSpan("cw-bar", "|"));
-    } else if (p !== "") {
-      targetSpan.appendChild(document.createTextNode(p));
+    } else {
+      // ---- や -> や > は拍・アクセント記号として同色に
+      targetSpan.appendChild(createSpan("cw-mark", tok));
     }
+
+    last = m.index + tok.length;
+  }
+
+  const rest = text.slice(last);
+  if (rest) targetSpan.appendChild(document.createTextNode(rest));
+}
+
+/**
+ * 2) コード右端＝歌詞開始 を作るために、
+ * 各セルに “コード幅(px)” を CSS 変数としてセットする。
+ */
+function applyChordPadding(lineEl) {
+  const cells = lineEl.querySelectorAll(".cw-cell");
+  for (const cell of cells) {
+    const chordEl = cell.querySelector(".cw-chord");
+    if (!chordEl) continue;
+
+    // chord が空なら 0
+    const raw = (chordEl.textContent || "").trim();
+    if (!raw) {
+      cell.style.setProperty("--cw-chord-pad", "0px");
+      continue;
+    }
+
+    // 表示後の実幅を測って列幅にする（N.C. の枠も含めて確保）
+    const w = Math.ceil(chordEl.getBoundingClientRect().width);
+    cell.style.setProperty("--cw-chord-pad", `${w}px`);
   }
 }
 
@@ -112,6 +148,7 @@ function renderChordWikiLike(chordProText, containerEl) {
   const parsed = parseChordPro(chordProText || "");
 
   for (const line of parsed.lines) {
+    // コメント
     if (line.type === "comment" || line.type === "comment_italic") {
       const lineEl = document.createElement("div");
       lineEl.className = "cw-line cw-comment-line";
@@ -124,6 +161,7 @@ function renderChordWikiLike(chordProText, containerEl) {
       continue;
     }
 
+    // 通常行
     const lineEl = document.createElement("div");
     lineEl.className = "cw-line";
 
@@ -135,6 +173,7 @@ function renderChordWikiLike(chordProText, containerEl) {
 
       const chordEl = document.createElement("span");
       chordEl.className = "cw-chord";
+
       if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
@@ -144,7 +183,7 @@ function renderChordWikiLike(chordProText, containerEl) {
 
       const wordEl = document.createElement("span");
       wordEl.className = "cw-word";
-      appendLyricWithBars(wordEl, cell.lyric || "");
+      appendLyricWithMarks(wordEl, cell.lyric || "");
 
       cellEl.appendChild(chordEl);
       cellEl.appendChild(wordEl);
@@ -152,6 +191,9 @@ function renderChordWikiLike(chordProText, containerEl) {
     }
 
     containerEl.appendChild(lineEl);
+
+    // ここで幅計測 → CSS変数へ反映
+    applyChordPadding(lineEl);
   }
 
   return { title: parsed.title, subtitle: parsed.subtitle, key: parsed.key };

@@ -13,6 +13,7 @@ body {
   padding: 0 16px 40px;
 }
 
+/* ===== タイトル ===== */
 .song-title {
   font-size: 18px;
   text-align: center;
@@ -34,58 +35,94 @@ body {
   margin-bottom: 12px;
 }
 
+/* ===== 曲本文 ===== */
 .cw-sheet { line-height: 1.4; }
 .cw-line { margin: 0 0 12px; }
 .cw-comment-line { margin: 12px 0 8px; }
 
-/* 1セル = 上段コード + 下段歌詞 */
+/*
+  ✅ セル方式（重要）
+  2) コード右端＝歌詞開始：
+     セルを2列グリッドにして、左列幅を --cw-chord-pad にする
+     左列内のコードは右寄せ、歌詞は右列から開始
+*/
 .cw-cell {
-  display: inline-block !important;
+  --cw-chord-pad: 0px;
+
+  display: inline-grid !important;
+  grid-template-columns: var(--cw-chord-pad) auto;
+  grid-template-rows: auto auto;
+  column-gap: 0;
+  row-gap: 2px;
+
   vertical-align: bottom;
   white-space: pre;
 }
 
-/* 上段コード */
+/* 上段コード：左列に置いて右寄せ（コード右端＝歌詞開始） */
 .cw-chord {
-  display: block !important;
+  grid-column: 1;
+  grid-row: 1;
+
+  justify-self: end;
+  align-self: end;
+
   font-family: sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
   font-weight: 500;
-  margin-bottom: 2px;
-  min-height: 1em;           /* ← 空コードでも高さを確保 */
+
+  min-height: 1em;
 }
 
-/* 下段歌詞 */
+/* 下段歌詞：右列から開始（左にコード幅分の余白が生まれる） */
 .cw-word {
-  display: block !important;
+  grid-column: 2;
+  grid-row: 2;
+
   font-size: 14px;
   line-height: 1.7;
   color: #222;
   white-space: pre;
-  min-height: 1em;           /* ← 空歌詞でも高さを確保 */
+
+  min-height: 1em;
 }
 
-.cw-bar { color: #bbb; }
+/* 1) 小節線 |：左右に少し余白 */
+.cw-bar {
+  color: #bbb;
+  display: inline-block;
+  margin: 0 0.25em; /* ←ここが要件1 */
+}
 
+/* 3) ---- / -> / > ：| と同色 */
+.cw-mark {
+  color: #bbb;
+  display: inline-block;
+}
+
+/* コメント（C は太字・非イタリック） */
 .cw-comment {
   display: inline-block;
   background-color: #e6e6e6;
   padding: 2px 6px;
   border-radius: 3px;
+
   font-size: 14px;
   font-weight: bold;
   font-style: normal;
   color: #444;
 }
 
+/* CI のみイタリック */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
   color: #666;
 }
 
+/* N.C. 特別表示 */
 .cw-nc {
   color: #444;
   font-style: italic;
@@ -96,6 +133,7 @@ body {
   background: #f6f6f6;
 }
 
+/* 印刷 */
 @media print {
   .cw-chord { color: #000; font-style: italic; }
   .cw-nc { color: #000; border-color: #999; background: transparent; }
