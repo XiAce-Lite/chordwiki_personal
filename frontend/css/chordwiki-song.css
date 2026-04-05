@@ -14,7 +14,6 @@ body {
 }
 
 /* ===== タイトル ===== */
-
 .song-title {
   font-size: 18px;
   text-align: center;
@@ -37,7 +36,6 @@ body {
 }
 
 /* ===== 曲本文 ===== */
-
 .cw-sheet {
   line-height: 1.4;
 }
@@ -46,39 +44,35 @@ body {
   margin: 0 0 12px;
 }
 
-/* コメント行は少し空ける */
+/* コメント行の余白 */
 .cw-comment-line {
   margin: 12px 0 8px;
 }
 
-/* ===== セル（重要）=====
-   1セル = (上)コード + (下)歌詞
-   Gridに依存せず “必ず2段” になる構造にする
+/* ===== ここが本体：セル方式 =====
+   1セル = 上段(コード) + 下段(歌詞)
+   display が上書きされると崩れるので、重要部分は !important で固定
 */
 .cw-cell {
-  display: inline-block;
+  display: inline-block !important;
   vertical-align: bottom;
-  white-space: pre;      /* スペース保持 */
-  margin-right: 0;       /* 余計な隙間を作らない */
+  white-space: pre;  /* スペース保持 */
 }
 
 /* 上段：コード */
 .cw-chord {
-  display: block;        /* ← これで必ず上段になる */
+  display: block !important;        /* ←これが効かないと同じ行になる */
   font-family: sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
   font-weight: 500;
-  margin-bottom: 2px;    /* コードと歌詞の距離 */
+  margin-bottom: 2px;               /* コードと歌詞の距離 */
 }
 
 /* 下段：歌詞 */
 .cw-word {
-  display: block;        /* ← これで必ず下段になる */
-  font-family: system-ui, -apple-system, "Segoe UI",
-               "Noto Sans JP", "Hiragino Kaku Gothic ProN",
-               "Yu Gothic", sans-serif;
+  display: block !important;        /* ←これが効かないと同じ行になる */
   font-size: 14px;
   line-height: 1.7;
   color: #222;
@@ -92,7 +86,7 @@ body {
 
 /* コメント（C は太字・非イタリック） */
 .cw-comment {
-  display: inline-block;     /* 背景を文字幅だけに */
+  display: inline-block;
   background-color: #e6e6e6;
   padding: 2px 6px;
   border-radius: 3px;
@@ -103,7 +97,7 @@ body {
   color: #444;
 }
 
-/* CI のみイタリック（ChordWikiヘルプでも ci はイタリック指定） */
+/* CI のみイタリック */
 .cw-ci {
   font-weight: normal;
   font-style: italic;
