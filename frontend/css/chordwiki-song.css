@@ -64,3 +64,21 @@ body{
   color: #aaa;       /* 薄いグレー */
   font-weight: 400;  /* 太くしない */
 }
+
+/* {c:} や {comment:} */
+.cw-comment {
+  color: #777;
+  font-style: italic; /* commentもイタリックに寄せたいなら */
+}
+
+/* {ci:} / {comment_italic:} は “よりそれっぽく” */
+.cw-ci {
+  font-style: italic;
+  color: #777;
+}
+
+/* 小節線 | を薄く */
+.cw-bar {
+  color: #aaa;
+  font-weight: 400;
+}
