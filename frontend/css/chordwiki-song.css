@@ -1,84 +1,100 @@
-body{
-  margin:0;
-  background:#fff;
-  color:#222;
+body {
+  margin: 10px 0;
+  background: #fff;
+  color: #222;
   font-family: system-ui, -apple-system, "Segoe UI",
-               "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+               "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+               "Yu Gothic", sans-serif;
 }
 
-.container{
-  max-width:980px;
-  margin:0 auto;
-  padding:20px 16px 40px;
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px 40px;
 }
 
-.song-title{
-  font-size:24px;
-  font-weight:700;
-  margin:0 0 6px;
+/* ===== タイトル ===== */
+
+.song-title {
+  font-size: 18px;
+  text-align: center;
+  margin: 12px 0 4px;
 }
 
-.song-artist{
-  font-size:14px;
-  color:#666;
-  margin:0 0 14px;
+.song-artist {
+  font-size: 12px;
+  text-align: center;
+  color: #333;
+  margin-bottom: 4px;
 }
 
-.cw-sheet{
-  margin-top:10px;
+.song-key {
+  font-size: 12px;
+  font-weight: bold;
+  color: #dc143c;
+  text-align: center;
+  margin-bottom: 12px;
 }
 
-.cw-line{
-  margin:0 0 6px;
+/* ===== 曲本文 ===== */
+
+.cw-sheet {
+  line-height: 1.5em;
 }
 
-.cw-line pre{
-  margin:0;
-  padding:0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
-  font-size:15px;
-  line-height:1.45;
-  white-space: pre; /* 桁を揃える */
+.cw-line {
+  margin: 0 0 4px;
 }
 
-.cw-chords{
-  color:#333;
-  font-weight:500;
-  line-height:1.1;
-  transform: translateY(2px);
+.cw-line pre {
+  margin: 0;
+  padding: 0;
+  white-space: pre;
+  font-size: 14px;
 }
 
-.cw-lyrics{
-  color:#222;
-  line-height:1.6;
+/* ===== コード ===== */
+
+.cw-chords {
+  color: #0000cc;
+  font-family: sans-serif;
+  font-size: 0.9em;
+  line-height: 1.1;
+  transform: translateY(0.8em);
 }
 
-/* comment 行：グレー＆イタリック */
+/* ===== 歌詞 ===== */
+
+.cw-lyrics {
+  color: #222;
+}
+
+/* ===== コメント ===== */
+
 .cw-comment {
-  color: #777;
-  font-style: italic;
+  font-size: 14px;
+  font-weight: bold;
+  font-style: normal;
+  color: #444;
 }
 
-/* 小節線 | を薄く */
-.cw-bar {
-  color: #aaa;       /* 薄いグレー */
-  font-weight: 400;  /* 太くしない */
-}
-
-/* {c:} や {comment:} */
-.cw-comment {
-  color: #777;
-  font-style: italic; /* commentもイタリックに寄せたいなら */
-}
-
-/* {ci:} / {comment_italic:} は “よりそれっぽく” */
 .cw-ci {
+  font-weight: normal;
   font-style: italic;
-  color: #777;
+  color: #666;
 }
 
-/* 小節線 | を薄く */
+/* ===== 小節線 ===== */
+
 .cw-bar {
-  color: #aaa;
-  font-weight: 400;
+  color: #bbb;
+}
+
+/* ===== 印刷 ===== */
+
+@media print {
+  .cw-chords {
+    color: #000;
+    font-style: italic;
+  }
 }
