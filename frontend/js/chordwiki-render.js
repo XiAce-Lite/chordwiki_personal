@@ -59,7 +59,7 @@ function splitLineSegments(line) {
       }
     }
 
-    segments.push({ chord: match[0], lyric: '' });
+    segments.push({ chord: match[0].slice(1, -1), lyric: '' });
     lastIndex = match.index + match[0].length;
   }
 

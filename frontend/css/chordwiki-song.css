@@ -42,10 +42,14 @@ body{
 }
 
 .cw-chords{
-  color:#1a1a1a;
-  font-weight:600;
+  color:#333;
+  font-weight:500;
+  line-height:1.1;
+  transform: translateY(2px);
 }
 
 .cw-lyrics{
   color:#222;
+  line-height:1.6;
 }
+``
