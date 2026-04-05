@@ -93,6 +93,10 @@ body {
   min-height: 1em;
 }
 
+.cw-word:empty::before {
+  content: "\200b";
+}
+
 /* 歌詞内の | ：左右に少し余白（paddingで） */
 .cw-bar {
   display: inline-block;
