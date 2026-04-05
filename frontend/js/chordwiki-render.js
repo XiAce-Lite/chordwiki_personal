@@ -63,7 +63,7 @@ function splitLineSegments(line) {
       }
     }
 
-    // 重要：表示では [] を外してコード名だけにする
+    // 表示では [] を外してコード名だけにする
     segments.push({ chord: match[0].slice(1, -1), lyric: '' });
     lastIndex = match.index + match[0].length;
   }
@@ -112,3 +112,44 @@ function setPreWithBars(pre, text) {
 }
 
 function renderChordWikiLike(chordProText, containerEl) {
+  containerEl.innerHTML = '';
+  const parsed = parseChordPro(chordProText || '');
+
+  for (const line of parsed.lines) {
+    const lineEl = document.createElement('div');
+    lineEl.className = 'cw-line';
+
+    const chordsPre = createPre('cw-chords', '');
+    const lyricsPre = createPre('cw-lyrics', '');
+
+    if (line.type === 'comment') {
+      // コメントはグレー＆イタリック用クラスを付与
+      lineEl.classList.add('cw-comment-line');
+      lyricsPre.classList.add('cw-comment');
+      lyricsPre.textContent = line.text;
+    } else {
+      const segments = splitLineSegments(line.text);
+      const chordParts = [];
+      const lyricParts = [];
+
+      // 重要：配列を埋めてから最後に描画する
+      for (const segment of segments) {
+        const width = Math.max(segment.chord.length, segment.lyric.length);
+        chordParts.push(segment.chord.padEnd(width, ' '));
+        lyricParts.push(segment.lyric.padEnd(width, ' '));
+      }
+
+      setPreWithBars(chordsPre, chordParts.join(''));
+      setPreWithBars(lyricsPre, lyricParts.join(''));
+    }
+
+    lineEl.appendChild(chordsPre);
+    lineEl.appendChild(lyricsPre);
+    containerEl.appendChild(lineEl);
+  }
+
+  return {
+    title: parsed.title,
+    subtitle: parsed.subtitle
+  };
+}
