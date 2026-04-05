@@ -1,0 +1,8 @@
+{
+  "name": "chordwiki-api",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@azure/cosmos": "^4.0.0"
+  }
+}
