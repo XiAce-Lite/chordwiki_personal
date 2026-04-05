@@ -1,51 +1,45 @@
 {
-    "responseOverrides": {
-        "401": {
-            "redirect": "/login",
-            "statusCode": 302
-        },
-        "403": {
-            "rewrite": "/403.html"
-        }
+  "responseOverrides": {
+    "401": {
+      "redirect": "/login",
+      "statusCode": 302
     },
-    "routes": [
-        {
-            "redirect": "/.auth/login/aad",
-            "route": "/login"
-        },
-        {
-            "redirect": "/.auth/logout",
-            "route": "/logout"
-        },
-        {
-            "allowedRoles": [
-                "authenticated"
-            ],
-            "route": "/"
-        },
-        {
-            "allowedRoles": [
-                "editor"
-            ],
-            "route": "/add.html"
-        },
-        {
-            "allowedRoles": [
-                "authenticated"
-            ],
-            "route": "/song/*"
-        },
-        {
-            "allowedRoles": [
-                "editor"
-            ],
-            "route": "/edit/*"
-        },
-        {
-            "allowedRoles": [
-                "editor"
-            ],
-            "route": "/api/edit/*"
-        }
-    ]
+    "403": {
+      "rewrite": "/403.html"
+    }
+  },
+  "routes": [
+    {
+      "route": "/login",
+      "redirect": "/.auth/login/aad"
+    },
+    {
+      "route": "/logout",
+      "redirect": "/.auth/logout"
+    },
+
+    {
+      "route": "/add.html",
+      "allowedRoles": ["editor"]
+    },
+
+    {
+      "route": "/edit/*",
+      "allowedRoles": ["editor"]
+    },
+    {
+      "route": "/api/edit/*",
+      "allowedRoles": ["editor"]
+    },
+
+    {
+      "route": "/song/*",
+      "allowedRoles": ["authenticated"]
+    },
+
+    {
+      "route": "/",
+      "allowedRoles": ["authenticated"]
+    }
+  ]
 }
