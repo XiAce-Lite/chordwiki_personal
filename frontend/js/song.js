@@ -198,7 +198,7 @@ function getDefaultMarkerPositions() {
     return { startY: 0, endY: 0 };
   }
 
-  const lines = sheetEl.querySelectorAll('.cw-line');
+  const lines = sheetEl.querySelectorAll('p.line, p.comment');
   const defaults = !lines.length
     ? { startY: bounds.top, endY: bounds.bottom }
     : {

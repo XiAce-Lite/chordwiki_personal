@@ -12,8 +12,7 @@ function parseChordPro(chordProText) {
   };
 
   for (const rawLine of lines) {
-    const line = rawLine.trimEnd();
-    const m = line.match(/^\{\s*([^:}]+)\s*:\s*(.*)\}$/);
+    const m = rawLine.match(/^\{\s*([^:}]+)\s*:\s*(.*)\}\s*$/);
 
     if (m) {
       const key = m[1].trim().toLowerCase();
@@ -24,18 +23,27 @@ function parseChordPro(chordProText) {
       if (key === "key") { result.key = value; continue; }
 
       if (key === "comment" || key === "c") {
-        result.lines.push({ type: "comment", text: value });
+        result.lines.push({ type: "comment", text: value, tokens: [] });
         continue;
       }
       if (key === "comment_italic" || key === "ci") {
-        result.lines.push({ type: "comment_italic", text: value });
+        result.lines.push({ type: "comment_italic", text: value, tokens: [] });
         continue;
       }
 
       continue;
     }
 
-    result.lines.push({ type: "text", text: line });
+    if (rawLine === "") {
+      result.lines.push({ type: "blank", text: "", tokens: [] });
+      continue;
+    }
+
+    result.lines.push({
+      type: "lyrics",
+      text: rawLine,
+      tokens: tokenizeLyricsLine(rawLine)
+    });
   }
 
   return result;
@@ -54,69 +62,109 @@ function createSpan(className, text) {
 }
 
 /**
- * ✅ 同期保証のセル分割：
- * [C] の直後歌詞は必ず同じセルの lyric に入る
+ * ChordWiki互換: 1行は lyrics/comment/blank のみ。
+ * chord は位置に紐づき、コード直後の歌詞だけ wordtop にする。
+ */
+function tokenizeLyricsLine(lineText) {
+  const tokens = [];
+  const line = lineText || "";
+  let i = 0;
+  let expectWordTop = false;
+
+  while (i < line.length) {
+    if (line[i] === "[") {
+      const end = line.indexOf("]", i);
+      if (end !== -1) {
+        tokens.push({ kind: "chord", text: line.slice(i + 1, end) });
+        i = end + 1;
+        expectWordTop = true;
+        continue;
+      }
+    }
+
+    let j = i;
+    while (j < line.length && line[j] !== "[") j++;
+
+    const lyric = line.slice(i, j);
+    if (lyric.length > 0) {
+      tokens.push({
+        kind: expectWordTop ? "wordtop" : "word",
+        text: lyric
+      });
+      expectWordTop = false;
+    }
+
+    i = j;
+  }
+
+  return tokens;
+}
+
+/**
+ * 旧ロジック互換用ヘルパー。
+ * DOM生成には使わないが、既存検証や内部利用のため残す。
  */
 function splitToCells(lineText) {
-  const line = lineText || "";
-  const regex = /\[[^\]]+\]/g;
-
-  const cells = [{ chord: "", lyric: "" }];
-  let lastIndex = 0;
-  let match;
-
-  while ((match = regex.exec(line)) !== null) {
-    // 直前セルに歌詞を追記
-    cells[cells.length - 1].lyric += line.slice(lastIndex, match.index);
-
-    // 新しいコードセル開始（[]は外す。中身はすべてコード扱い）
-    const chordText = match[0].slice(1, -1);
-    cells.push({ chord: chordText, lyric: "" });
-
-    lastIndex = match.index + match[0].length;
+  const tokens = tokenizeLyricsLine(lineText || "");
+  if (!tokens.length) {
+    return [{ chord: "", lyric: "" }];
   }
 
-  cells[cells.length - 1].lyric += line.slice(lastIndex);
+  const cells = [];
+  let current = { chord: "", lyric: "" };
 
-  // 完全空セルのみ除去。ただし空行は 1 セル残して改行を維持する
-  const filtered = cells.filter(c => !(c.chord === "" && c.lyric === ""));
-  return filtered.length ? filtered : [{ chord: "", lyric: "" }];
-}
-
-/**
- * ✅ 歌詞内の | だけを cw-bar にする
- */
-function appendLyricWithBars(targetSpan, lyricText) {
-  const text = lyricText || "";
-  const parts = text.split(/(\|)/);
-
-  for (const p of parts) {
-    if (p === "|") {
-      targetSpan.appendChild(createSpan("cw-bar", "|"));
-    } else if (p !== "") {
-      targetSpan.appendChild(document.createTextNode(p));
-    }
-  }
-}
-
-/**
- * ✅ コード右端＝歌詞開始：コード表示幅(px)を計測して CSS 変数へ
- */
-function applyChordPadding(lineEl) {
-  const cells = lineEl.querySelectorAll(".cw-cell");
-  for (const cell of cells) {
-    const chordEl = cell.querySelector(".cw-chord");
-    if (!chordEl) continue;
-
-    const raw = (chordEl.textContent || "").trim();
-    if (!raw) {
-      cell.style.setProperty("--cw-chord-pad", "0px");
+  for (const token of tokens) {
+    if (token.kind === "chord") {
+      if (current.chord !== "" || current.lyric !== "" || cells.length === 0) {
+        cells.push(current);
+      }
+      current = { chord: token.text, lyric: "" };
       continue;
     }
 
-    const w = Math.ceil(chordEl.getBoundingClientRect().width);
-    cell.style.setProperty("--cw-chord-pad", `${w}px`);
+    current.lyric += token.text;
   }
+
+  cells.push(current);
+  return cells;
+}
+
+function renderBlankLine(containerEl) {
+  const p = document.createElement("p");
+  p.className = "line blank";
+  containerEl.appendChild(p);
+}
+
+function renderCommentLine(text, containerEl, isItalic = false) {
+  const p = document.createElement("p");
+  p.className = "comment";
+  if (isItalic) {
+    p.classList.add("ci");
+    p.style.fontStyle = "italic";
+  }
+  p.textContent = text || "";
+  containerEl.appendChild(p);
+}
+
+function renderLyricsLine(tokens, containerEl, options = {}) {
+  const p = document.createElement("p");
+  p.className = "line";
+
+  const {
+    transposeSemitones = 0,
+    accidentalMode = "none",
+    keyContext = null
+  } = options;
+
+  for (const token of tokens || []) {
+    const span = createSpan(token.kind);
+    span.textContent = token.kind === "chord"
+      ? transposeChordString(token.text, transposeSemitones, accidentalMode, keyContext)
+      : (token.text || "");
+    p.appendChild(span);
+  }
+
+  containerEl.appendChild(p);
 }
 
 /* ==========================
@@ -259,11 +307,13 @@ function inferAccidentalPreferenceFromLines(lines) {
   let flatCount = 0;
 
   for (const line of lines || []) {
-    if (line.type !== "text") continue;
+    if (line.type !== "lyrics") continue;
 
-    const cells = splitToCells(line.text);
-    for (const cell of cells) {
-      const chord = (cell.chord || "").trim();
+    const tokens = Array.isArray(line.tokens) ? line.tokens : tokenizeLyricsLine(line.text || "");
+    for (const token of tokens) {
+      if (token.kind !== "chord") continue;
+
+      const chord = (token.text || "").trim();
       if (!chord || isNoChordToken(chord) || isBarToken(chord)) continue;
 
       const parts = splitSlashOrOn(chord);
@@ -397,53 +447,21 @@ function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0, 
   };
 
   for (const line of parsed.lines) {
-    if (line.type === "comment" || line.type === "comment_italic") {
-      const lineEl = document.createElement("div");
-      lineEl.className = "cw-line cw-comment-line";
-
-      const label = createSpan("cw-comment", line.text);
-      if (line.type === "comment_italic") label.classList.add("cw-ci");
-
-      lineEl.appendChild(label);
-      containerEl.appendChild(lineEl);
+    if (line.type === "blank") {
+      renderBlankLine(containerEl);
       continue;
     }
 
-    const lineEl = document.createElement("div");
-    lineEl.className = "cw-line";
-
-    const cells = splitToCells(line.text);
-
-    for (const cell of cells) {
-      const cellEl = document.createElement("span");
-      cellEl.className = "cw-cell";
-
-      const chordEl = document.createElement("span");
-      chordEl.className = "cw-chord";
-
-      if (cell.chord && isNoChordToken(cell.chord)) {
-        chordEl.classList.add("cw-nc");
-        chordEl.textContent = "N.C.";
-      } else {
-        const chordText = cell.chord || "";
-        chordEl.textContent = transposeChordString(chordText, transposeSemitones, accidentalMode, keyContext);
-
-        if (isBarToken(chordText)) {
-          chordEl.classList.add("cw-chord-bar");
-        }
-      }
-
-      const wordEl = document.createElement("span");
-      wordEl.className = "cw-word";
-      appendLyricWithBars(wordEl, cell.lyric || "");
-
-      cellEl.appendChild(chordEl);
-      cellEl.appendChild(wordEl);
-      lineEl.appendChild(cellEl);
+    if (line.type === "comment" || line.type === "comment_italic") {
+      renderCommentLine(line.text, containerEl, line.type === "comment_italic");
+      continue;
     }
 
-    containerEl.appendChild(lineEl);
-    applyChordPadding(lineEl);
+    renderLyricsLine(line.tokens || tokenizeLyricsLine(line.text || ""), containerEl, {
+      transposeSemitones,
+      accidentalMode,
+      keyContext
+    });
   }
 
   return { title: parsed.title, subtitle: parsed.subtitle, key: parsed.key };

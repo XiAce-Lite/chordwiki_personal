@@ -383,7 +383,7 @@ body.is-dragging-marker * {
   justify-self: end;
   align-self: end;
 
-  font-family: "MNoto Sans alpha V2", sans-serif;
+  font-family: sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
