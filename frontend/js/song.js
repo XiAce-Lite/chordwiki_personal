@@ -15,6 +15,7 @@ const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
 const DEFAULT_DURATION_SEC = 4 * 60;
 const START_SCROLL_TOLERANCE_PX = 10;
+const END_MARKER_STOP_RATIO = 2 / 3;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
 
@@ -520,13 +521,14 @@ function onMarkerPointerUp(event) {
   autoScrollState.dragging = null;
 }
 
-function isEndMarkerVisible() {
+function hasEndMarkerReachedStopLine() {
   const endMarkerEl = getEndMarkerEl();
   if (!endMarkerEl) {
     return false;
   }
 
-  return endMarkerEl.getBoundingClientRect().top <= window.innerHeight;
+  const stopLineY = window.innerHeight * END_MARKER_STOP_RATIO;
+  return endMarkerEl.getBoundingClientRect().top <= stopLineY;
 }
 
 function stopAutoScroll(message = 'Stopped', tone = 'info') {
@@ -547,8 +549,8 @@ function recalculateAutoScrollSpeed() {
     return true;
   }
 
-  if (isEndMarkerVisible()) {
-    stopAutoScroll('Stopped · End が見えたので停止', 'success');
+  if (hasEndMarkerReachedStopLine()) {
+    stopAutoScroll('Stopped · End が停止ラインに到達', 'success');
     return false;
   }
 
@@ -585,8 +587,8 @@ function runAutoScrollFrame(nowMs) {
   autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
   window.scrollTo(0, autoScrollState.virtualScrollY);
 
-  if (isEndMarkerVisible()) {
-    stopAutoScroll('Stopped · End が画面内に入りました', 'success');
+  if (hasEndMarkerReachedStopLine()) {
+    stopAutoScroll('Stopped · End が画面の 2/3 ラインに到達', 'success');
     return;
   }
 

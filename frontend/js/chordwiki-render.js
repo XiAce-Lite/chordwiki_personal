@@ -78,8 +78,9 @@ function splitToCells(lineText) {
 
   cells[cells.length - 1].lyric += line.slice(lastIndex);
 
-  // 完全空セルのみ除去
-  return cells.filter(c => !(c.chord === "" && c.lyric === ""));
+  // 完全空セルのみ除去。ただし空行は 1 セル残して改行を維持する
+  const filtered = cells.filter(c => !(c.chord === "" && c.lyric === ""));
+  return filtered.length ? filtered : [{ chord: "", lyric: "" }];
 }
 
 /**
