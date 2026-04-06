@@ -24,8 +24,8 @@ body {
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%); /* タイトルと縦センター揃え */
-  margin-left: 16px;           /* 左の余白 */
+  transform: translateY(-50%);
+  margin-left: 16px;
   font-size: 14px;
   text-decoration: none;
   color: #0066cc;
@@ -56,15 +56,25 @@ body {
   margin-bottom: 12px;
 }
 
-.transpose-ui {
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 14px;
+  margin: 0 0 14px;
+}
+
+.transpose-ui,
+.autoscroll-ui {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 14px;
   font-size: 14px;
+  flex-wrap: wrap;
 }
 
-.transpose-ui button {
+.transpose-ui button,
+.autoscroll-ui button {
   padding: 4px 8px;
   font-size: 14px;
   border: 1px solid #ccc;
@@ -73,8 +83,15 @@ body {
   border-radius: 4px;
 }
 
-.transpose-ui button:hover {
+.transpose-ui button:hover,
+.autoscroll-ui button:hover {
   background: #f0f0f0;
+}
+
+.transpose-ui button:disabled,
+.autoscroll-ui button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 #transpose-display {
@@ -82,10 +99,179 @@ body {
   color: #0078d4;
 }
 
+.autoscroll-ui {
+  padding: 8px 10px;
+  border: 1px solid #d6e7f8;
+  border-radius: 8px;
+  background: #f7fbff;
+}
+
+.autoscroll-title {
+  font-weight: 700;
+  color: #0f4c81;
+  margin-right: 4px;
+}
+
+.autoscroll-duration,
+.autoscroll-presets,
+.autoscroll-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.autoscroll-duration label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #333;
+}
+
+.autoscroll-duration input {
+  width: 4.5em;
+  padding: 4px 6px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.autoscroll-separator {
+  font-weight: 700;
+  color: #4f647a;
+}
+
+.autoscroll-presets-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4f647a;
+}
+
+.autoscroll-preset {
+  min-width: 52px;
+}
+
+.autoscroll-preset.is-active {
+  background: #0078d4;
+  border-color: #0078d4;
+  color: #fff;
+}
+
+#autoscroll-toggle.is-playing {
+  background: #eaf4ff;
+  border-color: #7eb5eb;
+  color: #005a9c;
+}
+
+.autoscroll-status {
+  flex-basis: 100%;
+  min-height: 1.2em;
+  font-size: 12px;
+  color: #4f647a;
+}
+
+.autoscroll-status[data-tone="warn"] {
+  color: #b54708;
+}
+
+.autoscroll-status[data-tone="success"] {
+  color: #0a7a38;
+}
+
 /* ===== 曲本文 ===== */
-.cw-sheet { line-height: 1.4; }
+.sheet-stage {
+  position: relative;
+  padding-bottom: 55vh;
+}
+
+.cw-sheet {
+  position: relative;
+  line-height: 1.4;
+}
+
 .cw-line { margin: 0 0 12px; }
 .cw-comment-line { margin: 12px 0 8px; }
+
+.autoscroll-marker-layer {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.autoscroll-marker {
+  position: absolute;
+  left: -82px;
+  top: 0;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.autoscroll-marker:focus-visible {
+  outline: 2px solid #222;
+  outline-offset: 4px;
+}
+
+.autoscroll-marker.is-dragging {
+  cursor: grabbing;
+}
+
+.autoscroll-marker-pin {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  background: var(--marker-color, #d7263d);
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-135deg);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.18);
+}
+
+.autoscroll-marker-pin::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.autoscroll-marker-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.autoscroll-marker-start {
+  --marker-color: #d7263d;
+  color: #d7263d;
+}
+
+.autoscroll-marker-end {
+  --marker-color: #147ad6;
+  color: #147ad6;
+}
+
+body.is-dragging-marker,
+body.is-dragging-marker * {
+  cursor: grabbing !important;
+}
 
 /* ===== セル方式：コード右端＝歌詞開始（左列=コード幅） ===== */
 .cw-cell {
@@ -118,13 +304,11 @@ body {
   min-height: 1em;
 }
 
-
 /* [|] など、コードが縦棒だけのケースはグリフ都合で下がって見えるため補正 */
 .cw-chord-bar {
   position: inherit;
   margin-right: 0.1em;
 }
-
 
 /* 下段：歌詞（右列から開始） */
 .cw-word {
@@ -176,8 +360,22 @@ body {
   background: #f6f6f6;
 }
 
+@media (max-width: 720px) {
+  .autoscroll-ui {
+    width: 100%;
+  }
+
+  .autoscroll-marker {
+    left: -68px;
+  }
+}
+
 @media print {
   .cw-chord { color: #000; font-style: italic; }
   .cw-nc { color: #000; border-color: #999; background: transparent; }
   .cw-comment { background: transparent; padding: 0; }
+  .control-row,
+  .autoscroll-marker-layer {
+    display: none !important;
+  }
 }
