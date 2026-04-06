@@ -383,7 +383,7 @@ body.is-dragging-marker * {
   justify-self: end;
   align-self: end;
 
-  font-family: sans-serif;
+  font-family: "MNoto Sans alpha V2", sans-serif;
   font-size: 0.85em;
   line-height: 1.0;
   color: #0000cc;
@@ -428,7 +428,7 @@ body.is-dragging-marker * {
 }
 
 .cw-ci {
-  font-weight: normal;
+  font-weight: bold;
   font-style: italic;
   color: #444;
 }
