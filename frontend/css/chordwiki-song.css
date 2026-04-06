@@ -430,17 +430,17 @@ body.is-dragging-marker * {
 .cw-ci {
   font-weight: normal;
   font-style: italic;
-  color: #666;
+  color: #444;
 }
 
 .cw-nc {
-  color: #444;
-  font-style: italic;
-  font-weight: 700;
-  padding: 0 2px;
-  border: 1px solid #ccc;
-  border-radius: 3px;
-  background: #f6f6f6;
+  color: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 @media (max-width: 720px) {
@@ -458,7 +458,7 @@ body.is-dragging-marker * {
 
 @media print {
   .cw-chord { color: #000; font-style: italic; }
-  .cw-nc { color: #000; border-color: #999; background: transparent; }
+  .cw-nc { color: inherit; border-color: transparent; background: transparent; }
   .cw-comment { background: transparent; padding: 0; }
   .control-row,
   .autoscroll-ui,
