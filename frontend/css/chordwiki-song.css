@@ -123,6 +123,38 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   flex-wrap: wrap;
 }
 
+.transpose-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 4px 10px;
+  border: 1px solid #d6e4f2;
+  border-radius: 999px;
+  background: #f8fbff;
+}
+
+.transpose-mode legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #47627d;
+}
+
+.transpose-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #23415f;
+}
+
+.transpose-mode-option input {
+  margin: 0;
+  accent-color: #0078d4;
+}
+
 .transpose-ui button,
 .autoscroll-ui button {
   padding: 4px 8px;

@@ -122,49 +122,196 @@ function applyChordPadding(lineEl) {
    Transpose（移調）ロジック
    ========================== */
 
-// 出力は # 表記に正規化
-const NOTES_SHARP = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+/*
+ * 受け入れテスト:
+ * - mode=sharp, semitones=0: "Eb" -> "D#", "Bb/F" -> "A#/F"
+ * - mode=flat, semitones=0: "D#" -> "Eb", "F#/A#" -> "Gb/Bb"
+ * - mode=none, semitones=0: "Eb" は入力のまま維持
+ * - mode=none + {key:Eb} +3: 目標キーは sharp 系扱い
+ * - mode=none + {key:Cm}: relative major が Eb なので flat 系扱い
+ * - suffix は不変: "Cm7b5" の b5 / "C7#11" の #11 は変更しない
+ */
+const NOTES_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTES_FLAT = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
 
-// b / 例外音も解決して半音にする
-const NOTE_ALIAS_TO_SHARP = {
-  "DB": "C#",
-  "EB": "D#",
-  "GB": "F#",
-  "AB": "G#",
-  "BB": "A#",
-  "CB": "B",
-  "FB": "E",
-  "E#": "F",
-  "B#": "C"
+const NOTE_TO_SEMITONE = {
+  "C": 0,
+  "B#": 0,
+  "C#": 1,
+  "DB": 1,
+  "D": 2,
+  "D#": 3,
+  "EB": 3,
+  "E": 4,
+  "FB": 4,
+  "F": 5,
+  "E#": 5,
+  "F#": 6,
+  "GB": 6,
+  "G": 7,
+  "G#": 8,
+  "AB": 8,
+  "A": 9,
+  "A#": 10,
+  "BB": 10,
+  "B": 11,
+  "CB": 11
 };
+
+const KEY_SIGNATURE_MODE_BY_SEMITONE = [
+  "sharp", // C
+  "flat",  // Db
+  "sharp", // D
+  "flat",  // Eb
+  "sharp", // E
+  "flat",  // F
+  "sharp", // F#/Gb -> sharp を優先
+  "sharp", // G
+  "flat",  // Ab
+  "sharp", // A
+  "flat",  // Bb
+  "sharp"  // B
+];
+
+function normalizeAccidentalMode(mode) {
+  return mode === "sharp" || mode === "flat" ? mode : "none";
+}
+
+function isBarToken(token) {
+  const t = (token || "").trim();
+  return t === "|" || t === "｜";
+}
 
 function noteToSemitone(note) {
   if (!note) return null;
-  const n = note.trim().toUpperCase();  // e.g. "Bb", "F#"
-  const mapped = NOTE_ALIAS_TO_SHARP[n] || n; // normalize flats to sharps when possible
-  const idx = NOTES_SHARP.indexOf(mapped);
-  return idx >= 0 ? idx : null;
+
+  const normalized = note.trim().toUpperCase();
+  return Object.prototype.hasOwnProperty.call(NOTE_TO_SEMITONE, normalized)
+    ? NOTE_TO_SEMITONE[normalized]
+    : null;
 }
 
-function semitoneToNote(semitone) {
-  return NOTES_SHARP[(semitone % 12 + 12) % 12];
+function semitoneToNote(semitone, mode = "sharp") {
+  const normalized = (semitone % 12 + 12) % 12;
+  return mode === "flat" ? NOTES_FLAT[normalized] : NOTES_SHARP[normalized];
+}
+
+function parseKeySignature(keyText) {
+  if (!keyText) return null;
+
+  const compact = String(keyText).trim().replace(/\s+/g, "");
+  const m = compact.match(/^([A-Ga-g])([#b]?)(.*)$/);
+  if (!m) return null;
+
+  const root = m[1].toUpperCase() + (m[2] || "");
+  const semitone = noteToSemitone(root);
+  if (semitone === null) return null;
+
+  const suffix = (m[3] || "").toLowerCase();
+  const isMinor = suffix === "m"
+    || suffix.startsWith("min")
+    || (suffix.startsWith("m") && !suffix.startsWith("maj"));
+
+  return { semitone, isMinor };
+}
+
+function inferAccidentalFromKey(keyText, transposeSemitones = 0) {
+  const parsedKey = parseKeySignature(keyText);
+  if (!parsedKey) return null;
+
+  let signatureSemitone = parsedKey.semitone + transposeSemitones;
+  if (parsedKey.isMinor) {
+    signatureSemitone += 3; // relative major
+  }
+
+  return KEY_SIGNATURE_MODE_BY_SEMITONE[(signatureSemitone % 12 + 12) % 12] || "sharp";
+}
+
+function countAccidentalsInChordPart(chordPart) {
+  const m = (chordPart || "").match(/^([A-Ga-g])([#b]?)/);
+  if (!m) {
+    return { sharp: 0, flat: 0 };
+  }
+
+  return {
+    sharp: m[2] === "#" ? 1 : 0,
+    flat: m[2] === "b" ? 1 : 0
+  };
+}
+
+function inferAccidentalFromChord(chord) {
+  const parts = splitSlashOrOn((chord || "").trim());
+  let sharpCount = 0;
+  let flatCount = 0;
+
+  for (const part of parts) {
+    const counts = countAccidentalsInChordPart(part);
+    sharpCount += counts.sharp;
+    flatCount += counts.flat;
+  }
+
+  return flatCount > sharpCount ? "flat" : "sharp";
+}
+
+function inferAccidentalPreferenceFromLines(lines) {
+  let sharpCount = 0;
+  let flatCount = 0;
+
+  for (const line of lines || []) {
+    if (line.type !== "text") continue;
+
+    const cells = splitToCells(line.text);
+    for (const cell of cells) {
+      const chord = (cell.chord || "").trim();
+      if (!chord || isNoChordToken(chord) || isBarToken(chord)) continue;
+
+      const parts = splitSlashOrOn(chord);
+      for (const part of parts) {
+        const counts = countAccidentalsInChordPart(part);
+        sharpCount += counts.sharp;
+        flatCount += counts.flat;
+      }
+    }
+  }
+
+  return flatCount > sharpCount ? "flat" : "sharp";
+}
+
+function resolveAccidentalMode(chord, semitones, accidentalMode = "none", keyContext = null) {
+  const normalizedMode = normalizeAccidentalMode(accidentalMode);
+  if (normalizedMode !== "none") {
+    return normalizedMode;
+  }
+
+  if (semitones === 0) {
+    return "none";
+  }
+
+  const keyText = typeof keyContext === "string" ? keyContext : keyContext?.key;
+  const inferredFromKey = inferAccidentalFromKey(keyText, semitones);
+  if (inferredFromKey) {
+    return inferredFromKey;
+  }
+
+  const fallbackMode = typeof keyContext === "object" ? keyContext?.fallbackMode : null;
+  return fallbackMode || inferAccidentalFromChord(chord);
 }
 
 /**
- * chordPart の先頭のルート音だけを移調し、残り(suffix)は保持する
+ * chordPart の先頭のルート音だけを変換し、残り(suffix)は保持する
  * 例: "F#m7(b13)" -> root "F#" + suffix "m7(b13)"
  */
-function transposeChordHead(chordPart, semitones) {
+function transposeChordHead(chordPart, semitones, mode = "sharp") {
   const m = chordPart.match(/^([A-Ga-g])([#b]?)(.*)$/);
   if (!m) return chordPart;
 
-  const root = (m[1] + (m[2] || "")).toUpperCase(); // "Bb" etc
+  const root = m[1].toUpperCase() + (m[2] || "");
   const suffix = m[3] || "";
 
   const s = noteToSemitone(root);
   if (s === null) return chordPart;
 
-  const newRoot = semitoneToNote(s + semitones);
+  const newRoot = semitoneToNote(s + semitones, mode);
   return newRoot + suffix;
 }
 
@@ -180,30 +327,23 @@ function transposeChordHead(chordPart, semitones) {
 function splitSlashOrOn(chord) {
   const s = chord.trim();
 
-  // 1) slash
   if (s.includes("/")) {
     const i = s.indexOf("/");
     return [s.slice(0, i).trim(), s.slice(i + 1).trim()];
-    // ベース側に余計な suffix があっても一応許容（後段で root抽出）
   }
 
-  // 2) " on " (space-separated)
   let m = s.match(/^(.*?)(?:\s+on\s+)([A-Ga-g][#b]?)(.*)$/i);
   if (m) {
-    // bass は通常 note 単体のはずだが、念のため suffix を許容
     const left = m[1].trim();
     const right = (m[2] + (m[3] || "")).trim();
     return [left, right];
   }
 
-  // 3) "on" without spaces (e.g. DonF#, Dm7onG)
-  //    右側は必ず音名から始まる想定で、最後に現れる "on" を区切りとみなす
   const lower = s.toLowerCase();
   const idx = lower.lastIndexOf("on");
   if (idx > 0 && idx < s.length - 2) {
     const left = s.slice(0, idx).trim();
     const right = s.slice(idx + 2).trim();
-    // right が音名っぽいなら採用
     if (/^[A-Ga-g][#b]?/.test(right)) {
       return [left, right];
     }
@@ -213,31 +353,33 @@ function splitSlashOrOn(chord) {
 }
 
 /**
- * 移調本体：
+ * 移調 / 表記変換本体：
  * - N.C. と | はそのまま
  * - slash と on を両方受け付ける
- * - 出力は "/" で統一（#表記）
+ * - 変換対象は root / bass の音名だけ。suffix はそのまま保持
  */
-function transposeChordString(chord, semitones) {
-  if (!chord || semitones === 0) return chord;
+function transposeChordString(chord, semitones = 0, accidentalMode = "none", keyContext = null) {
+  if (!chord) return chord;
 
   const trimmed = chord.trim();
-  if (trimmed === "" || trimmed.toUpperCase() === "N.C." || trimmed === "|" || trimmed === "｜") {
+  if (trimmed === "" || isNoChordToken(trimmed) || isBarToken(trimmed)) {
     return chord;
   }
 
+  if (normalizeAccidentalMode(accidentalMode) === "none" && semitones === 0) {
+    return chord;
+  }
+
+  const resolvedMode = resolveAccidentalMode(trimmed, semitones, accidentalMode, keyContext);
+  const outputMode = resolvedMode === "flat" ? "flat" : "sharp";
   const parts = splitSlashOrOn(trimmed);
 
   if (parts.length === 1) {
-    return transposeChordHead(parts[0], semitones);
+    return transposeChordHead(parts[0], semitones, outputMode);
   }
 
-  // parts[0] = chord, parts[1] = bass
-  const transChord = transposeChordHead(parts[0], semitones);
-
-  // bass は "F#" や "Bb" などの note 起点と仮定し、先頭だけ移調して残りは保持
-  const transBass = transposeChordHead(parts[1], semitones);
-
+  const transChord = transposeChordHead(parts[0], semitones, outputMode);
+  const transBass = transposeChordHead(parts[1], semitones, outputMode);
   return `${transChord}/${transBass}`;
 }
 
@@ -245,12 +387,15 @@ function transposeChordString(chord, semitones) {
    Render
    ========================== */
 
-function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) {
+function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0, accidentalMode = "none") {
   containerEl.innerHTML = "";
   const parsed = parseChordPro(chordProText || "");
+  const keyContext = {
+    key: parsed.key,
+    fallbackMode: inferAccidentalPreferenceFromLines(parsed.lines)
+  };
 
   for (const line of parsed.lines) {
-    // コメント
     if (line.type === "comment" || line.type === "comment_italic") {
       const lineEl = document.createElement("div");
       lineEl.className = "cw-line cw-comment-line";
@@ -263,7 +408,6 @@ function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) 
       continue;
     }
 
-    // 通常行
     const lineEl = document.createElement("div");
     lineEl.className = "cw-line";
 
@@ -276,16 +420,14 @@ function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0) 
       const chordEl = document.createElement("span");
       chordEl.className = "cw-chord";
 
-      // [] の中身はすべてコード扱い（優先度ルール）
       if (cell.chord && isNoChordToken(cell.chord)) {
         chordEl.classList.add("cw-nc");
         chordEl.textContent = "N.C.";
       } else {
         const chordText = cell.chord || "";
-        chordEl.textContent = transposeChordString(chordText, transposeSemitones);
+        chordEl.textContent = transposeChordString(chordText, transposeSemitones, accidentalMode, keyContext);
 
-        // ★縦棒コード（[|]）の見た目調整（あなたのCSSで position: inherit）
-        if (chordText.trim() === "|" || chordText.trim() === "｜") {
+        if (isBarToken(chordText)) {
           chordEl.classList.add("cw-chord-bar");
         }
       }

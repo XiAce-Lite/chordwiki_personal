@@ -49,6 +49,22 @@
         <span id="transpose-display">Transpose: 0</span>
         <button id="transpose-up" type="button">+</button>
         <button id="transpose-reset" type="button">Reset</button>
+
+        <fieldset class="transpose-mode" aria-label="Accidental display mode">
+          <legend>表記</legend>
+          <label class="transpose-mode-option">
+            <input type="radio" name="accidental-mode" value="sharp" />
+            <span>♯</span>
+          </label>
+          <label class="transpose-mode-option">
+            <input type="radio" name="accidental-mode" value="none" checked />
+            <span>指定なし</span>
+          </label>
+          <label class="transpose-mode-option">
+            <input type="radio" name="accidental-mode" value="flat" />
+            <span>♭</span>
+          </label>
+        </fieldset>
       </div>
     </div>
 

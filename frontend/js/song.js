@@ -7,12 +7,16 @@
  */
 let originalChordPro = '';
 let transposeSemitones = 0;
+let accidentalMode = 'none';
+let songPrefsStorageKey = null;
+let currentSongKey = '';
 
 const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
 const DEFAULT_DURATION_SEC = 4 * 60;
 const START_SCROLL_TOLERANCE_PX = 10;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
+const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
 
 const autoScrollState = {
   storageKey: null,
@@ -46,6 +50,71 @@ function getQueryParam(name) {
 
 function getSongStorageKey(artist, id) {
   return `${AUTO_SCROLL_STORAGE_PREFIX}:${artist}:${id}`;
+}
+
+function getSongPrefsStorageKey(artist, id) {
+  return `${SONG_PREFS_STORAGE_PREFIX}:${artist}:${id}`;
+}
+
+function normalizeAccidentalModeValue(mode) {
+  return mode === 'sharp' || mode === 'flat' ? mode : 'none';
+}
+
+function loadSongPreferences() {
+  transposeSemitones = 0;
+  accidentalMode = 'none';
+
+  if (!songPrefsStorageKey) {
+    return;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(songPrefsStorageKey);
+    const storedPrefs = raw ? JSON.parse(raw) : null;
+    if (!storedPrefs) {
+      return;
+    }
+
+    const storedTranspose = Number(storedPrefs.transposeSemitones);
+    if (Number.isFinite(storedTranspose)) {
+      transposeSemitones = clampTranspose(storedTranspose);
+    }
+
+    accidentalMode = normalizeAccidentalModeValue(storedPrefs.accidentalMode);
+  } catch (error) {
+    console.warn('Failed to restore song preferences:', error);
+  }
+}
+
+function saveSongPreferences() {
+  if (!songPrefsStorageKey) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(songPrefsStorageKey, JSON.stringify({
+      transposeSemitones,
+      accidentalMode
+    }));
+  } catch (error) {
+    console.warn('Failed to save song preferences:', error);
+  }
+}
+
+function syncAccidentalModeUi() {
+  document.querySelectorAll('input[name="accidental-mode"]').forEach((input) => {
+    input.checked = input.value === accidentalMode;
+  });
+}
+
+function updateSongKeyDisplay(renderResult, fallbackKey = '') {
+  const keyEl = document.getElementById('key');
+  if (!keyEl) {
+    return;
+  }
+
+  const keyText = renderResult?.key || fallbackKey || '';
+  keyEl.textContent = keyText ? `Key: ${keyText}` : '';
 }
 
 function updateEditorActions(artist, id) {
@@ -667,6 +736,8 @@ async function loadSong() {
   const artist = getQueryParam('artist');
   const id = getQueryParam('id');
 
+  currentSongKey = '';
+
   const titleEl = document.getElementById('title');
   const artistEl = document.getElementById('artist');
   const keyEl = document.getElementById('key');
@@ -686,6 +757,9 @@ async function loadSong() {
   }
 
   autoScrollState.storageKey = getSongStorageKey(artist, id);
+  songPrefsStorageKey = getSongPrefsStorageKey(artist, id);
+  loadSongPreferences();
+  updateTransposeDisplay();
 
   try {
     const response = await fetch(
@@ -705,16 +779,13 @@ async function loadSong() {
     }
 
     const song = await response.json();
+    currentSongKey = song.key || '';
     originalChordPro = song.chordPro || '';
-    const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones);
+    const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
 
     titleEl.textContent = renderResult.title || song.title || 'タイトルなし';
     artistEl.textContent = renderResult.subtitle || song.artist || '';
-
-    if (keyEl) {
-      const keyText = renderResult.key || song.key || '';
-      keyEl.textContent = keyText ? `Key: ${keyText}` : '';
-    }
+    updateSongKeyDisplay(renderResult, currentSongKey);
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
   } catch (error) {
@@ -745,12 +816,20 @@ function updateTransposeDisplay() {
   if (upButton) {
     upButton.disabled = transposeSemitones >= MAX_TRANSPOSE;
   }
+
+  syncAccidentalModeUi();
 }
 
 function reRender() {
   const sheetEl = getSheetEl();
-  renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones);
+  if (!sheetEl) {
+    return;
+  }
+
+  const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
+  updateSongKeyDisplay(renderResult, currentSongKey);
   updateTransposeDisplay();
+  saveSongPreferences();
   refreshAutoScrollAfterRender({ restoreSavedState: false });
 }
 
@@ -788,6 +867,7 @@ function initializeAutoScrollUi() {
 
   window.addEventListener('beforeunload', () => {
     saveAutoScrollState({ notify: false });
+    saveSongPreferences();
   });
 }
 
@@ -805,6 +885,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transpose-reset').addEventListener('click', () => {
     transposeSemitones = 0;
     reRender();
+  });
+
+  document.querySelectorAll('input[name="accidental-mode"]').forEach((input) => {
+    input.addEventListener('change', (event) => {
+      accidentalMode = normalizeAccidentalModeValue(event.target.value);
+      reRender();
+    });
   });
 
   window.ChordWikiAuth?.applyRoleVisibility();
