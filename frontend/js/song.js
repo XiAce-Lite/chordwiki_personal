@@ -1,9 +1,9 @@
 /*
  * 動作確認メモ
- * - 曲ページを開き、譜面左側に Start / End ピンが出ることを確認する。
- * - 分・秒を設定して Start を押し、Start 位置へ移動後に滑らかに自動スクロールすることを確認する。
- * - 再生中にマーカーや時間を変更しても停止せず、速度だけが即時更新されることを確認する。
- * - Save / Reset 後にページを再読み込みし、曲ごとの設定が復元されることを確認する。
+ * - 曲ページを開き、譜面左側に Start / End ピンが表示されることを確認する。
+ * - 分・秒を変更すると即保存され、状態表示が Saved になることを確認する。
+ * - Start で自動スクロールを開始し、再生中にマーカーを動かしても止まらず再計算されることを確認する。
+ * - End マーカーが画面内に入った時点で自動停止することを確認する。
  */
 let originalChordPro = '';
 let transposeSemitones = 0;
@@ -11,15 +11,16 @@ let transposeSemitones = 0;
 const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
 const DEFAULT_DURATION_SEC = 4 * 60;
-const AUTO_SCROLL_PRESETS_SEC = [210, 240, 300];
+const START_SCROLL_TOLERANCE_PX = 10;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 
 const autoScrollState = {
   storageKey: null,
+  defaultStartY: null,
+  defaultEndY: null,
   startY: null,
   endY: null,
   durationSec: DEFAULT_DURATION_SEC,
-  lastKnownScrollPosition: 0,
   isPlaying: false,
   frameId: null,
   startedAtMs: 0,
@@ -70,6 +71,10 @@ function getMarkerLayerEl() {
   return document.getElementById('autoscroll-marker-layer');
 }
 
+function getEndMarkerEl() {
+  return getMarkerLayerEl()?.querySelector('[data-marker="end"]') || null;
+}
+
 function formatDuration(totalSeconds) {
   const safeSeconds = Math.max(0, Math.round(totalSeconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -108,21 +113,22 @@ function getDefaultMarkerPositions() {
   const bounds = getSheetBoundsDoc();
 
   if (!sheetEl || !bounds) {
+    autoScrollState.defaultStartY = 0;
+    autoScrollState.defaultEndY = 0;
     return { startY: 0, endY: 0 };
   }
 
   const lines = sheetEl.querySelectorAll('.cw-line');
-  if (!lines.length) {
-    return { startY: bounds.top, endY: bounds.bottom };
-  }
+  const defaults = !lines.length
+    ? { startY: bounds.top, endY: bounds.bottom }
+    : {
+        startY: lines[0].getBoundingClientRect().top + window.scrollY,
+        endY: lines[lines.length - 1].getBoundingClientRect().bottom + window.scrollY
+      };
 
-  const firstRect = lines[0].getBoundingClientRect();
-  const lastRect = lines[lines.length - 1].getBoundingClientRect();
-
-  return {
-    startY: firstRect.top + window.scrollY,
-    endY: lastRect.bottom + window.scrollY
-  };
+  autoScrollState.defaultStartY = defaults.startY;
+  autoScrollState.defaultEndY = defaults.endY;
+  return defaults;
 }
 
 function clampMarkerToSheet(y, fallbackY = 0) {
@@ -133,6 +139,14 @@ function clampMarkerToSheet(y, fallbackY = 0) {
 
   const candidate = Number.isFinite(y) ? y : fallbackY;
   return clamp(candidate, bounds.top, bounds.bottom);
+}
+
+function getRangeDistancePx() {
+  if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.round(autoScrollState.endY - autoScrollState.startY));
 }
 
 function setStatus(message, tone = 'info') {
@@ -147,43 +161,36 @@ function setStatus(message, tone = 'info') {
 
 function updateAutoScrollControls() {
   const toggleButton = document.getElementById('autoscroll-toggle');
-  if (toggleButton) {
-    toggleButton.textContent = autoScrollState.isPlaying ? 'Stop' : 'Start';
-    toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
+  if (!toggleButton) {
+    return;
   }
+
+  toggleButton.textContent = autoScrollState.isPlaying ? 'Stop' : 'Start';
+  toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
 }
 
-function updateReadyStatus() {
+function updateStoppedStatus(saved = false) {
   if (autoScrollState.isPlaying) {
     return;
   }
 
   if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
-    setStatus('譜面レンダリング後にマーカーが有効になります。', 'info');
+    setStatus('Stopped', 'info');
     return;
   }
 
   if (autoScrollState.endY <= autoScrollState.startY) {
-    setStatus('End マーカーを Start より下に置いてください。', 'warn');
+    setStatus('Stopped · Start/End を調整してください', 'warn');
     return;
   }
 
   if (autoScrollState.durationSec <= 0) {
-    setStatus('再生時間は 1 秒以上にしてください。', 'warn');
+    setStatus('Stopped · 時間を 1 秒以上にしてください', 'warn');
     return;
   }
 
-  const distancePx = Math.round(autoScrollState.endY - autoScrollState.startY);
-  setStatus(`Ready: ${formatDuration(autoScrollState.durationSec)} / ${distancePx}px`, 'info');
-}
-
-function updatePresetButtons() {
-  const presetButtons = document.querySelectorAll('.autoscroll-preset');
-
-  for (const button of presetButtons) {
-    const presetSec = Number.parseInt(button.dataset.durationSec || '', 10);
-    button.classList.toggle('is-active', presetSec === autoScrollState.durationSec);
-  }
+  const prefix = saved ? 'Saved' : 'Stopped';
+  setStatus(`${prefix} · ${formatDuration(autoScrollState.durationSec)} · ${getRangeDistancePx()}px`, saved ? 'success' : 'info');
 }
 
 function setDurationInputs(durationSec) {
@@ -198,26 +205,42 @@ function setDurationInputs(durationSec) {
   if (secondsInput) {
     secondsInput.value = String(safeDuration % 60);
   }
-
-  updatePresetButtons();
 }
 
-function applyDurationPreset(durationSec) {
-  autoScrollState.durationSec = Math.max(0, Math.round(durationSec));
-  setDurationInputs(autoScrollState.durationSec);
-
-  if (autoScrollState.isPlaying) {
-    if (recalculateAutoScrollSpeed()) {
-      setStatus(`プリセット ${formatDuration(autoScrollState.durationSec)} を適用しました。`, 'info');
-    }
-  } else {
-    updateReadyStatus();
+function saveAutoScrollState({ notify = true } = {}) {
+  if (!autoScrollState.storageKey) {
+    return;
   }
 
-  saveAutoScrollState(false);
+  if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
+    return;
+  }
+
+  try {
+    const payload = {
+      startY: Math.round(autoScrollState.startY),
+      endY: Math.round(autoScrollState.endY),
+      durationSec: Math.max(0, Math.round(autoScrollState.durationSec))
+    };
+
+    window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
+
+    if (notify) {
+      if (autoScrollState.isPlaying) {
+        setStatus(`Playing · Saved · ${formatDuration(autoScrollState.durationSec)}`, 'success');
+      } else {
+        updateStoppedStatus(true);
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to save auto-scroll state:', error);
+    if (notify) {
+      setStatus('Saved できませんでした', 'warn');
+    }
+  }
 }
 
-function syncDurationFromInputs({ announce = false } = {}) {
+function syncDurationFromInputs({ notify = true } = {}) {
   const minutesInput = document.getElementById('autoscroll-minutes');
   const secondsInput = document.getElementById('autoscroll-seconds');
 
@@ -235,62 +258,21 @@ function syncDurationFromInputs({ announce = false } = {}) {
   autoScrollState.durationSec = (minutes * 60) + seconds;
 
   if (autoScrollState.isPlaying) {
-    if (recalculateAutoScrollSpeed()) {
-      setStatus(`再生時間を ${formatDuration(autoScrollState.durationSec)} に更新しました。`, 'info');
-    }
-  } else if (announce) {
-    updateReadyStatus();
-  }
-
-  saveAutoScrollState(false);
-}
-
-function saveAutoScrollState(announce = false) {
-  if (!autoScrollState.storageKey) {
-    return;
-  }
-
-  if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
-    return;
-  }
-
-  try {
-    const payload = {
-      startY: Math.round(autoScrollState.startY),
-      endY: Math.round(autoScrollState.endY),
-      durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
-      lastKnownScrollPosition: Math.round(window.scrollY)
-    };
-
-    window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
-
-    if (announce) {
-      setStatus('この曲の自動スクロール設定を保存しました。', 'success');
-    }
-  } catch (error) {
-    console.warn('Failed to save auto-scroll state:', error);
-    if (announce) {
-      setStatus('保存に失敗しました。', 'warn');
+    if (!recalculateAutoScrollSpeed()) {
+      return;
     }
   }
+
+  saveAutoScrollState({ notify });
 }
 
 function ensureMarkerElements() {
   const layerEl = getMarkerLayerEl();
-  if (!layerEl) {
+  if (!layerEl || layerEl.querySelector('.autoscroll-marker')) {
     return;
   }
 
-  if (layerEl.querySelector('.autoscroll-marker')) {
-    return;
-  }
-
-  const markerConfigs = [
-    { name: 'start', label: 'Start' },
-    { name: 'end', label: 'End' }
-  ];
-
-  for (const config of markerConfigs) {
+  for (const config of [{ name: 'start', label: 'Start' }, { name: 'end', label: 'End' }]) {
     const markerEl = document.createElement('button');
     markerEl.type = 'button';
     markerEl.className = `autoscroll-marker autoscroll-marker-${config.name}`;
@@ -345,7 +327,7 @@ function applyMarkerStateToRenderedSheet({ resetInvalidRange = false } = {}) {
   if (autoScrollState.isPlaying) {
     recalculateAutoScrollSpeed();
   } else {
-    updateReadyStatus();
+    updateStoppedStatus(false);
   }
 }
 
@@ -356,7 +338,6 @@ function restoreAutoScrollState() {
   autoScrollState.startY = defaults.startY;
   autoScrollState.endY = defaults.endY;
   autoScrollState.durationSec = DEFAULT_DURATION_SEC;
-  autoScrollState.lastKnownScrollPosition = window.scrollY;
 
   if (autoScrollState.storageKey) {
     try {
@@ -379,21 +360,19 @@ function restoreAutoScrollState() {
     if (Number.isFinite(savedState.durationSec)) {
       autoScrollState.durationSec = Math.max(0, savedState.durationSec);
     }
-
-    if (Number.isFinite(savedState.lastKnownScrollPosition)) {
-      autoScrollState.lastKnownScrollPosition = savedState.lastKnownScrollPosition;
-    }
   }
 
   setDurationInputs(autoScrollState.durationSec);
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
   if (savedState) {
-    setStatus('保存済みの自動スクロール設定を復元しました。', 'success');
+    updateStoppedStatus(true);
+  } else {
+    saveAutoScrollState({ notify: true });
   }
 }
 
-function setMarkerY(markerName, docY, { save = false, announce = false } = {}) {
+function setMarkerY(markerName, docY) {
   const defaults = getDefaultMarkerPositions();
   const fallbackY = markerName === 'start' ? defaults.startY : defaults.endY;
   const nextY = clampMarkerToSheet(docY, fallbackY);
@@ -406,19 +385,11 @@ function setMarkerY(markerName, docY, { save = false, announce = false } = {}) {
 
   renderMarkerPositions();
 
-  if (autoScrollState.isPlaying) {
-    recalculateAutoScrollSpeed();
-  } else {
-    updateReadyStatus();
+  if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
+    return;
   }
 
-  if (save) {
-    saveAutoScrollState(false);
-  }
-
-  if (announce && autoScrollState.isPlaying) {
-    setStatus('マーカー位置を更新し、速度を再計算しました。', 'info');
-  }
+  saveAutoScrollState({ notify: true });
 }
 
 function onMarkerPointerDown(event) {
@@ -451,7 +422,7 @@ function onMarkerPointerMove(event) {
   }
 
   const nextY = (event.clientY + window.scrollY) - autoScrollState.dragging.offsetY;
-  setMarkerY(autoScrollState.dragging.markerName, nextY, { save: false, announce: false });
+  setMarkerY(autoScrollState.dragging.markerName, nextY);
   event.preventDefault();
 }
 
@@ -468,16 +439,18 @@ function onMarkerPointerUp(event) {
   }
 
   autoScrollState.dragging = null;
-  saveAutoScrollState(false);
-
-  if (autoScrollState.isPlaying) {
-    setStatus('マーカー位置を更新し、速度を再計算しました。', 'info');
-  } else {
-    updateReadyStatus();
-  }
 }
 
-function stopAutoScroll(message = '自動スクロールを停止しました。', tone = 'info') {
+function isEndMarkerVisible() {
+  const endMarkerEl = getEndMarkerEl();
+  if (!endMarkerEl) {
+    return false;
+  }
+
+  return endMarkerEl.getBoundingClientRect().top <= window.innerHeight;
+}
+
+function stopAutoScroll(message = 'Stopped', tone = 'info') {
   if (autoScrollState.frameId) {
     window.cancelAnimationFrame(autoScrollState.frameId);
     autoScrollState.frameId = null;
@@ -485,10 +458,8 @@ function stopAutoScroll(message = '自動スクロールを停止しました。
 
   autoScrollState.isPlaying = false;
   autoScrollState.speedPxPerSec = 0;
-  autoScrollState.lastKnownScrollPosition = window.scrollY;
-
   updateAutoScrollControls();
-  saveAutoScrollState(false);
+  saveAutoScrollState({ notify: false });
   setStatus(message, tone);
 }
 
@@ -497,18 +468,22 @@ function recalculateAutoScrollSpeed() {
     return true;
   }
 
+  if (isEndMarkerVisible()) {
+    stopAutoScroll('Stopped · End が見えたので停止', 'success');
+    return false;
+  }
+
   const elapsedSec = Math.max(0, (performance.now() - autoScrollState.startedAtMs) / 1000);
   const remainingTimeSec = autoScrollState.durationSec - elapsedSec;
-  const reachableEndY = getReachableScrollY(autoScrollState.endY);
-  const remainingDistancePx = reachableEndY - window.scrollY;
+  const remainingDistancePx = getReachableScrollY(autoScrollState.endY) - window.scrollY;
 
   if (remainingDistancePx <= 0.5) {
-    stopAutoScroll('End に到達したため停止しました。', 'success');
+    stopAutoScroll('Stopped · End に到達', 'success');
     return false;
   }
 
   if (remainingTimeSec <= 0) {
-    stopAutoScroll('残り時間が 0 秒になりました。時間を調整してください。', 'warn');
+    stopAutoScroll('Stopped · 残り時間が 0 秒です', 'warn');
     return false;
   }
 
@@ -528,51 +503,47 @@ function runAutoScrollFrame(nowMs) {
     return;
   }
 
-  const reachableEndY = getReachableScrollY(autoScrollState.endY);
-  autoScrollState.virtualScrollY = Math.min(
-    reachableEndY,
-    autoScrollState.virtualScrollY + (autoScrollState.speedPxPerSec * deltaSec)
-  );
-
+  autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
   window.scrollTo(0, autoScrollState.virtualScrollY);
 
-  if ((reachableEndY - autoScrollState.virtualScrollY) <= 0.5) {
-    window.scrollTo(0, reachableEndY);
-    stopAutoScroll('自動スクロールが完了しました。', 'success');
+  if (isEndMarkerVisible()) {
+    stopAutoScroll('Stopped · End が画面内に入りました', 'success');
     return;
   }
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
 }
 
+function shouldScrollToStart() {
+  if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.defaultStartY)) {
+    return true;
+  }
+
+  return Math.abs(autoScrollState.startY - autoScrollState.defaultStartY) > START_SCROLL_TOLERANCE_PX;
+}
+
 function startAutoScroll() {
-  syncDurationFromInputs({ announce: false });
+  syncDurationFromInputs({ notify: false });
   applyMarkerStateToRenderedSheet({ resetInvalidRange: false });
 
   if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
-    setStatus('譜面の描画完了後に開始してください。', 'warn');
+    setStatus('Stopped · 譜面の描画完了後に開始してください', 'warn');
     return;
   }
 
   if (autoScrollState.endY <= autoScrollState.startY) {
-    setStatus('End マーカーを Start より下に置いてください。', 'warn');
+    setStatus('Stopped · End を Start より下に置いてください', 'warn');
     return;
   }
 
   if (autoScrollState.durationSec <= 0) {
-    setStatus('再生時間は 1 秒以上にしてください。', 'warn');
+    setStatus('Stopped · 時間を 1 秒以上にしてください', 'warn');
     return;
   }
 
-  const reachableStartY = getReachableScrollY(autoScrollState.startY);
-  const reachableEndY = getReachableScrollY(autoScrollState.endY);
-
-  if (reachableEndY <= reachableStartY) {
-    setStatus('スクロール可能な距離が不足しています。End を下げてください。', 'warn');
-    return;
+  if (shouldScrollToStart()) {
+    window.scrollTo(0, getReachableScrollY(autoScrollState.startY));
   }
-
-  window.scrollTo(0, reachableStartY);
 
   autoScrollState.isPlaying = true;
   autoScrollState.startedAtMs = performance.now();
@@ -591,12 +562,12 @@ function startAutoScroll() {
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
   updateAutoScrollControls();
-  setStatus('自動スクロールを開始しました。譜面を左クリックするか Stop で停止できます。', 'info');
+  setStatus(`Playing · ${formatDuration(autoScrollState.durationSec)}`, 'info');
 }
 
 function toggleAutoScroll() {
   if (autoScrollState.isPlaying) {
-    stopAutoScroll('自動スクロールを停止しました。', 'info');
+    stopAutoScroll('Stopped', 'info');
   } else {
     startAutoScroll();
   }
@@ -607,11 +578,7 @@ function handleSheetPrimaryClick(event) {
     return;
   }
 
-  if (autoScrollState.dragging) {
-    return;
-  }
-
-  if (event.target.closest('.autoscroll-marker')) {
+  if (autoScrollState.dragging || event.target.closest('.autoscroll-marker')) {
     return;
   }
 
@@ -626,14 +593,12 @@ function resetAutoScrollSettings() {
 
   setDurationInputs(autoScrollState.durationSec);
   renderMarkerPositions();
-  saveAutoScrollState(false);
 
-  if (autoScrollState.isPlaying) {
-    recalculateAutoScrollSpeed();
-    setStatus('Start / End と時間を初期値へ戻しました。', 'info');
-  } else {
-    setStatus('Start / End と時間を初期値へ戻しました。', 'success');
+  if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
+    return;
   }
+
+  saveAutoScrollState({ notify: true });
 }
 
 function refreshAutoScrollAfterRender({ restoreSavedState = false } = {}) {
@@ -644,7 +609,6 @@ function refreshAutoScrollAfterRender({ restoreSavedState = false } = {}) {
     autoScrollState.hasLoadedSavedState = true;
   } else {
     applyMarkerStateToRenderedSheet({ resetInvalidRange: false });
-    saveAutoScrollState(false);
   }
 
   updateAutoScrollControls();
@@ -668,7 +632,7 @@ async function loadSong() {
       keyEl.textContent = '';
     }
     sheetEl.textContent = 'artist または id が指定されていません。';
-    setStatus('URL パラメータが不足しています。', 'warn');
+    setStatus('Stopped · URL パラメータ不足', 'warn');
     return;
   }
 
@@ -687,7 +651,7 @@ async function loadSong() {
         keyEl.textContent = '';
       }
       sheetEl.textContent = '指定された曲が見つかりませんでした。';
-      setStatus('曲データが見つかりません。', 'warn');
+      setStatus('Stopped · 曲が見つかりません', 'warn');
       return;
     }
 
@@ -712,7 +676,7 @@ async function loadSong() {
       keyEl.textContent = '';
     }
     sheetEl.textContent = '曲の読み込み中にエラーが発生しました。';
-    setStatus('曲の読み込み中にエラーが発生しました。', 'warn');
+    setStatus('Stopped · 読み込みエラー', 'warn');
   }
 }
 
@@ -744,28 +708,19 @@ function reRender() {
 function initializeAutoScrollUi() {
   document.getElementById('autoscroll-toggle')?.addEventListener('click', toggleAutoScroll);
   document.getElementById('autoscroll-reset')?.addEventListener('click', resetAutoScrollSettings);
-  document.getElementById('autoscroll-save')?.addEventListener('click', () => saveAutoScrollState(true));
 
-  const onDurationInput = () => syncDurationFromInputs({ announce: true });
+  const onDurationInput = () => syncDurationFromInputs({ notify: true });
   document.getElementById('autoscroll-minutes')?.addEventListener('input', onDurationInput);
   document.getElementById('autoscroll-seconds')?.addEventListener('input', onDurationInput);
-
-  for (const durationSec of AUTO_SCROLL_PRESETS_SEC) {
-    document
-      .querySelector(`.autoscroll-preset[data-duration-sec="${durationSec}"]`)
-      ?.addEventListener('click', () => applyDurationPreset(durationSec));
-  }
 
   document.querySelector('.sheet-stage')?.addEventListener('click', handleSheetPrimaryClick);
 
   ensureMarkerElements();
   setDurationInputs(DEFAULT_DURATION_SEC);
   updateAutoScrollControls();
-  setStatus('譜面の左クリック、または Start ボタンで開始できます。', 'info');
+  setStatus('Stopped', 'info');
 
   window.addEventListener('scroll', () => {
-    autoScrollState.lastKnownScrollPosition = window.scrollY;
-
     if (autoScrollState.isPlaying && Math.abs(window.scrollY - autoScrollState.virtualScrollY) > 3) {
       autoScrollState.virtualScrollY = window.scrollY;
     }
@@ -776,11 +731,13 @@ function initializeAutoScrollUi() {
 
     if (autoScrollState.isPlaying) {
       recalculateAutoScrollSpeed();
+    } else {
+      updateStoppedStatus(false);
     }
   });
 
   window.addEventListener('beforeunload', () => {
-    saveAutoScrollState(false);
+    saveAutoScrollState({ notify: false });
   });
 }
 

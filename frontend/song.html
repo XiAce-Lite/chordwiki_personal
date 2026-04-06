@@ -7,6 +7,29 @@
   <link rel="stylesheet" href="css/chordwiki-song.css" />
 </head>
 <body>
+  <div id="autoscroll-ui" class="autoscroll-ui" aria-label="Auto scroll controls">
+    <div class="autoscroll-header">
+      <div class="autoscroll-title">Auto Scroll</div>
+      <div id="autoscroll-status" class="autoscroll-status" aria-live="polite">Stopped</div>
+    </div>
+
+    <div class="autoscroll-duration">
+      <label for="autoscroll-minutes">
+        Min
+        <input id="autoscroll-minutes" type="number" min="0" max="999" step="1" value="4" inputmode="numeric" />
+      </label>
+      <span class="autoscroll-separator">:</span>
+      <label for="autoscroll-seconds" aria-label="Seconds">
+        <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
+      </label>
+    </div>
+
+    <div class="autoscroll-buttons">
+      <button id="autoscroll-toggle" type="button">Start</button>
+      <button id="autoscroll-reset" type="button">Reset</button>
+    </div>
+  </div>
+
   <div class="container">
     <div class="song-header">
       <a href="/" class="back-link">← Top</a>
@@ -23,36 +46,6 @@
         <span id="transpose-display">Transpose: 0</span>
         <button id="transpose-up" type="button">+</button>
         <button id="transpose-reset" type="button">Reset</button>
-      </div>
-
-      <div id="autoscroll-ui" class="autoscroll-ui" aria-label="Auto scroll controls">
-        <div class="autoscroll-title">Auto Scroll</div>
-
-        <div class="autoscroll-duration">
-          <label for="autoscroll-minutes">
-            Min
-            <input id="autoscroll-minutes" type="number" min="0" max="999" step="1" value="4" inputmode="numeric" />
-          </label>
-          <span class="autoscroll-separator">:</span>
-          <label for="autoscroll-seconds" aria-label="Seconds">
-            <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
-          </label>
-        </div>
-
-        <div class="autoscroll-presets" aria-label="Duration presets">
-          <span class="autoscroll-presets-label">Preset</span>
-          <button class="autoscroll-preset" type="button" data-duration-sec="210">3:30</button>
-          <button class="autoscroll-preset is-active" type="button" data-duration-sec="240">4:00</button>
-          <button class="autoscroll-preset" type="button" data-duration-sec="300">5:00</button>
-        </div>
-
-        <div class="autoscroll-buttons">
-          <button id="autoscroll-toggle" type="button">Start</button>
-          <button id="autoscroll-reset" type="button">Reset</button>
-          <button id="autoscroll-save" type="button">Save</button>
-        </div>
-
-        <div id="autoscroll-status" class="autoscroll-status" aria-live="polite"></div>
       </div>
     </div>
 

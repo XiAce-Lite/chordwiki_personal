@@ -13,13 +13,11 @@ body {
   padding: 0 16px 40px;
 }
 
-/* タイトル行全体 */
 .song-header {
   position: relative;
   margin-bottom: 4px;
 }
 
-/* 戻るリンク：左上に固定 */
 .back-link {
   position: absolute;
   left: 0;
@@ -54,7 +52,6 @@ body {
   text-decoration: underline;
 }
 
-/* タイトルは今まで通り中央 */
 .song-title {
   text-align: center;
 }
@@ -82,8 +79,7 @@ body {
   margin: 0 0 14px;
 }
 
-.transpose-ui,
-.autoscroll-ui {
+.transpose-ui {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -118,24 +114,40 @@ body {
 }
 
 .autoscroll-ui {
-  padding: 8px 10px;
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(320px, calc(100vw - 28px));
+  padding: 12px 14px;
   border: 1px solid #d6e7f8;
-  border-radius: 8px;
-  background: #f7fbff;
+  border-radius: 12px;
+  background: rgba(247, 251, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.autoscroll-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .autoscroll-title {
   font-weight: 700;
   color: #0f4c81;
-  margin-right: 4px;
 }
 
 .autoscroll-duration,
-.autoscroll-presets,
 .autoscroll-buttons {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
 }
 
 .autoscroll-duration label {
@@ -158,22 +170,6 @@ body {
   color: #4f647a;
 }
 
-.autoscroll-presets-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #4f647a;
-}
-
-.autoscroll-preset {
-  min-width: 52px;
-}
-
-.autoscroll-preset.is-active {
-  background: #0078d4;
-  border-color: #0078d4;
-  color: #fff;
-}
-
 #autoscroll-toggle.is-playing {
   background: #eaf4ff;
   border-color: #7eb5eb;
@@ -181,21 +177,29 @@ body {
 }
 
 .autoscroll-status {
-  flex-basis: 100%;
-  min-height: 1.2em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.8em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #edf5ff;
   font-size: 12px;
-  color: #4f647a;
+  font-weight: 700;
+  color: #335d84;
+  text-align: center;
 }
 
 .autoscroll-status[data-tone="warn"] {
+  background: #fff4e5;
   color: #b54708;
 }
 
 .autoscroll-status[data-tone="success"] {
+  background: #ecfdf3;
   color: #0a7a38;
 }
 
-/* ===== 曲本文 ===== */
 .sheet-stage {
   position: relative;
   padding-bottom: 55vh;
@@ -291,7 +295,6 @@ body.is-dragging-marker * {
   cursor: grabbing !important;
 }
 
-/* ===== セル方式：コード右端＝歌詞開始（左列=コード幅） ===== */
 .cw-cell {
   --cw-chord-pad: 0px;
 
@@ -305,7 +308,6 @@ body.is-dragging-marker * {
   white-space: pre;
 }
 
-/* 上段：コード（左列で右寄せ） */
 .cw-chord {
   grid-column: 1;
   grid-row: 1;
@@ -322,13 +324,11 @@ body.is-dragging-marker * {
   min-height: 1em;
 }
 
-/* [|] など、コードが縦棒だけのケースはグリフ都合で下がって見えるため補正 */
 .cw-chord-bar {
   position: inherit;
   margin-right: 0.1em;
 }
 
-/* 下段：歌詞（右列から開始） */
 .cw-word {
   grid-column: 2;
   grid-row: 2;
@@ -341,14 +341,12 @@ body.is-dragging-marker * {
   min-height: 1em;
 }
 
-/* 歌詞内の | ：左右に少し余白（paddingで） */
 .cw-bar {
   display: inline-block;
   font-weight: 400;
   padding: 0 0.25em;
 }
 
-/* ===== コメント ===== */
 .cw-comment {
   display: inline-block;
   background-color: #e6e6e6;
@@ -367,7 +365,6 @@ body.is-dragging-marker * {
   color: #666;
 }
 
-/* N.C. 特別表示 */
 .cw-nc {
   color: #444;
   font-style: italic;
@@ -380,7 +377,10 @@ body.is-dragging-marker * {
 
 @media (max-width: 720px) {
   .autoscroll-ui {
-    width: 100%;
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    width: min(320px, calc(100vw - 20px));
   }
 
   .autoscroll-marker {
@@ -393,6 +393,7 @@ body.is-dragging-marker * {
   .cw-nc { color: #000; border-color: #999; background: transparent; }
   .cw-comment { background: transparent; padding: 0; }
   .control-row,
+  .autoscroll-ui,
   .autoscroll-marker-layer {
     display: none !important;
   }
