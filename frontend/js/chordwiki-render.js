@@ -62,22 +62,23 @@ function createSpan(className, text) {
 }
 
 /**
- * ChordWiki互換: 1行は lyrics/comment/blank のみ。
- * chord は位置に紐づき、コード直後の歌詞だけ wordtop にする。
+ * ChordWiki互換: tokenize では `chord` と `word` だけを作る。
+ * `wordtop` は render 時に、行頭の最初の歌詞 span にのみ後付けする。
  */
 function tokenizeLyricsLine(lineText) {
   const tokens = [];
   const line = lineText || "";
   let i = 0;
-  let expectWordTop = false;
 
   while (i < line.length) {
     if (line[i] === "[") {
       const end = line.indexOf("]", i);
       if (end !== -1) {
-        tokens.push({ kind: "chord", text: line.slice(i + 1, end) });
+        tokens.push({
+          kind: "chord",
+          text: line.slice(i + 1, end)
+        });
         i = end + 1;
-        expectWordTop = true;
         continue;
       }
     }
@@ -88,10 +89,9 @@ function tokenizeLyricsLine(lineText) {
     const lyric = line.slice(i, j);
     if (lyric.length > 0) {
       tokens.push({
-        kind: expectWordTop ? "wordtop" : "word",
+        kind: "word",
         text: lyric
       });
-      expectWordTop = false;
     }
 
     i = j;
@@ -162,6 +162,12 @@ function renderLyricsLine(tokens, containerEl, options = {}) {
       ? transposeChordString(token.text, transposeSemitones, accidentalMode, keyContext)
       : (token.text || "");
     p.appendChild(span);
+  }
+
+  const first = p.firstElementChild;
+  if (first && first.classList.contains("word")) {
+    first.classList.remove("word");
+    first.classList.add("wordtop");
   }
 
   containerEl.appendChild(p);
