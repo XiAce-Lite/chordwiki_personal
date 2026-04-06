@@ -33,7 +33,10 @@
   <div class="container">
     <div class="song-header">
       <a href="/" class="back-link">← Top</a>
-      <a id="edit-link" href="/edit.html?mode=edit" class="edit-link">Edit</a>
+      <div id="song-admin-actions" class="song-admin-actions editor-only" data-display="flex">
+        <a id="edit-link" href="/edit.html?mode=edit" class="edit-link">Edit</a>
+        <button id="delete-button" type="button" class="delete-link">Delete</button>
+      </div>
       <h1 id="title" class="song-title"></h1>
     </div>
 
@@ -56,6 +59,7 @@
   </div>
 
   <script src="js/chordwiki-render.js"></script>
+  <script src="js/auth.js"></script>
   <script src="js/song.js"></script>
 </body>
 </html>

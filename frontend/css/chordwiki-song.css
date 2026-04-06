@@ -7,6 +7,26 @@ body {
                "Yu Gothic", sans-serif;
 }
 
+.editor-only {
+  display: none !important;
+}
+
+html.editor-enabled .editor-only {
+  display: inline-block !important;
+}
+
+html.editor-enabled .editor-only[data-display="block"] {
+  display: block !important;
+}
+
+html.editor-enabled .editor-only[data-display="flex"] {
+  display: flex !important;
+}
+
+html.editor-enabled .editor-only[data-display="inline-flex"] {
+  display: inline-flex !important;
+}
+
 .container {
   max-width: 980px;
   margin: 0 auto;
@@ -30,25 +50,41 @@ body {
   white-space: nowrap;
 }
 
-.edit-link {
+.song-admin-actions {
   position: absolute;
   right: 0;
   top: 50%;
   transform: translateY(-50%);
   margin-right: 16px;
+  align-items: center;
+  gap: 8px;
+}
+
+.edit-link,
+.delete-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 4px 10px;
   font-size: 14px;
   font-weight: 600;
   text-decoration: none;
-  color: #0b65c2;
   border: 1px solid #b7d3f2;
   border-radius: 999px;
-  background: #f4f9ff;
   white-space: nowrap;
+  background: #f4f9ff;
+  color: #0b65c2;
+}
+
+.delete-link {
+  border-color: #f0b9b4;
+  background: #fff5f4;
+  color: #b42318;
 }
 
 .back-link:hover,
-.edit-link:hover {
+.edit-link:hover,
+.delete-link:hover {
   text-decoration: underline;
 }
 

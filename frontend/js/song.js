@@ -48,18 +48,28 @@ function getSongStorageKey(artist, id) {
   return `${AUTO_SCROLL_STORAGE_PREFIX}:${artist}:${id}`;
 }
 
-function updateEditLink(artist, id) {
+function updateEditorActions(artist, id) {
+  const adminActionsEl = document.getElementById('song-admin-actions');
   const editLinkEl = document.getElementById('edit-link');
-  if (!editLinkEl) {
+  const deleteButtonEl = document.getElementById('delete-button');
+
+  if (!editLinkEl || !deleteButtonEl) {
     return;
   }
 
   if (!artist || !id) {
-    editLinkEl.hidden = true;
+    if (adminActionsEl) {
+      adminActionsEl.hidden = true;
+    }
+    deleteButtonEl.disabled = true;
     return;
   }
 
-  editLinkEl.hidden = false;
+  if (adminActionsEl) {
+    adminActionsEl.hidden = false;
+  }
+
+  deleteButtonEl.disabled = false;
   editLinkEl.href = `/edit.html?mode=edit&artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
 }
 
@@ -585,6 +595,45 @@ function handleSheetPrimaryClick(event) {
   toggleAutoScroll();
 }
 
+async function handleDeleteSong() {
+  const artist = getQueryParam('artist');
+  const id = getQueryParam('id');
+
+  if (!artist || !id) {
+    setStatus('Stopped · 削除対象を特定できません', 'warn');
+    return;
+  }
+
+  const confirmed = window.confirm('この曲を削除します。元に戻せません。');
+  if (!confirmed) {
+    return;
+  }
+
+  setStatus('Deleting...', 'warn');
+
+  try {
+    const response = await fetch(
+      `/api/edit/song/${encodeURIComponent(artist)}/${encodeURIComponent(id)}`,
+      {
+        method: 'DELETE',
+        credentials: 'include'
+      }
+    );
+
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detail = body?.error?.detail || body?.detail || body?.error || '削除に失敗しました。';
+      setStatus(`Stopped · ${detail}`, 'warn');
+      return;
+    }
+
+    window.location.href = '/';
+  } catch (error) {
+    console.error('Failed to delete song:', error);
+    setStatus('Stopped · 削除中に通信エラー', 'warn');
+  }
+}
+
 function resetAutoScrollSettings() {
   const defaults = getDefaultMarkerPositions();
   autoScrollState.startY = defaults.startY;
@@ -623,7 +672,7 @@ async function loadSong() {
   const keyEl = document.getElementById('key');
   const sheetEl = getSheetEl();
 
-  updateEditLink(artist, id);
+  updateEditorActions(artist, id);
 
   if (!artist || !id) {
     titleEl.textContent = 'Invalid parameters';
@@ -708,6 +757,7 @@ function reRender() {
 function initializeAutoScrollUi() {
   document.getElementById('autoscroll-toggle')?.addEventListener('click', toggleAutoScroll);
   document.getElementById('autoscroll-reset')?.addEventListener('click', resetAutoScrollSettings);
+  document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
 
   const onDurationInput = () => syncDurationFromInputs({ notify: true });
   document.getElementById('autoscroll-minutes')?.addEventListener('input', onDurationInput);
@@ -757,6 +807,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reRender();
   });
 
+  window.ChordWikiAuth?.applyRoleVisibility();
   initializeAutoScrollUi();
   updateTransposeDisplay();
   loadSong();

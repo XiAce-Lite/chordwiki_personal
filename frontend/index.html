@@ -32,15 +32,33 @@
     .song-item:hover {
       background-color: #f0f0f0;
     }
+    .editor-only {
+      display: none !important;
+    }
+    html.editor-enabled .editor-only {
+      display: inline-block !important;
+    }
+    html.editor-enabled .editor-only[data-display="block"] {
+      display: block !important;
+    }
+    html.editor-enabled .editor-only[data-display="flex"] {
+      display: flex !important;
+    }
+    html.editor-enabled .editor-only[data-display="inline-flex"] {
+      display: inline-flex !important;
+    }
   </style>
 </head>
 <body>
   <h1>ChordWiki Personal</h1>
-  <button id="add-button" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
+  <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <input type="text" id="search" placeholder="検索...">
   <div id="song-list"></div>
 
+  <script src="js/auth.js"></script>
   <script>
+    window.ChordWikiAuth?.applyRoleVisibility();
+
     document.getElementById('add-button').addEventListener('click', () => {
       location.href = '/edit.html?mode=add';
     });
