@@ -443,6 +443,32 @@ body.is-dragging-marker * {
   background: transparent;
 }
 
+/* Flat span rendering for current ChordWiki DOM */
+p.line {
+  position: relative;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+span.chord {
+  display: inline-block;
+  position: relative;
+  top: -1.15em;
+  font-size: 0.85em;
+  line-height: 1.0;
+  color: #0000cc;
+  margin-right: 0.25em;
+  vertical-align: baseline;
+}
+
+span.word,
+span.wordtop {
+  display: inline;
+  font-size: 1em;
+  line-height: 1.6;
+  color: #222;
+}
+
 @media (max-width: 720px) {
   .autoscroll-ui {
     top: auto;
