@@ -17,12 +17,15 @@
       "route": "/logout",
       "redirect": "/.auth/logout"
     },
-
     {
       "route": "/add.html",
+      "redirect": "/edit.html?mode=add",
+      "statusCode": 302
+    },
+    {
+      "route": "/edit.html",
       "allowedRoles": ["editor"]
     },
-
     {
       "route": "/edit/*",
       "allowedRoles": ["editor"]
@@ -31,12 +34,14 @@
       "route": "/api/edit/*",
       "allowedRoles": ["editor"]
     },
-
+    {
+      "route": "/song.html",
+      "allowedRoles": ["authenticated"]
+    },
     {
       "route": "/song/*",
       "allowedRoles": ["authenticated"]
     },
-
     {
       "route": "/",
       "allowedRoles": ["authenticated"]

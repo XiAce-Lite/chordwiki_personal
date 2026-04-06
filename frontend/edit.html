@@ -3,10 +3,215 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChordWiki - Edit</title>
+  <title>ChordWiki - Editor</title>
+  <style>
+    :root {
+      color-scheme: light;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans JP", sans-serif;
+      background: #f4f7fb;
+      color: #1f2937;
+    }
+
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    .back-link {
+      display: inline-block;
+      margin-bottom: 14px;
+      color: #0b65c2;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+    }
+
+    .description {
+      margin: 0 0 18px;
+      color: #526071;
+      font-size: 14px;
+    }
+
+    .loading {
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #eef6ff;
+      color: #0f4c81;
+      margin-bottom: 16px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .hint {
+      font-weight: 500;
+      font-size: 12px;
+      color: #607080;
+      margin-left: 6px;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid #cfd8e3;
+      border-radius: 8px;
+      font-size: 15px;
+      background: #fff;
+    }
+
+    input[readonly] {
+      background: #f7f9fc;
+      color: #617184;
+    }
+
+    textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.5;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #chordPro {
+      min-height: 320px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button[type="submit"] {
+      background: #0078d4;
+      color: #fff;
+    }
+
+    button.secondary {
+      background: #eef2f7;
+      color: #1f2937;
+    }
+
+    button.danger {
+      background: #d92d20;
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .message {
+      margin-top: 14px;
+      min-height: 24px;
+      font-size: 14px;
+    }
+
+    .message.error {
+      color: #b42318;
+    }
+
+    .message.success {
+      color: #067647;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
-  <h1>コード譜編集</h1>
-  <p>ここから曲情報を編集します。</p>
+  <div class="page">
+    <a id="back-link" class="back-link" href="/">← Top</a>
+
+    <div class="card">
+      <h1 id="page-title">コード譜フォーム</h1>
+      <p id="page-description" class="description">読み込み中です...</p>
+
+      <div id="loading" class="loading">初期化しています...</div>
+
+      <form id="song-form" hidden novalidate>
+        <div class="field">
+          <label for="song-id">ID<span class="hint">edit時は固定</span></label>
+          <input type="text" id="song-id" name="id" readonly>
+        </div>
+
+        <div class="field">
+          <label for="title">曲名</label>
+          <input type="text" id="title" name="title" required>
+        </div>
+
+        <div class="field">
+          <label for="slug">URL用ID</label>
+          <input type="text" id="slug" name="slug" required>
+        </div>
+
+        <div class="field">
+          <label for="artist">アーティスト</label>
+          <input type="text" id="artist" name="artist" required>
+        </div>
+
+        <div class="field">
+          <label for="tags">タグ<span class="hint">任意 / 1行に1タグ</span></label>
+          <textarea id="tags" name="tags" placeholder="pop&#10;live"></textarea>
+        </div>
+
+        <div class="field">
+          <label for="chordPro">本文</label>
+          <textarea id="chordPro" name="chordPro" required></textarea>
+        </div>
+
+        <div class="button-row">
+          <button type="submit" id="submit-button">保存</button>
+          <button type="button" id="delete-button" class="danger" hidden>削除</button>
+          <button type="button" id="cancel-button" class="secondary">キャンセル</button>
+        </div>
+
+        <div id="message" class="message" aria-live="polite"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/edit.js"></script>
 </body>
 </html>

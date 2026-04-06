@@ -32,7 +32,25 @@ body {
   white-space: nowrap;
 }
 
-.back-link:hover {
+.edit-link {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: 16px;
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #0b65c2;
+  border: 1px solid #b7d3f2;
+  border-radius: 999px;
+  background: #f4f9ff;
+  white-space: nowrap;
+}
+
+.back-link:hover,
+.edit-link:hover {
   text-decoration: underline;
 }
 

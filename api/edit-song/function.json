@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["post"],
-      "route": "edit/song"
+      "methods": ["post", "put", "delete"],
+      "route": "edit/song/{artist?}/{id?}"
     },
     {
       "type": "http",

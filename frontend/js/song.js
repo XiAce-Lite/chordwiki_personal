@@ -47,6 +47,21 @@ function getSongStorageKey(artist, id) {
   return `${AUTO_SCROLL_STORAGE_PREFIX}:${artist}:${id}`;
 }
 
+function updateEditLink(artist, id) {
+  const editLinkEl = document.getElementById('edit-link');
+  if (!editLinkEl) {
+    return;
+  }
+
+  if (!artist || !id) {
+    editLinkEl.hidden = true;
+    return;
+  }
+
+  editLinkEl.hidden = false;
+  editLinkEl.href = `/edit.html?mode=edit&artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
+}
+
 function getSheetEl() {
   return document.getElementById('sheet');
 }
@@ -643,6 +658,8 @@ async function loadSong() {
   const artistEl = document.getElementById('artist');
   const keyEl = document.getElementById('key');
   const sheetEl = getSheetEl();
+
+  updateEditLink(artist, id);
 
   if (!artist || !id) {
     titleEl.textContent = 'Invalid parameters';

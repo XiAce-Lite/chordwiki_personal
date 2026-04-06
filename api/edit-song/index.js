@@ -15,6 +15,170 @@ function badRequest(context, detail) {
   context.res = { status: 400, body: { error: "BadRequest", detail } };
 }
 
+function notFound(context, detail) {
+  context.res = { status: 404, body: { error: "NotFound", detail } };
+}
+
+function normalizeNewlines(text) {
+  return String(text || "").replace(/\r\n|\n\r|\r/g, "\n");
+}
+
+function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) {
+  let body = rawBody;
+
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      return { error: "Request body must be valid JSON." };
+    }
+  }
+
+  if (!body || typeof body !== "object") {
+    return { error: "Request body must be JSON." };
+  }
+
+  const id = String(body.id || fallbackId || "").trim();
+  const title = String(body.title || "").trim();
+  const slug = String(body.slug || "").trim();
+  const artist = String(body.artist || "").trim();
+  const updatedAt = String(body.updatedAt || "").trim();
+  const chordPro = normalizeNewlines(body.chordPro || "").trim();
+
+  if (requireId && !id) {
+    return { error: "id is required." };
+  }
+
+  if (!title || !slug || !artist || !updatedAt || !chordPro) {
+    return { error: "title, slug, artist, chordPro, updatedAt are required." };
+  }
+
+  const rawTags = Array.isArray(body.tags)
+    ? body.tags
+    : typeof body.tags === "string"
+      ? normalizeNewlines(body.tags).split("\n")
+      : [];
+
+  const tags = rawTags
+    .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+    .filter(Boolean);
+
+  return {
+    value: {
+      id,
+      title,
+      slug,
+      artist,
+      tags,
+      chordPro,
+      updatedAt
+    }
+  };
+}
+
+async function handleCreate(context, req) {
+  const parsed = normalizeSongBody(req.body, { requireId: true });
+  if (parsed.error) {
+    badRequest(context, parsed.error);
+    return;
+  }
+
+  const item = parsed.value;
+
+  try {
+    const { resource } = await container.items.create(item, { partitionKey: item.artist });
+    context.res = { status: 201, body: resource };
+  } catch (error) {
+    if (error.code === 409) {
+      context.res = {
+        status: 409,
+        body: { error: "Conflict", detail: "Item already exists (id conflict within partition)." }
+      };
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function readExistingSong(originalArtist, originalId) {
+  try {
+    const response = await container.item(originalId, originalArtist).read();
+    return response.resource || null;
+  } catch (error) {
+    if (error.code === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
+async function handleUpdate(context, req) {
+  const originalArtist = String(context.bindingData.artist || "").trim();
+  const originalId = String(context.bindingData.id || "").trim();
+
+  if (!originalArtist || !originalId) {
+    badRequest(context, "artist and id route parameters are required for update.");
+    return;
+  }
+
+  const parsed = normalizeSongBody(req.body, { fallbackId: originalId, requireId: false });
+  if (parsed.error) {
+    badRequest(context, parsed.error);
+    return;
+  }
+
+  const nextItem = parsed.value;
+  if (nextItem.id && nextItem.id !== originalId) {
+    badRequest(context, "id cannot be changed in edit mode.");
+    return;
+  }
+
+  const existing = await readExistingSong(originalArtist, originalId);
+  if (!existing) {
+    notFound(context, "Song not found.");
+    return;
+  }
+
+  const updatedItem = {
+    ...existing,
+    ...nextItem,
+    id: originalId,
+    updatedAt: nextItem.updatedAt
+  };
+
+  const { resource } = await container.items.upsert(updatedItem, { partitionKey: updatedItem.artist });
+
+  if (updatedItem.artist !== originalArtist) {
+    await container.item(originalId, originalArtist).delete();
+  }
+
+  context.res = { status: 200, body: resource };
+}
+
+async function handleDelete(context) {
+  const originalArtist = String(context.bindingData.artist || "").trim();
+  const originalId = String(context.bindingData.id || "").trim();
+
+  if (!originalArtist || !originalId) {
+    badRequest(context, "artist and id route parameters are required for delete.");
+    return;
+  }
+
+  const existing = await readExistingSong(originalArtist, originalId);
+  if (!existing) {
+    notFound(context, "Song not found.");
+    return;
+  }
+
+  await container.item(originalId, originalArtist).delete();
+  context.res = {
+    status: 200,
+    body: { ok: true, id: originalId, artist: originalArtist }
+  };
+}
+
 module.exports = async function (context, req) {
   try {
     if (!container) {
@@ -28,67 +192,27 @@ module.exports = async function (context, req) {
       return;
     }
 
-    let body = req.body;
+    const method = String(req.method || "").toUpperCase();
 
-    // req.body が文字列で来るケース対応
-    if (typeof body === "string") {
-      try {
-        body = JSON.parse(body);
-      } catch {
-        badRequest(context, "Request body must be valid JSON.");
-        return;
-      }
-    }
-
-    if (!body || typeof body !== "object") {
-      badRequest(context, "Request body must be JSON.");
+    if (method === "POST") {
+      await handleCreate(context, req);
       return;
     }
 
-    const { id, title, slug, artist, tags, chordPro, updatedAt } = body;
-
-    if (!id || !title || !slug || !artist || !tags || !chordPro || !updatedAt) {
-      badRequest(context, "id, title, slug, artist, tags, chordPro, updatedAt are required.");
+    if (method === "PUT") {
+      await handleUpdate(context, req);
       return;
     }
 
-    if (!Array.isArray(tags) || tags.length === 0) {
-      badRequest(context, "tags must be a non-empty array.");
+    if (method === "DELETE") {
+      await handleDelete(context);
       return;
     }
 
-    // tags の中身を軽く正規化/検証
-    const tagsNormalized = tags
-      .map(t => (typeof t === "string" ? t.trim() : ""))
-      .filter(Boolean);
-
-    if (tagsNormalized.length === 0) {
-      badRequest(context, "tags must contain at least one non-empty string.");
-      return;
-    }
-
-    // chordPro は文字列必須
-    if (typeof chordPro !== "string" || chordPro.trim().length === 0) {
-      badRequest(context, "chordPro must be a non-empty string.");
-      return;
-    }
-
-    const item = { id, title, slug, artist, tags: tagsNormalized, chordPro, updatedAt };
-
-    try {
-      const { resource } = await container.items.create(item, { partitionKey: artist });
-      context.res = { status: 201, body: resource };
-    } catch (e) {
-      // 409: id + partitionKey 競合など
-      if (e.code === 409) {
-        context.res = {
-          status: 409,
-          body: { error: "Conflict", detail: "Item already exists (id conflict within partition)." }
-        };
-        return;
-      }
-      throw e;
-    }
+    context.res = {
+      status: 405,
+      body: { error: "MethodNotAllowed", detail: `Unsupported method: ${method}` }
+    };
   } catch (error) {
     context.log.error(error);
     context.res = {
