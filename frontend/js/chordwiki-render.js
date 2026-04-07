@@ -262,12 +262,19 @@ function parseKeySignature(keyText) {
   const semitone = noteToSemitone(root);
   if (semitone === null) return null;
 
-  const suffix = (m[3] || "").toLowerCase();
-  const isMinor = suffix === "m"
-    || suffix.startsWith("min")
-    || (suffix.startsWith("m") && !suffix.startsWith("maj"));
+  const rawSuffix = m[3] || "";
+  const normalizedSuffix = rawSuffix.toLowerCase();
+  const isMinor = normalizedSuffix === "m"
+    || normalizedSuffix.startsWith("min")
+    || (normalizedSuffix.startsWith("m") && !normalizedSuffix.startsWith("maj"));
 
-  return { semitone, isMinor };
+  return {
+    semitone,
+    isMinor,
+    root,
+    suffix: rawSuffix,
+    normalizedSuffix
+  };
 }
 
 function inferAccidentalFromKey(keyText, transposeSemitones = 0) {
@@ -352,6 +359,34 @@ function resolveAccidentalMode(chord, semitones, accidentalMode = "none", keyCon
 
   const fallbackMode = typeof keyContext === "object" ? keyContext?.fallbackMode : null;
   return fallbackMode || inferAccidentalFromChord(chord);
+}
+
+function transposeKeyText(keyText, semitones = 0, accidentalMode = "none") {
+  const original = keyText == null ? "" : String(keyText).trim();
+  if (!original) {
+    return "";
+  }
+
+  const normalizedMode = normalizeAccidentalMode(accidentalMode);
+  if (normalizedMode === "none" && semitones === 0) {
+    return original;
+  }
+
+  const parsedKey = parseKeySignature(original);
+  if (!parsedKey) {
+    return original;
+  }
+
+  const outputMode = normalizedMode !== "none"
+    ? normalizedMode
+    : (inferAccidentalFromKey(original, semitones) || inferAccidentalFromKey(original, 0) || "sharp");
+
+  const transposedRoot = semitoneToNote(parsedKey.semitone + semitones, outputMode);
+  return `${transposedRoot}${parsedKey.suffix || ""}`;
+}
+
+if (typeof window !== "undefined") {
+  window.transposeKeyText = transposeKeyText;
 }
 
 /**

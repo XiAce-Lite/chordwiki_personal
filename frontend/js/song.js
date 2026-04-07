@@ -114,8 +114,20 @@ function updateSongKeyDisplay(renderResult, fallbackKey = '') {
     return;
   }
 
-  const keyText = renderResult?.key || fallbackKey || '';
-  keyEl.textContent = keyText ? `Key: ${keyText}` : '';
+  const keyText = String(renderResult?.key || fallbackKey || '').trim();
+  if (!keyText) {
+    keyEl.textContent = '';
+    return;
+  }
+
+  const formatKey = typeof window.transposeKeyText === 'function'
+    ? window.transposeKeyText
+    : ((value) => value);
+  const playKey = formatKey(keyText, transposeSemitones, accidentalMode);
+
+  keyEl.textContent = transposeSemitones !== 0
+    ? `Original Key: ${keyText} / Play: ${playKey}`
+    : `Key: ${playKey}`;
 }
 
 function updateEditorActions(artist, id) {
@@ -371,13 +383,24 @@ function ensureMarkerElements() {
   }
 }
 
+function getMarkerViewportLeft() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return 8;
+  }
+
+  const sheetRect = sheetEl.getBoundingClientRect();
+  return Math.max(8, Math.round(sheetRect.left - 82));
+}
+
 function renderMarkerPositions() {
   const layerEl = getMarkerLayerEl();
-  const sheetBounds = getSheetBoundsDoc();
-
-  if (!layerEl || !sheetBounds) {
+  if (!layerEl) {
     return;
   }
+
+  const markerLeft = getMarkerViewportLeft();
+  layerEl.style.setProperty('--marker-left', `${markerLeft}px`);
 
   for (const markerName of ['start', 'end']) {
     const markerEl = layerEl.querySelector(`[data-marker="${markerName}"]`);
@@ -387,7 +410,8 @@ function renderMarkerPositions() {
       continue;
     }
 
-    markerEl.style.top = `${markerY - sheetBounds.top}px`;
+    markerEl.style.left = `${markerLeft}px`;
+    markerEl.style.top = `${Math.round(markerY - window.scrollY)}px`;
   }
 }
 
@@ -852,6 +876,8 @@ function initializeAutoScrollUi() {
   setStatus('Stopped', 'info');
 
   window.addEventListener('scroll', () => {
+    renderMarkerPositions();
+
     if (autoScrollState.isPlaying && Math.abs(window.scrollY - autoScrollState.virtualScrollY) > 3) {
       autoScrollState.virtualScrollY = window.scrollY;
     }

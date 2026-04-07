@@ -1,3 +1,9 @@
+:root {
+  --song-text-size: 14px;
+  --song-line-height: 1.6;
+  --song-chord-size: 12.5px;
+}
+
 body {
   margin: 10px 0;
   background: #fff;
@@ -25,6 +31,18 @@ html.editor-enabled .editor-only[data-display="flex"] {
 
 html.editor-enabled .editor-only[data-display="inline-flex"] {
   display: inline-flex !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .container {
@@ -101,51 +119,45 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .song-key {
   font-size: 12px;
-  font-weight: bold;
+  font-weight: 700;
   color: #dc143c;
   text-align: left;
-  margin-bottom: 12px;
-}
-
-.control-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 10px 14px;
-  margin: 0 0 14px;
+  margin: 6px 0 14px;
 }
 
 .transpose-ui {
   display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transpose-buttons,
+.autoscroll-duration,
+.autoscroll-buttons {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .transpose-mode {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
   margin: 0;
-  padding: 4px 10px;
-  border: 1px solid #d6e4f2;
-  border-radius: 999px;
-  background: #f8fbff;
-}
-
-.transpose-mode legend {
-  padding: 0 4px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #47627d;
+  padding: 0;
+  border: 0;
 }
 
 .transpose-mode-option {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid #d6e4f2;
+  border-radius: 999px;
+  background: #f8fbff;
   cursor: pointer;
   color: #23415f;
 }
@@ -159,7 +171,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .autoscroll-ui button {
   padding: 4px 8px;
   font-size: 14px;
-  border: 1px solid #ccc;
+  border: 1px solid #c4d4e4;
   background: #fff;
   cursor: pointer;
   border-radius: 4px;
@@ -167,7 +179,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .transpose-ui button:hover,
 .autoscroll-ui button:hover {
-  background: #f0f0f0;
+  background: #f0f6fc;
 }
 
 .transpose-ui button:disabled,
@@ -177,6 +189,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 #transpose-display {
+  min-width: 7.5em;
   font-weight: 600;
   color: #0078d4;
 }
@@ -210,12 +223,23 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   color: #0f4c81;
 }
 
-.autoscroll-duration,
-.autoscroll-buttons {
+.control-section {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid #e3edf7;
+}
+
+.control-section:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.control-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #47627d;
 }
 
 .autoscroll-duration label {
@@ -275,24 +299,129 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .cw-sheet {
   position: relative;
-  line-height: 1.4;
+  font-size: var(--song-text-size);
+  line-height: var(--song-line-height);
 }
 
-.cw-line { margin: 0 0 12px; }
-.cw-comment-line { margin: 12px 0 8px; }
+.cw-line,
+p.line {
+  position: relative;
+  margin: 0 0 8px;
+  min-height: 1.6em;
+  line-height: var(--song-line-height);
+  white-space: pre-wrap;
+  font-size: var(--song-text-size);
+}
+
+.cw-line.blank,
+p.line.blank {
+  min-height: 1.6em;
+}
+
+.cw-line.blank:empty::before,
+p.line.blank:empty::before {
+  content: "\00a0";
+}
+
+.cw-comment-line {
+  margin: 8px 0 6px;
+}
+
+p.comment,
+.cw-comment {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 8px 0 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: #e6e6e6;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  font-size: var(--song-text-size);
+  line-height: var(--song-line-height);
+  font-weight: 700;
+  font-style: normal;
+  color: #444;
+}
+
+p.comment.ci,
+.cw-ci {
+  font-weight: 700;
+  font-style: italic !important;
+  color: #444;
+}
+
+.cw-nc {
+  color: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.cw-cell {
+  --cw-chord-pad: 0px;
+  display: inline-grid !important;
+  grid-template-columns: var(--cw-chord-pad) auto;
+  grid-template-rows: auto auto;
+  column-gap: 0;
+  row-gap: 2px;
+  vertical-align: bottom;
+  white-space: pre;
+}
+
+.cw-chord,
+span.chord {
+  display: inline-block;
+  position: relative;
+  top: -1.1em;
+  font-family: sans-serif;
+  font-size: var(--song-chord-size);
+  line-height: 1;
+  color: #0000cc;
+  font-weight: 500;
+  margin-right: 0.2em;
+  vertical-align: baseline;
+  min-height: 1em;
+}
+
+.cw-chord-bar {
+  position: inherit;
+  margin-right: 0.1em;
+}
+
+.cw-word,
+span.word,
+span.wordtop {
+  display: inline;
+  font-size: var(--song-text-size);
+  line-height: var(--song-line-height);
+  color: #222;
+  white-space: pre-wrap;
+  min-height: 1em;
+}
+
+.cw-bar {
+  display: inline-block;
+  font-weight: 400;
+  padding: 0 0.25em;
+}
 
 .autoscroll-marker-layer {
-  position: absolute;
-  inset: 0 auto 0 0;
+  position: fixed;
+  inset: 0;
   width: 0;
   overflow: visible;
   pointer-events: none;
-  z-index: 10;
+  z-index: 1100;
 }
 
 .autoscroll-marker {
-  position: absolute;
-  left: -82px;
+  position: fixed;
+  left: var(--marker-left, 8px);
   top: 0;
   transform: translateY(-50%);
   display: inline-flex;
@@ -363,112 +492,6 @@ body.is-dragging-marker * {
   cursor: grabbing !important;
 }
 
-.cw-cell {
-  --cw-chord-pad: 0px;
-
-  display: inline-grid !important;
-  grid-template-columns: var(--cw-chord-pad) auto;
-  grid-template-rows: auto auto;
-  column-gap: 0;
-  row-gap: 2px;
-
-  vertical-align: bottom;
-  white-space: pre;
-}
-
-.cw-chord {
-  grid-column: 1;
-  grid-row: 1;
-
-  justify-self: end;
-  align-self: end;
-
-  font-family: sans-serif;
-  font-size: 0.85em;
-  line-height: 1.0;
-  color: #0000cc;
-  font-weight: 500;
-
-  min-height: 1em;
-}
-
-.cw-chord-bar {
-  position: inherit;
-  margin-right: 0.1em;
-}
-
-.cw-word {
-  grid-column: 2;
-  grid-row: 2;
-
-  font-size: 14px;
-  line-height: 1.7;
-  color: #222;
-  white-space: pre;
-
-  min-height: 1em;
-}
-
-.cw-bar {
-  display: inline-block;
-  font-weight: 400;
-  padding: 0 0.25em;
-}
-
-.cw-comment {
-  display: inline-block;
-  background-color: #e6e6e6;
-  padding: 2px 6px;
-  border-radius: 3px;
-
-  font-size: 14px;
-  font-weight: bold;
-  font-style: normal;
-  color: #444;
-}
-
-.cw-ci {
-  font-weight: bold;
-  font-style: italic;
-  color: #444;
-}
-
-.cw-nc {
-  color: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-/* Flat span rendering for current ChordWiki DOM */
-p.line {
-  position: relative;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-span.chord {
-  display: inline-block;
-  position: relative;
-  top: -1.15em;
-  font-size: 0.85em;
-  line-height: 1.0;
-  color: #0000cc;
-  margin-right: 0.25em;
-  vertical-align: baseline;
-}
-
-span.word,
-span.wordtop {
-  display: inline;
-  font-size: 1em;
-  line-height: 1.6;
-  color: #222;
-}
-
 @media (max-width: 720px) {
   .autoscroll-ui {
     top: auto;
@@ -477,16 +500,30 @@ span.wordtop {
     width: min(320px, calc(100vw - 20px));
   }
 
-  .autoscroll-marker {
-    left: -68px;
+  .container {
+    padding-bottom: 210px;
   }
 }
 
 @media print {
-  .cw-chord { color: #000; font-style: italic; }
-  .cw-nc { color: inherit; border-color: transparent; background: transparent; }
-  .cw-comment { background: transparent; padding: 0; }
-  .control-row,
+  .cw-chord,
+  span.chord {
+    color: #000;
+    font-style: italic;
+  }
+
+  .cw-nc {
+    color: inherit;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .cw-comment,
+  p.comment {
+    background: transparent;
+    padding: 0;
+  }
+
   .autoscroll-ui,
   .autoscroll-marker-layer {
     display: none !important;
