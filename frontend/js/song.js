@@ -131,6 +131,31 @@ function updateSongKeyDisplay(renderResult, fallbackKey = '') {
     : `Key: ${playKey}`;
 }
 
+function trackSongView(artist, id) {
+  if (!artist || !id) {
+    return;
+  }
+
+  fetch(`/api/songs/${encodeURIComponent(id)}/view`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ artist })
+  })
+    .then(async (response) => {
+      if (response.ok) {
+        return;
+      }
+
+      const body = await response.json().catch(() => null);
+      const detail = body?.error?.detail || body?.detail || `HTTP ${response.status}`;
+      console.warn('Failed to update song view score:', detail);
+    })
+    .catch((error) => {
+      console.warn('Failed to update song view score:', error);
+    });
+}
+
 function getAutoScrollUiEl() {
   return document.getElementById('autoscroll-ui');
 }
@@ -895,6 +920,7 @@ async function loadSong() {
     updateSongKeyDisplay(renderResult, currentSongKey);
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
+    trackSongView(artist, id);
   } catch (error) {
     console.error('Error loading song:', error);
     titleEl.textContent = 'Error loading song';
