@@ -38,6 +38,10 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   display: inline-flex !important;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

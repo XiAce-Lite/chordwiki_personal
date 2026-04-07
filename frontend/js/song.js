@@ -758,6 +758,7 @@ function openSongMetaModal(mode) {
 
   const normalizedMode = mode === 'youtube' ? 'youtube' : 'tags';
   const editorEnabled = isEditorEnabled();
+  const song = currentSongData || {};
   songMetaModalState.mode = normalizedMode;
 
   if (normalizedMode === 'tags') {
@@ -765,19 +766,19 @@ function openSongMetaModal(mode) {
     helpEl.textContent = editorEnabled
       ? '1行に1タグで入力します。空行は無視されます。'
       : '現在のタグ一覧を表示しています。編集は editor ロールで利用できます。';
-    inputEl.value = normalizeSongTags(currentSongData?.tags).join('\n');
+    inputEl.value = normalizeSongTags(song.tags).join('\n');
   } else {
     titleEl.textContent = 'YouTube の編集';
     helpEl.textContent = editorEnabled
       ? '1行に1動画です。id / id?t=42 / URL を入力できます。'
       : '現在の YouTube 一覧を表示しています。編集は editor ロールで利用できます。';
-    inputEl.value = formatYoutubeEntriesForEdit(currentSongData?.youtube);
+    inputEl.value = formatYoutubeEntriesForEdit(song.youtube);
   }
 
   inputEl.readOnly = !editorEnabled;
   inputEl.disabled = false;
   modalEl.hidden = false;
-  setSongMetaModalMessage('');
+  setSongMetaModalMessage(currentSongData ? '' : '曲データを読み込み中です。読み込み後に再度確認してください。');
   window.requestAnimationFrame(() => inputEl.focus());
 }
 
@@ -1675,6 +1676,8 @@ function initializeAutoScrollUi() {
 }
 
 function initializeSongExtrasUi() {
+  closeSongMetaModal();
+
   document.getElementById('song-extras-collapse-toggle')?.addEventListener('click', toggleSongExtrasCollapsed);
   document.getElementById('song-tags-header')?.addEventListener('click', () => openSongMetaModal('tags'));
   document.getElementById('song-youtube-header')?.addEventListener('click', () => openSongMetaModal('youtube'));
@@ -1687,9 +1690,21 @@ function initializeSongExtrasUi() {
     }
   });
   document.getElementById('song-meta-modal-input')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeSongMetaModal();
+      return;
+    }
+
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && isEditorEnabled()) {
       event.preventDefault();
       saveSongMetaModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.getElementById('song-meta-modal')?.hidden) {
+      closeSongMetaModal();
     }
   });
 
