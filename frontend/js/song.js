@@ -37,6 +37,15 @@ const autoScrollState = {
   hasLoadedSavedState: false
 };
 
+const youtubeTitleCache = new Map();
+const youtubePlayerState = {
+  apiPromise: null,
+  playerPromise: null,
+  player: null,
+  currentVideoId: '',
+  currentStart: 0
+};
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -199,6 +208,10 @@ function formatYouTubeTimeLabel(totalSeconds) {
     : `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function getCachedYouTubeTitle(videoId) {
+  return String(youtubeTitleCache.get(videoId) || '').trim();
+}
+
 function buildYouTubeWatchUrl(videoId, start = 0) {
   const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
   return safeStart > 0
@@ -206,61 +219,193 @@ function buildYouTubeWatchUrl(videoId, start = 0) {
     : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
 }
 
-function buildYouTubeEmbedUrl(videoId, start = 0) {
-  const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
-  const params = new URLSearchParams({
-    autoplay: '1',
-    start: String(safeStart),
-    playsinline: '1',
-    rel: '0'
-  });
+function buildYouTubeItemLabel(entry) {
+  const title = getCachedYouTubeTitle(entry.id);
+  const suffix = entry.start > 0 ? ` (${formatYouTubeTimeLabel(entry.start)})` : '';
+  return title ? `▶ ${title}${suffix}` : `▶ 再生${suffix}`;
+}
 
-  if (window.location.origin && /^https?:/i.test(window.location.origin)) {
-    params.set('origin', window.location.origin);
+function refreshYouTubeItemLabels() {
+  const isOpen = !document.getElementById('youtube-player-shell')?.hidden;
+
+  document.querySelectorAll('.song-youtube-item').forEach((button) => {
+    const id = String(button.dataset.videoId || '').trim();
+    const start = Math.max(0, Number.parseInt(button.dataset.start || '0', 10) || 0);
+
+    button.textContent = buildYouTubeItemLabel({ id, start });
+    button.classList.toggle('is-active', isOpen && youtubePlayerState.currentVideoId === id);
+  });
+}
+
+function updateYouTubePlayerTitle(videoId, start = 0, title = '') {
+  const titleEl = document.getElementById('youtube-player-title');
+  const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
+  const displayTitle = String(title || getCachedYouTubeTitle(videoId) || videoId).trim();
+  const suffix = safeStart > 0 ? ` @${formatYouTubeTimeLabel(safeStart)}` : '';
+
+  if (titleEl) {
+    titleEl.textContent = `Now Playing: ${displayTitle}${suffix}`;
+  }
+}
+
+function storeYouTubeTitle(videoId, title) {
+  const safeId = String(videoId || '').trim();
+  const safeTitle = String(title || '').trim();
+
+  if (!/^[A-Za-z0-9_-]{11}$/.test(safeId) || !safeTitle) {
+    return;
   }
 
-  return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
+  youtubeTitleCache.set(safeId, safeTitle);
+  refreshYouTubeItemLabels();
+
+  if (youtubePlayerState.currentVideoId === safeId) {
+    updateYouTubePlayerTitle(safeId, youtubePlayerState.currentStart, safeTitle);
+  }
+}
+
+function loadYouTubeIframeApi() {
+  if (window.YT?.Player) {
+    return Promise.resolve(window.YT);
+  }
+
+  if (youtubePlayerState.apiPromise) {
+    return youtubePlayerState.apiPromise;
+  }
+
+  youtubePlayerState.apiPromise = new Promise((resolve, reject) => {
+    const previousReady = window.onYouTubeIframeAPIReady;
+
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof previousReady === 'function') {
+        previousReady();
+      }
+      resolve(window.YT);
+    };
+
+    let scriptEl = document.querySelector('script[data-youtube-iframe-api="true"]');
+    if (!scriptEl) {
+      scriptEl = document.createElement('script');
+      scriptEl.src = 'https://www.youtube.com/iframe_api';
+      scriptEl.async = true;
+      scriptEl.dataset.youtubeIframeApi = 'true';
+      scriptEl.onerror = () => reject(new Error('Failed to load YouTube IFrame API.'));
+      document.head.appendChild(scriptEl);
+    }
+  });
+
+  return youtubePlayerState.apiPromise;
+}
+
+function handleYouTubePlayerStateChange(event) {
+  const playerState = Number(event?.data);
+  const YT = window.YT;
+
+  if (!YT || !youtubePlayerState.currentVideoId) {
+    return;
+  }
+
+  if (playerState === YT.PlayerState.PLAYING || playerState === YT.PlayerState.CUED) {
+    const videoTitle = String(event.target?.getVideoData?.().title || '').trim();
+    if (videoTitle) {
+      storeYouTubeTitle(youtubePlayerState.currentVideoId, videoTitle);
+    } else {
+      updateYouTubePlayerTitle(youtubePlayerState.currentVideoId, youtubePlayerState.currentStart);
+    }
+  }
+}
+
+function handleYouTubePlayerError(event) {
+  console.warn('YouTube player error:', event?.data);
+  updateYouTubePlayerTitle(youtubePlayerState.currentVideoId, youtubePlayerState.currentStart);
+}
+
+async function ensureYouTubePlayer() {
+  if (youtubePlayerState.player) {
+    return youtubePlayerState.player;
+  }
+
+  if (youtubePlayerState.playerPromise) {
+    return youtubePlayerState.playerPromise;
+  }
+
+  youtubePlayerState.playerPromise = loadYouTubeIframeApi()
+    .then((YT) => new Promise((resolve) => {
+      youtubePlayerState.player = new YT.Player('youtube-player-host', {
+        width: '100%',
+        height: '100%',
+        playerVars: {
+          autoplay: 0,
+          playsinline: 1,
+          rel: 0,
+          origin: window.location.origin
+        },
+        events: {
+          onReady: (playerEvent) => resolve(playerEvent.target),
+          onStateChange: handleYouTubePlayerStateChange,
+          onError: handleYouTubePlayerError
+        }
+      });
+    }))
+    .catch((error) => {
+      youtubePlayerState.playerPromise = null;
+      throw error;
+    });
+
+  return youtubePlayerState.playerPromise;
 }
 
 function closeYouTubePlayer() {
   const shell = document.getElementById('youtube-player-shell');
-  const frame = document.getElementById('youtube-player-frame');
 
-  if (frame) {
-    frame.src = 'about:blank';
+  youtubePlayerState.currentVideoId = '';
+  youtubePlayerState.currentStart = 0;
+
+  if (youtubePlayerState.player?.stopVideo) {
+    youtubePlayerState.player.stopVideo();
   }
 
   if (shell) {
     shell.hidden = true;
   }
+
+  refreshYouTubeItemLabels();
 }
 
-function playYouTubeVideo(videoId, start = 0) {
+async function playYouTubeVideo(videoId, start = 0) {
   const shell = document.getElementById('youtube-player-shell');
-  const frame = document.getElementById('youtube-player-frame');
-  const titleEl = document.getElementById('youtube-player-title');
   const openLinkEl = document.getElementById('youtube-player-open');
 
-  if (!shell || !frame || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+  if (!shell || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
     return;
   }
 
   const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
-  if (titleEl) {
-    titleEl.textContent = safeStart > 0
-      ? `YouTube · ${videoId} (${formatYouTubeTimeLabel(safeStart)})`
-      : `YouTube · ${videoId}`;
-  }
+  youtubePlayerState.currentVideoId = videoId;
+  youtubePlayerState.currentStart = safeStart;
 
   if (openLinkEl) {
     openLinkEl.href = buildYouTubeWatchUrl(videoId, safeStart);
   }
 
   shell.hidden = false;
-  frame.src = 'about:blank';
-  window.setTimeout(() => {
-    frame.src = buildYouTubeEmbedUrl(videoId, safeStart);
-  }, 0);
+  updateYouTubePlayerTitle(videoId, safeStart);
+  refreshYouTubeItemLabels();
+
+  try {
+    const player = await ensureYouTubePlayer();
+    player.loadVideoById({ videoId, startSeconds: safeStart });
+
+    window.setTimeout(() => {
+      const liveTitle = String(player.getVideoData?.().title || '').trim();
+      if (liveTitle) {
+        storeYouTubeTitle(videoId, liveTitle);
+      }
+    }, 250);
+  } catch (error) {
+    console.warn('Failed to start YouTube mini player:', error);
+    window.open(buildYouTubeWatchUrl(videoId, safeStart), '_blank', 'noopener');
+  }
 }
 
 function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
@@ -303,14 +448,16 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'song-youtube-item';
-        button.textContent = entry.start > 0
-          ? `▶ ${entry.id} (${formatYouTubeTimeLabel(entry.start)})`
-          : `▶ ${entry.id}`;
+        button.dataset.videoId = entry.id;
+        button.dataset.start = String(entry.start);
+        button.textContent = buildYouTubeItemLabel(entry);
         button.addEventListener('click', () => {
           playYouTubeVideo(entry.id, entry.start);
         });
         youtubeListEl.appendChild(button);
       });
+
+      refreshYouTubeItemLabels();
     }
   }
 
