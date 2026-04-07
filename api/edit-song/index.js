@@ -42,6 +42,7 @@ function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) 
   const title = String(body.title || "").trim();
   const slug = String(body.slug || "").trim();
   const artist = String(body.artist || "").trim();
+  const createdAt = String(body.createdAt || "").trim();
   const updatedAt = String(body.updatedAt || "").trim();
   const chordPro = normalizeNewlines(body.chordPro || "").trim();
 
@@ -49,8 +50,8 @@ function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) 
     return { error: "id is required." };
   }
 
-  if (!title || !slug || !artist || !updatedAt || !chordPro) {
-    return { error: "title, slug, artist, chordPro, updatedAt are required." };
+  if (!title || !slug || !artist || !chordPro) {
+    return { error: "title, slug, artist, chordPro are required." };
   }
 
   const rawTags = Array.isArray(body.tags)
@@ -71,6 +72,7 @@ function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) 
       artist,
       tags,
       chordPro,
+      createdAt,
       updatedAt
     }
   };
@@ -83,7 +85,14 @@ async function handleCreate(context, req) {
     return;
   }
 
-  const item = parsed.value;
+  const now = new Date().toISOString();
+  const item = {
+    ...parsed.value,
+    createdAt: now,
+    updatedAt: now,
+    score: 0,
+    last_viewed_at: null
+  };
 
   try {
     const { resource } = await container.items.create(item, { partitionKey: item.artist });
@@ -141,11 +150,13 @@ async function handleUpdate(context, req) {
     return;
   }
 
+  const now = new Date().toISOString();
   const updatedItem = {
     ...existing,
     ...nextItem,
     id: originalId,
-    updatedAt: nextItem.updatedAt
+    createdAt: existing.createdAt || nextItem.createdAt || now,
+    updatedAt: now
   };
 
   const { resource } = await container.items.upsert(updatedItem, { partitionKey: updatedItem.artist });

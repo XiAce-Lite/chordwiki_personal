@@ -87,19 +87,20 @@ module.exports = async function (context, req) {
       maxItemCount: TOTAL_LIMIT
     }).fetchAll();
 
-    const rankedSongs = (resources || [])
+    const limitedRankedSongs = (resources || [])
       .map(mapSongSummary)
       .sort(compareSongsForRanking)
       .slice(0, TOTAL_LIMIT);
 
-    const songs = rankedSongs.slice(offset, offset + PAGE_SIZE);
+    const songs = limitedRankedSongs.slice(offset, offset + PAGE_SIZE);
+    const totalSongs = limitedRankedSongs.length; // ranking対象総数（最大300件）
 
     context.res = jsonResponse(200, {
       page,
       pageSize: PAGE_SIZE,
       totalLimit: TOTAL_LIMIT,
       totalPages: MAX_PAGES,
-      totalSongs: rankedSongs.length,
+      totalSongs,
       songs
     });
   } catch (error) {
