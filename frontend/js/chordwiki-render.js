@@ -137,12 +137,10 @@ function renderBlankLine(containerEl) {
 
 function renderCommentLine(text, containerEl, isItalic = false) {
   const p = document.createElement("p");
-  p.className = "comment";
-  if (isItalic) {
-    p.classList.add("ci");
-    p.style.fontStyle = "italic";
-  }
-  p.textContent = text || "";
+  p.className = isItalic ? "comment ci" : "comment";
+
+  const body = createSpan("comment-body", text || "");
+  p.appendChild(body);
   containerEl.appendChild(p);
 }
 

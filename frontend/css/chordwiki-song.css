@@ -1,6 +1,6 @@
 :root {
   --song-text-size: 14px;
-  --song-line-height: 1.6;
+  --song-line-height: 1.5;
   --song-chord-size: 12.5px;
   --marker-safe-left: 6em;
   --autoscroll-safe-top: 64px;
@@ -345,7 +345,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .cw-line,
 p.line {
   position: relative;
-  margin: 0 0 1.2em;
+  margin: 0 0 0.6em;
   min-height: 1.6em;
   line-height: var(--song-line-height);
   white-space: pre-wrap;
@@ -368,20 +368,11 @@ p.line.blank:empty::before {
 
 p.comment,
 .cw-comment {
-  display: inline-block;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0.4em 0 1em;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background-color: #e6e6e6;
-  box-sizing: border-box;
-  white-space: pre-wrap;
-  font-size: var(--song-text-size);
+  display: block;
+  margin-top: 0.4em;
+  margin-bottom: 1em;
   line-height: 1.6;
-  font-weight: 700;
-  font-style: normal;
-  color: #444;
+  font-size: var(--song-text-size);
 }
 
 p.comment + p.comment,
@@ -389,11 +380,24 @@ p.comment + p.comment,
   margin-top: 0.5em;
 }
 
-p.comment.ci,
-.cw-ci {
+p.comment .comment-body,
+.cw-comment .comment-body,
+.cw-comment-body {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: #e6e6e6;
+  box-sizing: border-box;
+  white-space: pre-wrap;
   font-weight: 700;
-  font-style: italic !important;
   color: #444;
+}
+
+p.comment.ci .comment-body,
+.cw-ci .comment-body,
+.cw-ci {
+  font-style: italic !important;
 }
 
 .cw-nc {
@@ -592,7 +596,9 @@ body.is-dragging-marker * {
   }
 
   .cw-comment,
-  p.comment {
+  p.comment .comment-body,
+  .cw-comment .comment-body,
+  .cw-comment-body {
     background: transparent;
     padding: 0;
   }
