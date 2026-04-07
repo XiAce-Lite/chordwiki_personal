@@ -120,9 +120,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-key {
-  box-sizing: border-box;
-  width: 100%;
-  padding-left: var(--marker-safe-left);
+  display: block;
   font-size: 12px;
   font-weight: 700;
   color: #dc143c;
