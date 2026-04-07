@@ -342,7 +342,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   box-sizing: border-box;
 }
 
-.cw-line,
 p.line {
   position: relative;
   margin: 0 0 1.2em;
@@ -352,22 +351,15 @@ p.line {
   font-size: var(--song-text-size);
 }
 
-.cw-line.blank,
 p.line.blank {
   min-height: 1.6em;
 }
 
-.cw-line.blank:empty::before,
 p.line.blank:empty::before {
   content: "\00a0";
 }
 
-.cw-comment-line {
-  margin: 8px 0 6px;
-}
-
-p.comment,
-.cw-comment {
+p.comment {
   display: block;
   margin-top: 0.4em;
   margin-bottom: 1em;
@@ -375,14 +367,11 @@ p.comment,
   font-size: var(--song-text-size);
 }
 
-p.comment + p.comment,
-.cw-comment + .cw-comment {
+p.comment + p.comment {
   margin-top: 0.5em;
 }
 
-p.comment .comment-body,
-.cw-comment .comment-body,
-.cw-comment-body {
+p.comment .comment-body {
   display: inline-block;
   max-width: 100%;
   padding: 2px 8px;
@@ -394,34 +383,10 @@ p.comment .comment-body,
   color: #444;
 }
 
-p.comment.ci .comment-body,
-.cw-ci .comment-body,
-.cw-ci {
+p.comment.ci .comment-body {
   font-style: italic !important;
 }
 
-.cw-nc {
-  color: inherit;
-  font-style: inherit;
-  font-weight: inherit;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.cw-cell {
-  --cw-chord-pad: 0px;
-  display: inline-grid !important;
-  grid-template-columns: var(--cw-chord-pad) auto;
-  grid-template-rows: auto auto;
-  column-gap: 0;
-  row-gap: 2px;
-  vertical-align: bottom;
-  white-space: pre;
-}
-
-.cw-chord,
 span.chord {
   display: inline-block;
   position: relative;
@@ -436,12 +401,6 @@ span.chord {
   min-height: 1em;
 }
 
-.cw-chord-bar {
-  position: inherit;
-  margin-right: 0.1em;
-}
-
-.cw-word,
 span.word,
 span.wordtop {
   display: inline;
@@ -450,12 +409,6 @@ span.wordtop {
   color: #222;
   white-space: pre-wrap;
   min-height: 1em;
-}
-
-.cw-bar {
-  display: inline-block;
-  font-weight: 400;
-  padding: 0 0.25em;
 }
 
 .autoscroll-marker-layer {
@@ -583,22 +536,12 @@ body.is-dragging-marker * {
 }
 
 @media print {
-  .cw-chord,
   span.chord {
     color: #000;
     font-style: italic;
   }
 
-  .cw-nc {
-    color: inherit;
-    border-color: transparent;
-    background: transparent;
-  }
-
-  .cw-comment,
-  p.comment .comment-body,
-  .cw-comment .comment-body,
-  .cw-comment-body {
+  p.comment .comment-body {
     background: transparent;
     padding: 0;
   }

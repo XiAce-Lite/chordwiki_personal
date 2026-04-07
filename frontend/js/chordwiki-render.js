@@ -100,35 +100,6 @@ function tokenizeLyricsLine(lineText) {
   return tokens;
 }
 
-/**
- * 旧ロジック互換用ヘルパー。
- * DOM生成には使わないが、既存検証や内部利用のため残す。
- */
-function splitToCells(lineText) {
-  const tokens = tokenizeLyricsLine(lineText || "");
-  if (!tokens.length) {
-    return [{ chord: "", lyric: "" }];
-  }
-
-  const cells = [];
-  let current = { chord: "", lyric: "" };
-
-  for (const token of tokens) {
-    if (token.kind === "chord") {
-      if (current.chord !== "" || current.lyric !== "" || cells.length === 0) {
-        cells.push(current);
-      }
-      current = { chord: token.text, lyric: "" };
-      continue;
-    }
-
-    current.lyric += token.text;
-  }
-
-  cells.push(current);
-  return cells;
-}
-
 function renderBlankLine(containerEl) {
   const p = document.createElement("p");
   p.className = "line blank";
