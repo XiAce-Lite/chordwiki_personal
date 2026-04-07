@@ -27,6 +27,23 @@ function safeText(value) {
   return String(value || "").trim();
 }
 
+function stripParenthesizedTitleText(value) {
+  const original = safeText(value);
+  if (!original) {
+    return "";
+  }
+
+  const stripped = original
+    .replace(/\s*（[^）]*）\s*/g, " ")
+    .replace(/\s*\([^)]*\)\s*/g, " ")
+    .replace(/\s*【[^】]*】\s*/g, " ")
+    .replace(/\s*\[[^\]]*\]\s*/g, " ")
+    .replace(/[\s\u3000]+/g, " ")
+    .trim();
+
+  return stripped || original;
+}
+
 function normalizeText(value) {
   return safeText(value)
     .normalize("NFKC")
@@ -203,7 +220,8 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const query = `${title} ${artist}`.trim();
+  const cleanedTitle = stripParenthesizedTitleText(title);
+  const query = `${cleanedTitle || title} ${artist}`.trim();
 
   try {
     const url = `${YOUTUBE_SEARCH_URL}?search_query=${encodeURIComponent(query)}&hl=ja&persist_hl=1`;
@@ -248,7 +266,7 @@ module.exports = async function (context, req) {
       .slice(0, 12)
       .map((candidate) => ({
         ...candidate,
-        score: scoreCandidate(candidate, title, artist)
+        score: scoreCandidate(candidate, cleanedTitle || title, artist)
       }))
       .sort((a, b) => b.score - a.score);
 

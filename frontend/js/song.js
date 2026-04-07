@@ -529,7 +529,7 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
     if (!tags.length) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'song-tags-empty';
-      emptyEl.textContent = editorEnabled ? '未登録（ヘッダーから編集できます）' : '登録なし';
+      emptyEl.textContent = editorEnabled ? '未登録（Editボタンで編集できます）' : '登録なし';
       tagsEl.appendChild(emptyEl);
     } else {
       tags.forEach((tag) => {
@@ -552,7 +552,7 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
     if (!youtubeEntries.length) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'song-youtube-empty';
-      emptyEl.textContent = editorEnabled ? '未登録（ヘッダーから編集できます）' : '登録なし';
+      emptyEl.textContent = editorEnabled ? '未登録（Editボタンで編集できます）' : '登録なし';
       youtubeListEl.appendChild(emptyEl);
     } else {
       youtubeEntries.forEach((entry) => {
@@ -929,6 +929,23 @@ function isDefaultDurationRange(seconds = getDisplayedDurationSec()) {
   return safeSeconds >= DEFAULT_DURATION_ESTIMATE_MIN_SEC && safeSeconds <= DEFAULT_DURATION_ESTIMATE_MAX_SEC;
 }
 
+function stripParenthesizedTitleText(value) {
+  const original = String(value || '').trim();
+  if (!original) {
+    return '';
+  }
+
+  const stripped = original
+    .replace(/\s*（[^）]*）\s*/g, ' ')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(/\s*【[^】]*】\s*/g, ' ')
+    .replace(/\s*\[[^\]]*\]\s*/g, ' ')
+    .replace(/[\s\u3000]+/g, ' ')
+    .trim();
+
+  return stripped || original;
+}
+
 function applyEstimatedDurationBias(seconds) {
   const safeSeconds = Math.max(0, Math.round(Number(seconds) || 0));
   if (!safeSeconds) {
@@ -947,7 +964,8 @@ async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayA
     return;
   }
 
-  const title = String(displayTitle || song?.title || '').trim();
+  const rawTitle = String(displayTitle || song?.title || '').trim();
+  const title = stripParenthesizedTitleText(rawTitle);
   const artist = String(displayArtist || song?.artist || '').trim();
   if (!title || !artist) {
     return;
