@@ -13,6 +13,7 @@ const titleInput = document.getElementById('title');
 const slugInput = document.getElementById('slug');
 const artistInput = document.getElementById('artist');
 const tagsInput = document.getElementById('tags');
+const youtubeInput = document.getElementById('youtube');
 const chordProInput = document.getElementById('chordPro');
 
 const params = new URLSearchParams(window.location.search);
@@ -87,6 +88,102 @@ function normalizeTags(text) {
     .filter(Boolean);
 }
 
+function normalizeYoutubeStart(value) {
+  const parsed = Number.parseInt(String(value || '0'), 10);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+function extractYoutubeId(text) {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const directMatch = raw.match(/^([A-Za-z0-9_-]{11})(?=$|[?&#\s])/);
+  if (directMatch) {
+    return directMatch[1];
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      const hostname = url.hostname.toLowerCase();
+
+      if (hostname.includes('youtu.be')) {
+        return (url.pathname.split('/').filter(Boolean)[0] || '').trim();
+      }
+
+      if (hostname.includes('youtube.com')) {
+        const fromQuery = (url.searchParams.get('v') || '').trim();
+        if (fromQuery) {
+          return fromQuery;
+        }
+
+        const parts = url.pathname.split('/').filter(Boolean);
+        const markerIndex = parts.findIndex((part) => part === 'embed' || part === 'shorts');
+        if (markerIndex !== -1 && parts[markerIndex + 1]) {
+          return parts[markerIndex + 1].trim();
+        }
+      }
+    } catch {
+      return '';
+    }
+  }
+
+  const embeddedMatch = raw.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/i);
+  return embeddedMatch ? embeddedMatch[1] : '';
+}
+
+function extractYoutubeStart(text) {
+  const raw = String(text || '').trim();
+  const match = raw.match(/(?:[?&\s]|^)(?:t|start)\s*=\s*(\d+)(?:s)?(?=$|[&#\s])/i);
+  return normalizeYoutubeStart(match?.[1]);
+}
+
+function normalizeYoutubeInput(text) {
+  const lines = normalizeNewlines(text).split('\n');
+  const entries = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const id = extractYoutubeId(trimmed);
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+      continue;
+    }
+
+    entries.push({
+      id,
+      start: extractYoutubeStart(trimmed)
+    });
+  }
+
+  return entries;
+}
+
+function formatYoutubeEntries(entries) {
+  if (!Array.isArray(entries) || !entries.length) {
+    return '';
+  }
+
+  return entries
+    .map((entry) => {
+      const id = String(entry?.id || '').trim();
+      const start = normalizeYoutubeStart(entry?.start);
+
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+        return '';
+      }
+
+      return start > 0 ? `${id}?t=${start}` : id;
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 function updatePageMeta() {
   const isEdit = state.mode === 'edit';
 
@@ -112,6 +209,7 @@ function populateForm(song) {
   slugInput.value = song.slug || '';
   artistInput.value = song.artist || '';
   tagsInput.value = Array.isArray(song.tags) ? song.tags.join('\n') : '';
+  youtubeInput.value = formatYoutubeEntries(song.youtube);
   chordProInput.value = normalizeNewlines(song.chordPro || '');
 }
 
@@ -229,6 +327,7 @@ async function handleSubmit(event) {
   const artist = artistInput.value.trim();
   const chordPro = normalizeNewlines(chordProInput.value).trim();
   const tags = normalizeTags(tagsInput.value);
+  const youtube = normalizeYoutubeInput(youtubeInput.value);
 
   if (!title || !slug || !artist || !chordPro) {
     showMessage('曲名、URL用ID、アーティスト、本文を入力してください。', 'error');
@@ -241,6 +340,7 @@ async function handleSubmit(event) {
     slug,
     artist,
     tags,
+    youtube,
     chordPro,
     updatedAt: new Date().toISOString()
   };

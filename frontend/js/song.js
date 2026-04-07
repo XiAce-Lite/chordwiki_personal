@@ -156,6 +156,161 @@ function trackSongView(artist, id) {
     });
 }
 
+function normalizeSongTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean);
+}
+
+function normalizeSongYoutubeEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries
+    .map((entry) => {
+      const id = String(entry?.id || '').trim();
+      const start = Number.parseInt(String(entry?.start ?? 0), 10);
+
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+        return null;
+      }
+
+      return {
+        id,
+        start: Number.isFinite(start) ? Math.max(0, Math.trunc(start)) : 0
+      };
+    })
+    .filter(Boolean);
+}
+
+function formatYouTubeTimeLabel(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.trunc(Number(totalSeconds) || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
+
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+    : `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+function closeYouTubePlayer() {
+  const shell = document.getElementById('youtube-player-shell');
+  const frame = document.getElementById('youtube-player-frame');
+
+  if (frame) {
+    frame.src = '';
+  }
+
+  if (shell) {
+    shell.hidden = true;
+  }
+}
+
+function playYouTubeVideo(videoId, start = 0) {
+  const shell = document.getElementById('youtube-player-shell');
+  const frame = document.getElementById('youtube-player-frame');
+  const titleEl = document.getElementById('youtube-player-title');
+
+  if (!shell || !frame || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    return;
+  }
+
+  const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
+  if (titleEl) {
+    titleEl.textContent = safeStart > 0
+      ? `YouTube · ${videoId} (${formatYouTubeTimeLabel(safeStart)})`
+      : `YouTube · ${videoId}`;
+  }
+
+  shell.hidden = false;
+  frame.src = '';
+  window.setTimeout(() => {
+    frame.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&start=${safeStart}`;
+  }, 0);
+}
+
+function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
+  const tagsBlock = document.getElementById('song-tags-block');
+  const tagsEl = document.getElementById('song-tags');
+  const youtubeBlock = document.getElementById('song-youtube-block');
+  const youtubeListEl = document.getElementById('song-youtube-list');
+  const youtubeSearchButton = document.getElementById('youtube-search-button');
+
+  const tags = normalizeSongTags(song?.tags);
+  if (tagsBlock) {
+    tagsBlock.hidden = tags.length === 0;
+  }
+
+  if (tagsEl) {
+    tagsEl.innerHTML = '';
+    tags.forEach((tag) => {
+      const tagButton = document.createElement('button');
+      tagButton.type = 'button';
+      tagButton.className = 'song-tag';
+      tagButton.textContent = tag;
+      tagButton.addEventListener('click', () => {
+        window.location.href = `/?q=${encodeURIComponent(tag)}`;
+      });
+      tagsEl.appendChild(tagButton);
+    });
+  }
+
+  const youtubeEntries = normalizeSongYoutubeEntries(song?.youtube);
+  if (youtubeListEl) {
+    youtubeListEl.innerHTML = '';
+
+    if (!youtubeEntries.length) {
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'song-youtube-empty';
+      emptyEl.textContent = '登録なし';
+      youtubeListEl.appendChild(emptyEl);
+    } else {
+      youtubeEntries.forEach((entry) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'song-youtube-item';
+        button.textContent = entry.start > 0
+          ? `▶ ${entry.id} (${formatYouTubeTimeLabel(entry.start)})`
+          : `▶ ${entry.id}`;
+        button.addEventListener('click', () => {
+          playYouTubeVideo(entry.id, entry.start);
+        });
+        youtubeListEl.appendChild(button);
+      });
+    }
+  }
+
+  const searchQuery = [displayTitle || song?.title || '', displayArtist || song?.artist || '']
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+
+  if (youtubeSearchButton) {
+    youtubeSearchButton.hidden = !searchQuery;
+    youtubeSearchButton.onclick = () => {
+      if (!searchQuery) {
+        return;
+      }
+
+      window.open(
+        `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`,
+        '_blank',
+        'noopener'
+      );
+    };
+  }
+
+  if (youtubeBlock) {
+    youtubeBlock.hidden = !searchQuery && youtubeEntries.length === 0;
+  }
+}
+
 function getAutoScrollUiEl() {
   return document.getElementById('autoscroll-ui');
 }
@@ -914,10 +1069,13 @@ async function loadSong() {
     currentSongKey = song.key || '';
     originalChordPro = song.chordPro || '';
     const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
+    const displayTitle = renderResult.title || song.title || 'タイトルなし';
+    const displayArtist = renderResult.subtitle || song.artist || '';
 
-    titleEl.textContent = renderResult.title || song.title || 'タイトルなし';
-    artistEl.textContent = renderResult.subtitle || song.artist || '';
+    titleEl.textContent = displayTitle;
+    artistEl.textContent = displayArtist;
     updateSongKeyDisplay(renderResult, currentSongKey);
+    renderSongSideRail(song, displayTitle, displayArtist);
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
     trackSongView(artist, id);
@@ -971,6 +1129,7 @@ function initializeAutoScrollUi() {
   document.getElementById('autoscroll-reset')?.addEventListener('click', resetAutoScrollSettings);
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
   document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
+  document.getElementById('youtube-player-close')?.addEventListener('click', closeYouTubePlayer);
 
   const onDurationInput = () => syncDurationFromInputs({ notify: true });
   document.getElementById('autoscroll-minutes')?.addEventListener('input', onDurationInput);

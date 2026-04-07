@@ -85,11 +85,45 @@
 
     <div id="artist" class="song-artist"></div>
 
-    <div class="sheet-stage">
-      <div id="key" class="song-key"></div>
-      <div id="sheet" class="cw-sheet"></div>
-      <div id="autoscroll-marker-layer" class="autoscroll-marker-layer" aria-hidden="true"></div>
+    <div class="song-layout">
+      <div class="song-main-column">
+        <div class="sheet-stage">
+          <div id="key" class="song-key"></div>
+          <div id="sheet" class="cw-sheet"></div>
+          <div id="autoscroll-marker-layer" class="autoscroll-marker-layer" aria-hidden="true"></div>
+        </div>
+      </div>
+
+      <aside class="song-side-column" aria-label="Song extras">
+        <section id="song-tags-block" class="song-side-block" hidden>
+          <div class="song-side-title">Tags</div>
+          <div id="song-tags" class="song-tags"></div>
+        </section>
+
+        <section id="song-youtube-block" class="song-side-block" hidden>
+          <div class="song-side-header">
+            <div class="song-side-title">YouTube</div>
+            <button id="youtube-search-button" type="button" class="youtube-search-button">YouTubeで検索</button>
+          </div>
+          <div id="song-youtube-list" class="song-youtube-list"></div>
+        </section>
+      </aside>
     </div>
+  </div>
+
+  <div id="youtube-player-shell" class="youtube-player-shell" hidden>
+    <div class="youtube-player-header">
+      <div id="youtube-player-title" class="youtube-player-title">YouTube</div>
+      <button id="youtube-player-close" type="button" class="youtube-player-close" aria-label="Close YouTube player">×</button>
+    </div>
+    <iframe
+      id="youtube-player-frame"
+      class="youtube-player-frame"
+      title="YouTube mini player"
+      src="about:blank"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen
+    ></iframe>
   </div>
 
   <script src="js/chordwiki-render.js"></script>

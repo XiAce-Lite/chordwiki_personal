@@ -23,6 +23,28 @@ function normalizeNewlines(text) {
   return String(text || "").replace(/\r\n|\n\r|\r/g, "\n");
 }
 
+function normalizeYoutubeEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries
+    .map((entry) => {
+      const id = String(entry?.id || "").trim();
+      const start = Number.parseInt(String(entry?.start ?? 0), 10);
+
+      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+        return null;
+      }
+
+      return {
+        id,
+        start: Number.isFinite(start) ? Math.max(0, Math.trunc(start)) : 0
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) {
   let body = rawBody;
 
@@ -45,6 +67,7 @@ function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) 
   const createdAt = String(body.createdAt || "").trim();
   const updatedAt = String(body.updatedAt || "").trim();
   const chordPro = normalizeNewlines(body.chordPro || "").trim();
+  const youtube = normalizeYoutubeEntries(body.youtube);
 
   if (requireId && !id) {
     return { error: "id is required." };
@@ -72,6 +95,7 @@ function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) 
       artist,
       tags,
       chordPro,
+      youtube,
       createdAt,
       updatedAt
     }
