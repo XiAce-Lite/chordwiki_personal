@@ -10,10 +10,37 @@
       text-align: center;
       margin: 20px;
     }
+    .search-panel {
+      max-width: 760px;
+      margin: 0 auto 10px;
+      text-align: left;
+    }
+    .search-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
     #search {
-      width: 300px;
+      flex: 1;
+      min-width: 0;
       padding: 10px;
       font-size: 16px;
+    }
+    #search-button {
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      border: 1px solid #0078d4;
+      border-radius: 8px;
+      background: #0078d4;
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .search-help {
+      margin: 8px 0 0;
+      font-size: 12px;
+      color: #666;
     }
     #song-list {
       margin-top: 20px;
@@ -113,7 +140,13 @@
 <body>
   <h1>ChordWiki Personal</h1>
   <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
-  <input type="text" id="search" placeholder="検索...">
+  <div class="search-panel">
+    <form id="search-form" class="search-form">
+      <input type="text" id="search" placeholder="1ワード検索（\"...\"で完全一致）" title="1ワード検索のみ対応。スペースでAND/OR検索はしません。\"...\"で完全一致します。">
+      <button type="submit" id="search-button">検索</button>
+    </form>
+    <p class="search-help">※ 1ワード検索のみ対応します。半角スペースでAND/OR検索はしません。<code>"..."</code> で完全一致です。</p>
+  </div>
   <div id="song-list"></div>
   <div id="pagination" aria-label="Ranking pages"></div>
 
@@ -127,6 +160,8 @@
 
     const PAGE_SIZE = 100;
     const MAX_PAGES = 3;
+    const searchInput = document.getElementById('search');
+    const searchForm = document.getElementById('search-form');
 
     function clampPage(page) {
       const parsed = Number.parseInt(String(page || '1'), 10);
@@ -142,15 +177,29 @@
       return clampPage(params.get('page'));
     }
 
-    function updatePageUrl(page) {
+    function getQueryFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return String(params.get('q') || '').trim();
+    }
+
+    function updatePageUrl(page, query = '') {
       const url = new URL(window.location.href);
+      const safeQuery = String(query || '').trim();
+
+      if (safeQuery) {
+        url.searchParams.set('q', safeQuery);
+      } else {
+        url.searchParams.delete('q');
+      }
+
       url.searchParams.set('page', String(page));
       window.history.replaceState({}, '', url);
     }
 
-    function renderPagination(page, songCount = 0) {
+    function renderPagination(page, songCount = 0, query = '') {
       const paginationEl = document.getElementById('pagination');
       const availablePages = Math.max(1, Math.ceil(songCount / PAGE_SIZE));
+      const appliedQuery = String(query || '').trim();
       paginationEl.innerHTML = '';
 
       for (let p = 1; p <= MAX_PAGES; p += 1) {
@@ -163,7 +212,7 @@
 
         if (!isUnavailable) {
           button.addEventListener('click', () => {
-            loadSongs(p);
+            loadSongs(p, appliedQuery);
           });
         }
 
@@ -171,12 +220,15 @@
       }
     }
 
-    function renderSongs(songs, page) {
+    function renderSongs(songs, page, query = '') {
       const songList = document.getElementById('song-list');
+      const appliedQuery = String(query || '').trim();
       songList.innerHTML = '';
 
       if (!Array.isArray(songs) || songs.length === 0) {
-        songList.textContent = 'このページには曲がありません。';
+        songList.textContent = appliedQuery
+          ? '該当する曲がありません。'
+          : 'このページには曲がありません。';
         return;
       }
 
@@ -216,13 +268,22 @@
       });
     }
 
-    async function loadSongs(page = getPageFromUrl()) {
+    async function loadSongs(page = getPageFromUrl(), query = getQueryFromUrl()) {
       const safePage = clampPage(page);
+      const appliedQuery = String(query || '').trim();
       const songList = document.getElementById('song-list');
+      const endpoint = appliedQuery
+        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}`
+        : `/api/songs/ranking?page=${safePage}`;
+
+      if (searchInput && searchInput.value !== appliedQuery) {
+        searchInput.value = appliedQuery;
+      }
+
       songList.textContent = 'Loading...';
 
       try {
-        const response = await fetch(`/api/songs/ranking?page=${safePage}`, {
+        const response = await fetch(endpoint, {
           credentials: 'include'
         });
 
@@ -236,22 +297,29 @@
           ? Number(payload.totalSongs)
           : (((safePage - 1) * PAGE_SIZE) + songs.length);
 
-        renderSongs(songs, safePage);
-        renderPagination(safePage, totalSongs);
-        updatePageUrl(safePage);
+        renderSongs(songs, safePage, appliedQuery);
+        renderPagination(safePage, totalSongs, appliedQuery);
+        updatePageUrl(safePage, appliedQuery);
       } catch (error) {
-        console.error('Error loading ranking songs:', error);
-        songList.textContent = 'ランキングの読み込みに失敗しました。';
-        renderPagination(safePage, 0);
+        console.error('Error loading songs:', error);
+        songList.textContent = appliedQuery
+          ? '検索結果の読み込みに失敗しました。'
+          : 'ランキングの読み込みに失敗しました。';
+        renderPagination(safePage, 0, appliedQuery);
       }
     }
 
+    searchForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      loadSongs(1, searchInput.value);
+    });
+
     window.addEventListener('popstate', () => {
-      loadSongs(getPageFromUrl());
+      loadSongs(getPageFromUrl(), getQueryFromUrl());
     });
 
     window.addEventListener('load', () => {
-      loadSongs(getPageFromUrl());
+      loadSongs(getPageFromUrl(), getQueryFromUrl());
     });
   </script>
 </body>
