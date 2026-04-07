@@ -179,7 +179,7 @@ function updateAutoScrollSafeTop() {
   }
 
   const adminActionsEl = document.getElementById('song-admin-actions');
-  let safeTop = 14;
+  let safeTop = 64;
 
   if (adminActionsEl && !adminActionsEl.hidden) {
     const computedStyle = window.getComputedStyle(adminActionsEl);

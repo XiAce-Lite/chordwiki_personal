@@ -3,7 +3,7 @@
   --song-line-height: 1.6;
   --song-chord-size: 12.5px;
   --marker-safe-left: 6em;
-  --autoscroll-safe-top: 14px;
+  --autoscroll-safe-top: 64px;
 }
 
 body {
@@ -198,7 +198,8 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .autoscroll-ui {
   position: fixed;
-  top: var(--autoscroll-safe-top, 14px);
+  top: 64px;
+  top: var(--autoscroll-safe-top, 64px);
   right: 14px;
   z-index: 1000;
   display: flex;
@@ -336,10 +337,15 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   line-height: var(--song-line-height);
 }
 
+.sheet-stage,
+#sheet.cw-sheet {
+  box-sizing: border-box;
+}
+
 .cw-line,
 p.line {
   position: relative;
-  margin: 0 0 0.55em;
+  margin: 0 0 1.2em;
   min-height: 1.6em;
   line-height: var(--song-line-height);
   white-space: pre-wrap;
@@ -365,14 +371,14 @@ p.comment,
   display: inline-block;
   width: fit-content;
   max-width: 100%;
-  margin: 0.4em 0 0.95em;
+  margin: 0.4em 0 1em;
   padding: 2px 8px;
   border-radius: 4px;
   background-color: #e6e6e6;
   box-sizing: border-box;
   white-space: pre-wrap;
   font-size: var(--song-text-size);
-  line-height: var(--song-line-height);
+  line-height: 1.6;
   font-weight: 700;
   font-style: normal;
   color: #444;
