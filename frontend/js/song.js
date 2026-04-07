@@ -199,12 +199,35 @@ function formatYouTubeTimeLabel(totalSeconds) {
     : `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function buildYouTubeWatchUrl(videoId, start = 0) {
+  const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
+  return safeStart > 0
+    ? `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&t=${safeStart}s`
+    : `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`;
+}
+
+function buildYouTubeEmbedUrl(videoId, start = 0) {
+  const safeStart = Math.max(0, Math.trunc(Number(start) || 0));
+  const params = new URLSearchParams({
+    autoplay: '1',
+    start: String(safeStart),
+    playsinline: '1',
+    rel: '0'
+  });
+
+  if (window.location.origin && /^https?:/i.test(window.location.origin)) {
+    params.set('origin', window.location.origin);
+  }
+
+  return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?${params.toString()}`;
+}
+
 function closeYouTubePlayer() {
   const shell = document.getElementById('youtube-player-shell');
   const frame = document.getElementById('youtube-player-frame');
 
   if (frame) {
-    frame.src = '';
+    frame.src = 'about:blank';
   }
 
   if (shell) {
@@ -216,6 +239,7 @@ function playYouTubeVideo(videoId, start = 0) {
   const shell = document.getElementById('youtube-player-shell');
   const frame = document.getElementById('youtube-player-frame');
   const titleEl = document.getElementById('youtube-player-title');
+  const openLinkEl = document.getElementById('youtube-player-open');
 
   if (!shell || !frame || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
     return;
@@ -228,10 +252,14 @@ function playYouTubeVideo(videoId, start = 0) {
       : `YouTube · ${videoId}`;
   }
 
+  if (openLinkEl) {
+    openLinkEl.href = buildYouTubeWatchUrl(videoId, safeStart);
+  }
+
   shell.hidden = false;
-  frame.src = '';
+  frame.src = 'about:blank';
   window.setTimeout(() => {
-    frame.src = `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&start=${safeStart}`;
+    frame.src = buildYouTubeEmbedUrl(videoId, safeStart);
   }, 0);
 }
 

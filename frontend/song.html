@@ -114,13 +114,17 @@
   <div id="youtube-player-shell" class="youtube-player-shell" hidden>
     <div class="youtube-player-header">
       <div id="youtube-player-title" class="youtube-player-title">YouTube</div>
-      <button id="youtube-player-close" type="button" class="youtube-player-close" aria-label="Close YouTube player">×</button>
+      <div class="youtube-player-actions">
+        <a id="youtube-player-open" class="youtube-player-open" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">開く</a>
+        <button id="youtube-player-close" type="button" class="youtube-player-close" aria-label="Close YouTube player">×</button>
+      </div>
     </div>
     <iframe
       id="youtube-player-frame"
       class="youtube-player-frame"
       title="YouTube mini player"
       src="about:blank"
+      referrerpolicy="strict-origin-when-cross-origin"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
       allowfullscreen
     ></iframe>

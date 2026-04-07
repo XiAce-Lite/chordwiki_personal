@@ -4,6 +4,8 @@
   --song-chord-size: 12.5px;
   --marker-safe-left: 6em;
   --autoscroll-safe-top: 64px;
+  --youtube-player-safe-right: max(28px, calc(env(safe-area-inset-right, 0px) + 22px));
+  --youtube-player-safe-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
 }
 
 body {
@@ -232,10 +234,10 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .youtube-player-shell {
   position: fixed;
-  right: 8px;
-  bottom: 8px;
+  right: var(--youtube-player-safe-right);
+  bottom: var(--youtube-player-safe-bottom);
   z-index: 1200;
-  width: min(360px, calc(100vw - 16px));
+  width: min(360px, calc(100vw - var(--youtube-player-safe-right) - 20px));
   border: 1px solid #d6e7f8;
   border-radius: 12px;
   background: rgba(247, 251, 255, 0.98);
@@ -261,6 +263,30 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.youtube-player-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.youtube-player-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border: 1px solid #cfe0f1;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b65c2;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.youtube-player-open:hover {
+  background: #f0f6fc;
 }
 
 .youtube-player-close {
