@@ -121,7 +121,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .song-key {
   display: block;
-  font-size: 12px;
+  font-size: var(--song-text-size);
   font-weight: 700;
   color: #dc143c;
   text-align: left;
