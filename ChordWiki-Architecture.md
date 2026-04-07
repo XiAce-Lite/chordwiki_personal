@@ -206,7 +206,7 @@
   "artist": "テスト",
   "tags": ["test", "pop"],
   "youtube": [
-    { "id": "kZZstk3dGvQ", "start": 42 }
+    { "id": "XXXXXXXXXXX", "start": 42 }
   ],
   "chordPro": "{title:テスト曲}\n{key:C}\n[C]テストです",
   "createdAt": "2026-04-08T00:00:00.000Z",
