@@ -18,19 +18,80 @@
     #song-list {
       margin-top: 20px;
       text-align: left;
-      max-width: 600px;
+      max-width: 760px;
       margin-left: auto;
       margin-right: auto;
+      border: 1px solid #d9d9d9;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
     }
     .song-item {
-      display: block;
-      padding: 10px;
-      border-bottom: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid #e6e6e6;
       text-decoration: none;
       color: #000;
     }
+    .song-item:last-child {
+      border-bottom: none;
+    }
     .song-item:hover {
-      background-color: #f0f0f0;
+      background-color: #f7fbff;
+    }
+    .song-rank {
+      min-width: 3.5em;
+      font-weight: 700;
+      color: #0078d4;
+    }
+    .song-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .song-title {
+      display: block;
+      font-weight: 700;
+    }
+    .song-meta {
+      display: block;
+      margin-top: 2px;
+      font-size: 13px;
+      color: #666;
+    }
+    .song-score {
+      font-size: 12px;
+      font-weight: 700;
+      color: #444;
+      background: #f1f5f9;
+      border-radius: 999px;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+    #pagination {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .page-button {
+      min-width: 40px;
+      padding: 8px 12px;
+      border: 1px solid #c8d1dc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .page-button.is-active {
+      background: #0078d4;
+      border-color: #0078d4;
+      color: #fff;
+    }
+    .page-button:disabled {
+      cursor: default;
+      opacity: 1;
     }
     .editor-only {
       display: none !important;
@@ -54,6 +115,7 @@
   <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <input type="text" id="search" placeholder="検索...">
   <div id="song-list"></div>
+  <div id="pagination" aria-label="Ranking pages"></div>
 
   <script src="js/auth.js"></script>
   <script>
@@ -63,27 +125,123 @@
       location.href = '/edit.html?mode=add';
     });
 
-    async function loadSongs() {
-      try {
-        const response = await fetch('/api/songs');
-        const songs = await response.json();
-        const songList = document.getElementById('song-list');
-        songs.forEach(song => {
-          const link = document.createElement('a');
-          link.className = 'song-item';
-          link.href = `song.html?artist=${encodeURIComponent(song.artist)}&id=${encodeURIComponent(song.id)}`;
-          link.textContent = `${song.title} - ${song.artist}`;
-          link.setAttribute('data-id', song.id);
-          link.setAttribute('data-artist', song.artist);
-          link.setAttribute('data-slug', song.slug);
-          songList.appendChild(link);
+    const PAGE_SIZE = 100;
+    const MAX_PAGES = 3;
+
+    function clampPage(page) {
+      const parsed = Number.parseInt(String(page || '1'), 10);
+      if (!Number.isFinite(parsed)) {
+        return 1;
+      }
+
+      return Math.min(MAX_PAGES, Math.max(1, parsed));
+    }
+
+    function getPageFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return clampPage(params.get('page'));
+    }
+
+    function updatePageUrl(page) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('page', String(page));
+      window.history.replaceState({}, '', url);
+    }
+
+    function renderPagination(page) {
+      const paginationEl = document.getElementById('pagination');
+      paginationEl.innerHTML = '';
+
+      for (let p = 1; p <= MAX_PAGES; p += 1) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `page-button${p === page ? ' is-active' : ''}`;
+        button.textContent = String(p);
+        button.disabled = p === page;
+        button.addEventListener('click', () => {
+          loadSongs(p);
         });
-      } catch (error) {
-        console.error('Error loading songs:', error);
+        paginationEl.appendChild(button);
       }
     }
 
-    window.onload = loadSongs;
+    function renderSongs(songs, page) {
+      const songList = document.getElementById('song-list');
+      songList.innerHTML = '';
+
+      if (!Array.isArray(songs) || songs.length === 0) {
+        songList.textContent = 'このページには曲がありません。';
+        return;
+      }
+
+      songs.forEach((song, index) => {
+        const rank = ((page - 1) * PAGE_SIZE) + index + 1;
+        const link = document.createElement('a');
+        const rankEl = document.createElement('span');
+        const mainEl = document.createElement('span');
+        const titleEl = document.createElement('span');
+        const metaEl = document.createElement('span');
+        const scoreEl = document.createElement('span');
+
+        link.className = 'song-item';
+        link.href = `song.html?artist=${encodeURIComponent(song.artist)}&id=${encodeURIComponent(song.id)}`;
+        link.setAttribute('data-id', song.id);
+        link.setAttribute('data-artist', song.artist);
+        link.setAttribute('data-slug', song.slug || '');
+
+        rankEl.className = 'song-rank';
+        rankEl.textContent = `#${rank}`;
+
+        mainEl.className = 'song-main';
+        titleEl.className = 'song-title';
+        titleEl.textContent = song.title || 'タイトルなし';
+        metaEl.className = 'song-meta';
+        metaEl.textContent = song.artist || '';
+        mainEl.appendChild(titleEl);
+        mainEl.appendChild(metaEl);
+
+        scoreEl.className = 'song-score';
+        scoreEl.textContent = `Score ${Number(song.score) || 0}`;
+
+        link.appendChild(rankEl);
+        link.appendChild(mainEl);
+        link.appendChild(scoreEl);
+        songList.appendChild(link);
+      });
+    }
+
+    async function loadSongs(page = getPageFromUrl()) {
+      const safePage = clampPage(page);
+      const songList = document.getElementById('song-list');
+      songList.textContent = 'Loading...';
+
+      try {
+        const response = await fetch(`/api/songs/ranking?page=${safePage}`, {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        renderSongs(payload.songs || [], safePage);
+        renderPagination(safePage);
+        updatePageUrl(safePage);
+      } catch (error) {
+        console.error('Error loading ranking songs:', error);
+        songList.textContent = 'ランキングの読み込みに失敗しました。';
+        renderPagination(safePage);
+      }
+    }
+
+    window.addEventListener('popstate', () => {
+      loadSongs(getPageFromUrl());
+    });
+
+    window.addEventListener('load', () => {
+      loadSongs(getPageFromUrl());
+    });
   </script>
 </body>
 </html>
