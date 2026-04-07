@@ -32,6 +32,39 @@ function normalizePage(value) {
   return Math.min(MAX_PAGES, Math.max(1, parsed));
 }
 
+function normalizeScore(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.trunc(numeric));
+}
+
+function normalizeViewedAt(value) {
+  const time = Date.parse(value || "");
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mapSongSummary(song) {
+  return {
+    id: song.id,
+    artist: song.artist,
+    title: song.title,
+    slug: song.slug,
+    score: normalizeScore(song.score),
+    last_viewed_at: song.last_viewed_at || null
+  };
+}
+
+function compareSongsForRanking(a, b) {
+  if (b.score !== a.score) {
+    return b.score - a.score;
+  }
+
+  return normalizeViewedAt(b.last_viewed_at) - normalizeViewedAt(a.last_viewed_at);
+}
+
 module.exports = async function (context, req) {
   if (!container) {
     context.res = jsonResponse(500, {
@@ -46,31 +79,20 @@ module.exports = async function (context, req) {
 
   try {
     const query = {
-      query: `
-        SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at
-        FROM c
-        ORDER BY c.score DESC, c.last_viewed_at DESC
-        OFFSET @offset LIMIT @limit
-      `,
-      parameters: [
-        { name: "@offset", value: offset },
-        { name: "@limit", value: PAGE_SIZE }
-      ]
+      query: "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at FROM c"
     };
 
     const { resources } = await container.items.query(query, {
       enableCrossPartitionQuery: true,
-      maxItemCount: PAGE_SIZE
+      maxItemCount: TOTAL_LIMIT
     }).fetchAll();
 
-    const songs = (resources || []).slice(0, PAGE_SIZE).map((song) => ({
-      id: song.id,
-      artist: song.artist,
-      title: song.title,
-      slug: song.slug,
-      score: Number.isFinite(Number(song.score)) ? Number(song.score) : 0,
-      last_viewed_at: song.last_viewed_at || null
-    }));
+    const rankedSongs = (resources || [])
+      .map(mapSongSummary)
+      .sort(compareSongsForRanking)
+      .slice(0, TOTAL_LIMIT);
+
+    const songs = rankedSongs.slice(offset, offset + PAGE_SIZE);
 
     context.res = jsonResponse(200, {
       page,
