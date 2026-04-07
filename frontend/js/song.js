@@ -15,6 +15,9 @@ let currentSongData = null;
 const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
 const DEFAULT_DURATION_SEC = 4 * 60;
+const DEFAULT_DURATION_ESTIMATE_MIN_SEC = (3 * 60) + 55;
+const DEFAULT_DURATION_ESTIMATE_MAX_SEC = (4 * 60) + 5;
+const AUTO_SCROLL_ESTIMATE_RATIO = 0.97;
 const START_SCROLL_TOLERANCE_PX = 10;
 const END_MARKER_STOP_RATIO = 2 / 3;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
@@ -25,6 +28,11 @@ const SONG_EXTRAS_COLLAPSED_STORAGE_KEY = 'songExtrasCollapsed';
 const songMetaModalState = {
   mode: 'tags',
   isSaving: false
+};
+
+const autoScrollEstimateState = {
+  attempted: false,
+  inFlight: false
 };
 
 const autoScrollState = {
@@ -910,6 +918,77 @@ function formatDuration(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function getDisplayedDurationSec() {
+  const minutes = Math.max(0, Number.parseInt(document.getElementById('autoscroll-minutes')?.value ?? '0', 10) || 0);
+  const seconds = clamp(Number.parseInt(document.getElementById('autoscroll-seconds')?.value ?? '0', 10) || 0, 0, 59);
+  return (minutes * 60) + seconds;
+}
+
+function isDefaultDurationRange(seconds = getDisplayedDurationSec()) {
+  const safeSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+  return safeSeconds >= DEFAULT_DURATION_ESTIMATE_MIN_SEC && safeSeconds <= DEFAULT_DURATION_ESTIMATE_MAX_SEC;
+}
+
+function applyEstimatedDurationBias(seconds) {
+  const safeSeconds = Math.max(0, Math.round(Number(seconds) || 0));
+  if (!safeSeconds) {
+    return 0;
+  }
+
+  return Math.max(30, Math.round(safeSeconds * AUTO_SCROLL_ESTIMATE_RATIO));
+}
+
+async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayArtist = '') {
+  if (autoScrollEstimateState.attempted || autoScrollEstimateState.inFlight) {
+    return;
+  }
+
+  if (!isDefaultDurationRange(autoScrollState.durationSec) || !isDefaultDurationRange()) {
+    return;
+  }
+
+  const title = String(displayTitle || song?.title || '').trim();
+  const artist = String(displayArtist || song?.artist || '').trim();
+  if (!title || !artist) {
+    return;
+  }
+
+  autoScrollEstimateState.attempted = true;
+  autoScrollEstimateState.inFlight = true;
+
+  try {
+    const endpoint = `/api/youtube/search-duration?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+    const response = await fetch(endpoint, { credentials: 'include' });
+    if (!response.ok) {
+      return;
+    }
+
+    const payload = await response.json().catch(() => null);
+    const rawDurationSec = Number(payload?.durationSec);
+    if (!payload?.found || !Number.isFinite(rawDurationSec) || rawDurationSec <= 0) {
+      return;
+    }
+
+    if (!isDefaultDurationRange(autoScrollState.durationSec) || !isDefaultDurationRange()) {
+      return;
+    }
+
+    const estimatedSec = applyEstimatedDurationBias(rawDurationSec);
+    if (!estimatedSec) {
+      return;
+    }
+
+    autoScrollState.durationSec = estimatedSec;
+    setDurationInputs(estimatedSec);
+    saveAutoScrollState({ notify: false });
+    setStatus(`Estimated · ${formatDuration(estimatedSec)} · YouTube参考値`, 'success');
+  } catch (error) {
+    console.warn('Failed to estimate auto-scroll duration:', error);
+  } finally {
+    autoScrollEstimateState.inFlight = false;
+  }
+}
+
 function getMaxWindowScrollY() {
   return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 }
@@ -1514,6 +1593,8 @@ async function loadSong() {
   const id = getQueryParam('id');
 
   currentSongKey = '';
+  autoScrollEstimateState.attempted = false;
+  autoScrollEstimateState.inFlight = false;
 
   const titleEl = document.getElementById('title');
   const artistEl = document.getElementById('artist');
@@ -1578,6 +1659,7 @@ async function loadSong() {
     renderSongSideRail(song, displayTitle, displayArtist);
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
+    void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);
     trackSongView(artist, id);
   } catch (error) {
     console.error('Error loading song:', error);
