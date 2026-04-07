@@ -10,6 +10,7 @@ let transposeSemitones = 0;
 let accidentalMode = 'none';
 let songPrefsStorageKey = null;
 let currentSongKey = '';
+let currentSongData = null;
 
 const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
@@ -19,6 +20,12 @@ const END_MARKER_STOP_RATIO = 2 / 3;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
 const AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed';
+const SONG_EXTRAS_COLLAPSED_STORAGE_KEY = 'songExtrasCollapsed';
+
+const songMetaModalState = {
+  mode: 'tags',
+  isSaving: false
+};
 
 const autoScrollState = {
   storageKey: null,
@@ -195,6 +202,92 @@ function normalizeSongYoutubeEntries(entries) {
       };
     })
     .filter(Boolean);
+}
+
+function isEditorEnabled() {
+  return document.documentElement.classList.contains('editor-enabled');
+}
+
+function normalizeTextBlock(text) {
+  return String(text || '').replace(/\r\n|\n\r|\r/g, '\n');
+}
+
+function extractYoutubeId(text) {
+  const raw = String(text || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const directMatch = raw.match(/^([A-Za-z0-9_-]{11})(?=$|[?&#\s])/);
+  if (directMatch) {
+    return directMatch[1];
+  }
+
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      const hostname = url.hostname.toLowerCase();
+
+      if (hostname.includes('youtu.be')) {
+        return (url.pathname.split('/').filter(Boolean)[0] || '').trim();
+      }
+
+      if (hostname.includes('youtube.com')) {
+        const fromQuery = (url.searchParams.get('v') || '').trim();
+        if (fromQuery) {
+          return fromQuery;
+        }
+
+        const parts = url.pathname.split('/').filter(Boolean);
+        const markerIndex = parts.findIndex((part) => part === 'embed' || part === 'shorts');
+        if (markerIndex !== -1 && parts[markerIndex + 1]) {
+          return parts[markerIndex + 1].trim();
+        }
+      }
+    } catch {
+      return '';
+    }
+  }
+
+  const embeddedMatch = raw.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/i);
+  return embeddedMatch ? embeddedMatch[1] : '';
+}
+
+function extractYoutubeStart(text) {
+  const raw = String(text || '').trim();
+  const match = raw.match(/(?:[?&\s]|^)(?:t|start)\s*=\s*(\d+)(?:s)?(?=$|[&#\s])/i);
+  const parsed = Number.parseInt(String(match?.[1] || '0'), 10);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+function parseYoutubeLine(line) {
+  const raw = String(line || '').trim();
+  if (!raw) {
+    return null;
+  }
+
+  const id = extractYoutubeId(raw);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+    return null;
+  }
+
+  return {
+    id,
+    start: extractYoutubeStart(raw)
+  };
+}
+
+function parseYoutubeTextarea(text) {
+  return normalizeTextBlock(text)
+    .split('\n')
+    .map((line) => parseYoutubeLine(line))
+    .filter(Boolean);
+}
+
+function formatYoutubeEntriesForEdit(entries) {
+  return normalizeSongYoutubeEntries(entries)
+    .map((entry) => (entry.start > 0 ? `${entry.id}?t=${entry.start}` : entry.id))
+    .join('\n');
 }
 
 function formatYouTubeTimeLabel(totalSeconds) {
@@ -409,29 +502,39 @@ async function playYouTubeVideo(videoId, start = 0) {
 }
 
 function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
+  const extrasUi = document.getElementById('song-extras-ui');
   const tagsBlock = document.getElementById('song-tags-block');
   const tagsEl = document.getElementById('song-tags');
   const youtubeBlock = document.getElementById('song-youtube-block');
   const youtubeListEl = document.getElementById('song-youtube-list');
   const youtubeSearchButton = document.getElementById('youtube-search-button');
+  const editorEnabled = isEditorEnabled();
 
   const tags = normalizeSongTags(song?.tags);
   if (tagsBlock) {
-    tagsBlock.hidden = tags.length === 0;
+    tagsBlock.hidden = tags.length === 0 && !editorEnabled;
   }
 
   if (tagsEl) {
     tagsEl.innerHTML = '';
-    tags.forEach((tag) => {
-      const tagButton = document.createElement('button');
-      tagButton.type = 'button';
-      tagButton.className = 'song-tag';
-      tagButton.textContent = tag;
-      tagButton.addEventListener('click', () => {
-        window.location.href = `/?q=${encodeURIComponent(tag)}`;
+
+    if (!tags.length) {
+      const emptyEl = document.createElement('div');
+      emptyEl.className = 'song-tags-empty';
+      emptyEl.textContent = editorEnabled ? '未登録（ヘッダーから編集できます）' : '登録なし';
+      tagsEl.appendChild(emptyEl);
+    } else {
+      tags.forEach((tag) => {
+        const tagButton = document.createElement('button');
+        tagButton.type = 'button';
+        tagButton.className = 'song-tag';
+        tagButton.textContent = tag;
+        tagButton.addEventListener('click', () => {
+          window.location.href = `/?q=${encodeURIComponent(tag)}`;
+        });
+        tagsEl.appendChild(tagButton);
       });
-      tagsEl.appendChild(tagButton);
-    });
+    }
   }
 
   const youtubeEntries = normalizeSongYoutubeEntries(song?.youtube);
@@ -441,7 +544,7 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
     if (!youtubeEntries.length) {
       const emptyEl = document.createElement('div');
       emptyEl.className = 'song-youtube-empty';
-      emptyEl.textContent = '登録なし';
+      emptyEl.textContent = editorEnabled ? '未登録（ヘッダーから編集できます）' : '登録なし';
       youtubeListEl.appendChild(emptyEl);
     } else {
       youtubeEntries.forEach((entry) => {
@@ -479,7 +582,11 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
   }
 
   if (youtubeBlock) {
-    youtubeBlock.hidden = !searchQuery && youtubeEntries.length === 0;
+    youtubeBlock.hidden = !searchQuery && youtubeEntries.length === 0 && !editorEnabled;
+  }
+
+  if (extrasUi) {
+    extrasUi.hidden = !(editorEnabled || tags.length > 0 || youtubeEntries.length > 0 || searchQuery);
   }
 }
 
@@ -524,6 +631,48 @@ function toggleAutoScrollCollapsed() {
   setAutoScrollCollapsed(!uiEl?.classList.contains('is-collapsed'));
 }
 
+function getSongExtrasUiEl() {
+  return document.getElementById('song-extras-ui');
+}
+
+function setSongExtrasCollapsed(collapsed) {
+  const uiEl = getSongExtrasUiEl();
+  const toggleButton = document.getElementById('song-extras-collapse-toggle');
+  const isCollapsed = Boolean(collapsed);
+
+  if (uiEl) {
+    uiEl.classList.toggle('is-collapsed', isCollapsed);
+  }
+
+  if (toggleButton) {
+    toggleButton.textContent = isCollapsed ? '≪' : '≫';
+    toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+    toggleButton.setAttribute('aria-label', isCollapsed ? 'Expand song extras' : 'Collapse song extras');
+  }
+
+  try {
+    window.localStorage.setItem(SONG_EXTRAS_COLLAPSED_STORAGE_KEY, isCollapsed ? '1' : '0');
+  } catch (error) {
+    console.warn('Failed to save extras collapse state:', error);
+  }
+}
+
+function restoreSongExtrasCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(SONG_EXTRAS_COLLAPSED_STORAGE_KEY);
+    setSongExtrasCollapsed(raw === '1');
+  } catch (error) {
+    console.warn('Failed to restore extras collapse state:', error);
+    setSongExtrasCollapsed(false);
+  }
+}
+
+function toggleSongExtrasCollapsed() {
+  const uiEl = getSongExtrasUiEl();
+  setSongExtrasCollapsed(!uiEl?.classList.contains('is-collapsed'));
+  window.requestAnimationFrame(updateAutoScrollSafeTop);
+}
+
 function updateAutoScrollSafeTop() {
   const rootStyle = document.documentElement?.style;
   if (!rootStyle) {
@@ -531,7 +680,9 @@ function updateAutoScrollSafeTop() {
   }
 
   const adminActionsEl = document.getElementById('song-admin-actions');
+  const autoScrollEl = getAutoScrollUiEl();
   let safeTop = 64;
+  let extrasTop = 64;
 
   if (adminActionsEl && !adminActionsEl.hidden) {
     const computedStyle = window.getComputedStyle(adminActionsEl);
@@ -539,11 +690,23 @@ function updateAutoScrollSafeTop() {
       const rect = adminActionsEl.getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
         safeTop = Math.max(safeTop, Math.round(rect.bottom + 8));
+        extrasTop = Math.max(extrasTop, Math.round(rect.bottom + 8));
+      }
+    }
+  }
+
+  if (autoScrollEl) {
+    const computedStyle = window.getComputedStyle(autoScrollEl);
+    if (computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden') {
+      const rect = autoScrollEl.getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        extrasTop = Math.max(extrasTop, Math.round(rect.bottom + 12));
       }
     }
   }
 
   rootStyle.setProperty('--autoscroll-safe-top', `${safeTop}px`);
+  rootStyle.setProperty('--song-extras-safe-top', `${extrasTop}px`);
 }
 
 function updateEditorActions(artist, id) {
@@ -571,6 +734,160 @@ function updateEditorActions(artist, id) {
   deleteButtonEl.disabled = false;
   editLinkEl.href = `/edit.html?mode=edit&artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
   updateAutoScrollSafeTop();
+}
+
+function setSongMetaModalMessage(text = '', type = '') {
+  const messageEl = document.getElementById('song-meta-modal-message');
+  if (!messageEl) {
+    return;
+  }
+
+  messageEl.textContent = text;
+  messageEl.className = `song-meta-modal-message${type ? ` ${type}` : ''}`;
+}
+
+function openSongMetaModal(mode) {
+  const modalEl = document.getElementById('song-meta-modal');
+  const titleEl = document.getElementById('song-meta-modal-title');
+  const helpEl = document.getElementById('song-meta-modal-help');
+  const inputEl = document.getElementById('song-meta-modal-input');
+
+  if (!modalEl || !titleEl || !helpEl || !inputEl) {
+    return;
+  }
+
+  const normalizedMode = mode === 'youtube' ? 'youtube' : 'tags';
+  const editorEnabled = isEditorEnabled();
+  songMetaModalState.mode = normalizedMode;
+
+  if (normalizedMode === 'tags') {
+    titleEl.textContent = 'Tags の編集';
+    helpEl.textContent = editorEnabled
+      ? '1行に1タグで入力します。空行は無視されます。'
+      : '現在のタグ一覧を表示しています。編集は editor ロールで利用できます。';
+    inputEl.value = normalizeSongTags(currentSongData?.tags).join('\n');
+  } else {
+    titleEl.textContent = 'YouTube の編集';
+    helpEl.textContent = editorEnabled
+      ? '1行に1動画です。id / id?t=42 / URL を入力できます。'
+      : '現在の YouTube 一覧を表示しています。編集は editor ロールで利用できます。';
+    inputEl.value = formatYoutubeEntriesForEdit(currentSongData?.youtube);
+  }
+
+  inputEl.readOnly = !editorEnabled;
+  inputEl.disabled = false;
+  modalEl.hidden = false;
+  setSongMetaModalMessage('');
+  window.requestAnimationFrame(() => inputEl.focus());
+}
+
+function closeSongMetaModal() {
+  const modalEl = document.getElementById('song-meta-modal');
+  if (modalEl) {
+    modalEl.hidden = true;
+  }
+
+  setSongMetaModalMessage('');
+}
+
+async function saveSongMetaModal() {
+  const inputEl = document.getElementById('song-meta-modal-input');
+  const saveButton = document.getElementById('song-meta-modal-save');
+  const cancelButton = document.getElementById('song-meta-modal-cancel');
+  const closeButton = document.getElementById('song-meta-modal-close');
+
+  if (!inputEl || !currentSongData?.id || !currentSongData?.artist) {
+    setSongMetaModalMessage('曲データの読み込み後に操作してください。', 'error');
+    return;
+  }
+
+  if (!isEditorEnabled()) {
+    setSongMetaModalMessage('この操作には editor ロールが必要です。', 'error');
+    return;
+  }
+
+  const nextTags = songMetaModalState.mode === 'tags'
+    ? normalizeTextBlock(inputEl.value)
+      .split('\n')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+    : normalizeSongTags(currentSongData?.tags);
+
+  const nextYoutube = songMetaModalState.mode === 'youtube'
+    ? parseYoutubeTextarea(inputEl.value)
+    : normalizeSongYoutubeEntries(currentSongData?.youtube);
+
+  const payload = {
+    id: String(currentSongData.id || '').trim(),
+    title: String(currentSongData.title || document.getElementById('title')?.textContent || '').trim(),
+    slug: String(currentSongData.slug || '').trim(),
+    artist: String(currentSongData.artist || getQueryParam('artist') || '').trim(),
+    tags: nextTags,
+    youtube: nextYoutube,
+    chordPro: String(currentSongData.chordPro || originalChordPro || '').trim(),
+    createdAt: String(currentSongData.createdAt || '').trim(),
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!payload.title || !payload.slug || !payload.artist || !payload.chordPro) {
+    setSongMetaModalMessage('保存に必要な曲情報が不足しています。', 'error');
+    return;
+  }
+
+  songMetaModalState.isSaving = true;
+  inputEl.disabled = true;
+  saveButton && (saveButton.disabled = true);
+  cancelButton && (cancelButton.disabled = true);
+  closeButton && (closeButton.disabled = true);
+  setSongMetaModalMessage('保存しています...');
+
+  try {
+    const response = await fetch(
+      `/api/edit/song/${encodeURIComponent(currentSongData.artist)}/${encodeURIComponent(currentSongData.id)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      }
+    );
+
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      const detail = body?.error?.detail || body?.detail || body?.error || `HTTP ${response.status}`;
+      setSongMetaModalMessage(detail, 'error');
+      return;
+    }
+
+    currentSongData = {
+      ...(currentSongData || {}),
+      ...payload,
+      ...(body && typeof body === 'object' ? body : {})
+    };
+    currentSongData.tags = normalizeSongTags(currentSongData.tags);
+    currentSongData.youtube = normalizeSongYoutubeEntries(currentSongData.youtube);
+
+    renderSongSideRail(
+      currentSongData,
+      String(document.getElementById('title')?.textContent || currentSongData.title || '').trim(),
+      String(document.getElementById('artist')?.textContent || currentSongData.artist || '').trim()
+    );
+
+    setSongMetaModalMessage('保存しました。', 'success');
+    window.setTimeout(() => {
+      closeSongMetaModal();
+    }, 300);
+  } catch (error) {
+    console.error('Failed to save song extras:', error);
+    setSongMetaModalMessage('保存中に通信エラーが発生しました。', 'error');
+  } finally {
+    songMetaModalState.isSaving = false;
+    inputEl.disabled = false;
+    inputEl.readOnly = !isEditorEnabled();
+    saveButton && (saveButton.disabled = false);
+    cancelButton && (cancelButton.disabled = false);
+    closeButton && (closeButton.disabled = false);
+  }
 }
 
 function getSheetEl() {
@@ -1238,6 +1555,16 @@ async function loadSong() {
     }
 
     const song = await response.json();
+    currentSongData = {
+      ...song,
+      artist: song.artist || artist,
+      id: song.id || id,
+      title: song.title || '',
+      slug: song.slug || '',
+      chordPro: song.chordPro || '',
+      tags: normalizeSongTags(song.tags),
+      youtube: normalizeSongYoutubeEntries(song.youtube)
+    };
     currentSongKey = song.key || '';
     originalChordPro = song.chordPro || '';
     const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
@@ -1347,6 +1674,28 @@ function initializeAutoScrollUi() {
   });
 }
 
+function initializeSongExtrasUi() {
+  document.getElementById('song-extras-collapse-toggle')?.addEventListener('click', toggleSongExtrasCollapsed);
+  document.getElementById('song-tags-header')?.addEventListener('click', () => openSongMetaModal('tags'));
+  document.getElementById('song-youtube-header')?.addEventListener('click', () => openSongMetaModal('youtube'));
+  document.getElementById('song-meta-modal-close')?.addEventListener('click', closeSongMetaModal);
+  document.getElementById('song-meta-modal-cancel')?.addEventListener('click', closeSongMetaModal);
+  document.getElementById('song-meta-modal-save')?.addEventListener('click', saveSongMetaModal);
+  document.getElementById('song-meta-modal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'song-meta-modal') {
+      closeSongMetaModal();
+    }
+  });
+  document.getElementById('song-meta-modal-input')?.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && isEditorEnabled()) {
+      event.preventDefault();
+      saveSongMetaModal();
+    }
+  });
+
+  restoreSongExtrasCollapsedState();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transpose-down').addEventListener('click', () => {
     transposeSemitones = clampTranspose(transposeSemitones - 1);
@@ -1372,6 +1721,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.ChordWikiAuth?.applyRoleVisibility();
   initializeAutoScrollUi();
+  initializeSongExtrasUi();
   updateTransposeDisplay();
   updateAutoScrollSafeTop();
   window.requestAnimationFrame(updateAutoScrollSafeTop);

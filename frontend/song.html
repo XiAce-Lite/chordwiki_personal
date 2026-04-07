@@ -93,21 +93,48 @@
           <div id="autoscroll-marker-layer" class="autoscroll-marker-layer" aria-hidden="true"></div>
         </div>
       </div>
+    </div>
+  </div>
 
-      <aside class="song-side-column" aria-label="Song extras">
-        <section id="song-tags-block" class="song-side-block" hidden>
-          <div class="song-side-title">Tags</div>
-          <div id="song-tags" class="song-tags"></div>
-        </section>
+  <aside id="song-extras-ui" class="song-extras-ui" aria-label="Song extras" hidden>
+    <div class="song-extras-header">
+      <div class="song-extras-title">Tags / YouTube</div>
+      <button id="song-extras-collapse-toggle" class="song-extras-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song extras">≫</button>
+    </div>
 
-        <section id="song-youtube-block" class="song-side-block" hidden>
-          <div class="song-side-header">
-            <div class="song-side-title">YouTube</div>
-            <button id="youtube-search-button" type="button" class="youtube-search-button">YouTubeで検索</button>
-          </div>
-          <div id="song-youtube-list" class="song-youtube-list"></div>
-        </section>
-      </aside>
+    <section id="song-tags-block" class="song-side-block" hidden>
+      <button id="song-tags-header" type="button" class="song-side-header-button">
+        <span class="song-side-title">Tags</span>
+        <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
+      </button>
+      <div id="song-tags" class="song-tags"></div>
+    </section>
+
+    <section id="song-youtube-block" class="song-side-block" hidden>
+      <div class="song-side-header">
+        <button id="song-youtube-header" type="button" class="song-side-header-button">
+          <span class="song-side-title">YouTube</span>
+          <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
+        </button>
+        <button id="youtube-search-button" type="button" class="youtube-search-button">YouTubeで検索</button>
+      </div>
+      <div id="song-youtube-list" class="song-youtube-list"></div>
+    </section>
+  </aside>
+
+  <div id="song-meta-modal" class="song-meta-modal" hidden>
+    <div class="song-meta-dialog" role="dialog" aria-modal="true" aria-labelledby="song-meta-modal-title">
+      <div class="song-meta-dialog-header">
+        <h2 id="song-meta-modal-title" class="song-meta-dialog-title">項目を編集</h2>
+        <button id="song-meta-modal-close" type="button" class="song-meta-modal-close" aria-label="Close dialog">×</button>
+      </div>
+      <p id="song-meta-modal-help" class="song-meta-modal-help"></p>
+      <textarea id="song-meta-modal-input" class="song-meta-modal-input" rows="8"></textarea>
+      <div id="song-meta-modal-message" class="song-meta-modal-message" aria-live="polite"></div>
+      <div class="song-meta-modal-actions">
+        <button id="song-meta-modal-save" type="button" class="song-meta-modal-save editor-only" data-display="inline-flex">保存</button>
+        <button id="song-meta-modal-cancel" type="button" class="song-meta-modal-cancel">閉じる</button>
+      </div>
     </div>
   </div>
 
