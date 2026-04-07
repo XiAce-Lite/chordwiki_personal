@@ -86,6 +86,18 @@ function normalizeAccidentalModeValue(mode) {
   return mode === 'sharp' || mode === 'flat' ? mode : 'none';
 }
 
+function getErrorDetail(payload, fallback = '処理に失敗しました。') {
+  return payload?.error?.detail || payload?.detail || payload?.error || fallback;
+}
+
+async function parseJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 function loadSongPreferences() {
   transposeSemitones = 0;
   accidentalMode = 'none';
@@ -171,8 +183,8 @@ function trackSongView(artist, id) {
         return;
       }
 
-      const body = await response.json().catch(() => null);
-      const detail = body?.error?.detail || body?.detail || `HTTP ${response.status}`;
+      const body = await parseJsonResponse(response);
+      const detail = getErrorDetail(body, `HTTP ${response.status}`);
       console.warn('Failed to update song view score:', detail);
     })
     .catch((error) => {
@@ -791,6 +803,10 @@ function openSongMetaModal(mode) {
 }
 
 function closeSongMetaModal() {
+  if (songMetaModalState.isSaving) {
+    return;
+  }
+
   const modalEl = document.getElementById('song-meta-modal');
   if (modalEl) {
     modalEl.hidden = true;
@@ -800,6 +816,9 @@ function closeSongMetaModal() {
 }
 
 async function saveSongMetaModal() {
+  if (songMetaModalState.isSaving) {
+    return;
+  }
   const inputEl = document.getElementById('song-meta-modal-input');
   const saveButton = document.getElementById('song-meta-modal-save');
   const cancelButton = document.getElementById('song-meta-modal-cancel');
@@ -861,9 +880,9 @@ async function saveSongMetaModal() {
       }
     );
 
-    const body = await response.json().catch(() => null);
+    const body = await parseJsonResponse(response);
     if (!response.ok) {
-      const detail = body?.error?.detail || body?.detail || body?.error || `HTTP ${response.status}`;
+      const detail = getErrorDetail(body, `HTTP ${response.status}`);
       setSongMetaModalMessage(detail, 'error');
       return;
     }
@@ -1563,9 +1582,9 @@ async function handleDeleteSong() {
       }
     );
 
-    const body = await response.json().catch(() => null);
+    const body = await parseJsonResponse(response);
     if (!response.ok) {
-      const detail = body?.error?.detail || body?.detail || body?.error || '削除に失敗しました。';
+      const detail = getErrorDetail(body, '削除に失敗しました。');
       setStatus(`Stopped · ${detail}`, 'warn');
       return;
     }
@@ -1611,6 +1630,8 @@ async function loadSong() {
   const id = getQueryParam('id');
 
   currentSongKey = '';
+  currentSongData = null;
+  originalChordPro = '';
   autoScrollEstimateState.attempted = false;
   autoScrollEstimateState.inFlight = false;
 
@@ -1643,6 +1664,8 @@ async function loadSong() {
       { credentials: 'include' }
     );
 
+    const payload = await parseJsonResponse(response);
+
     if (response.status === 404) {
       titleEl.textContent = 'Song not found';
       artistEl.textContent = '';
@@ -1654,7 +1677,15 @@ async function loadSong() {
       return;
     }
 
-    const song = await response.json();
+    if (!response.ok) {
+      throw new Error(getErrorDetail(payload, `HTTP ${response.status}`));
+    }
+
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Invalid song response payload.');
+    }
+
+    const song = payload;
     currentSongData = {
       ...song,
       artist: song.artist || artist,
@@ -1674,7 +1705,7 @@ async function loadSong() {
     titleEl.textContent = displayTitle;
     artistEl.textContent = displayArtist;
     updateSongKeyDisplay(renderResult, currentSongKey);
-    renderSongSideRail(song, displayTitle, displayArtist);
+    renderSongSideRail(currentSongData, displayTitle, displayArtist);
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
     void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);

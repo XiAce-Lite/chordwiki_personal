@@ -1,5 +1,6 @@
 const YOUTUBE_SEARCH_URL = "https://www.youtube.com/results";
 const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const SEARCH_TIMEOUT_MS = 5000;
 const LOW_PRIORITY_TERMS = [
   "live",
   "ライブ",
@@ -96,6 +97,22 @@ function parseDurationText(value) {
   }
 
   return parts.reduce((total, part) => (total * 60) + part, 0);
+}
+
+async function fetchTextWithTimeout(url, options = {}, timeoutMs = SEARCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    const text = await response.text();
+    return { response, text };
+  } finally {
+    clearTimeout(timerId);
+  }
 }
 
 function collectVideoRenderers(node, results = []) {
@@ -225,7 +242,7 @@ module.exports = async function (context, req) {
 
   try {
     const url = `${YOUTUBE_SEARCH_URL}?search_query=${encodeURIComponent(query)}&hl=ja&persist_hl=1`;
-    const response = await fetch(url, {
+    const { response, text: html } = await fetchTextWithTimeout(url, {
       headers: {
         "user-agent": USER_AGENT,
         "accept-language": "ja,en-US;q=0.8,en;q=0.6"
@@ -240,8 +257,6 @@ module.exports = async function (context, req) {
       });
       return;
     }
-
-    const html = await response.text();
     const initialData = extractInitialData(html);
     if (!initialData) {
       context.res = jsonResponse(200, {
