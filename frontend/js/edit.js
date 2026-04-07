@@ -140,28 +140,28 @@ function extractYoutubeStart(text) {
   return normalizeYoutubeStart(match?.[1]);
 }
 
-function normalizeYoutubeInput(text) {
-  const lines = normalizeNewlines(text).split('\n');
-  const entries = [];
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const id = extractYoutubeId(trimmed);
-    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-      continue;
-    }
-
-    entries.push({
-      id,
-      start: extractYoutubeStart(trimmed)
-    });
+function parseYoutubeLine(line) {
+  const raw = String(line || '').trim();
+  if (!raw) {
+    return null;
   }
 
-  return entries;
+  const id = extractYoutubeId(raw);
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
+    return null;
+  }
+
+  return {
+    id,
+    start: extractYoutubeStart(raw)
+  };
+}
+
+function parseYoutubeTextarea(text) {
+  return normalizeNewlines(text)
+    .split('\n')
+    .map((line) => parseYoutubeLine(line))
+    .filter(Boolean);
 }
 
 function formatYoutubeEntries(entries) {
@@ -327,7 +327,7 @@ async function handleSubmit(event) {
   const artist = artistInput.value.trim();
   const chordPro = normalizeNewlines(chordProInput.value).trim();
   const tags = normalizeTags(tagsInput.value);
-  const youtube = normalizeYoutubeInput(youtubeInput.value);
+  const youtube = parseYoutubeTextarea(youtubeInput.value);
 
   if (!title || !slug || !artist || !chordPro) {
     showMessage('曲名、URL用ID、アーティスト、本文を入力してください。', 'error');

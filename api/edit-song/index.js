@@ -31,15 +31,21 @@ function normalizeYoutubeEntries(entries) {
   return entries
     .map((entry) => {
       const id = String(entry?.id || "").trim();
-      const start = Number.parseInt(String(entry?.start ?? 0), 10);
+      const rawStart = entry?.start;
+      const hasStart = rawStart !== undefined && rawStart !== null && String(rawStart).trim() !== "";
+      const start = Number.parseInt(String(rawStart ?? 0), 10);
 
       if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
         return null;
       }
 
+      if (hasStart && !Number.isFinite(start)) {
+        return null;
+      }
+
       return {
         id,
-        start: Number.isFinite(start) ? Math.max(0, Math.trunc(start)) : 0
+        start: Math.max(0, Math.trunc(Number.isFinite(start) ? start : 0))
       };
     })
     .filter(Boolean);
