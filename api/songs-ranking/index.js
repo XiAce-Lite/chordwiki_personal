@@ -99,6 +99,7 @@ module.exports = async function (context, req) {
       pageSize: PAGE_SIZE,
       totalLimit: TOTAL_LIMIT,
       totalPages: MAX_PAGES,
+      totalSongs: rankedSongs.length,
       songs
     });
   } catch (error) {

@@ -90,8 +90,8 @@
       color: #fff;
     }
     .page-button:disabled {
-      cursor: default;
-      opacity: 1;
+      cursor: not-allowed;
+      opacity: 0.45;
     }
     .editor-only {
       display: none !important;
@@ -148,19 +148,25 @@
       window.history.replaceState({}, '', url);
     }
 
-    function renderPagination(page) {
+    function renderPagination(page, songCount = 0) {
       const paginationEl = document.getElementById('pagination');
+      const availablePages = Math.max(1, Math.ceil(songCount / PAGE_SIZE));
       paginationEl.innerHTML = '';
 
       for (let p = 1; p <= MAX_PAGES; p += 1) {
         const button = document.createElement('button');
+        const isUnavailable = p > availablePages;
         button.type = 'button';
         button.className = `page-button${p === page ? ' is-active' : ''}`;
         button.textContent = String(p);
-        button.disabled = p === page;
-        button.addEventListener('click', () => {
-          loadSongs(p);
-        });
+        button.disabled = p === page || isUnavailable;
+
+        if (!isUnavailable) {
+          button.addEventListener('click', () => {
+            loadSongs(p);
+          });
+        }
+
         paginationEl.appendChild(button);
       }
     }
@@ -225,13 +231,18 @@
         }
 
         const payload = await response.json();
-        renderSongs(payload.songs || [], safePage);
-        renderPagination(safePage);
+        const songs = Array.isArray(payload.songs) ? payload.songs : [];
+        const totalSongs = Number.isFinite(Number(payload.totalSongs))
+          ? Number(payload.totalSongs)
+          : (((safePage - 1) * PAGE_SIZE) + songs.length);
+
+        renderSongs(songs, safePage);
+        renderPagination(safePage, totalSongs);
         updatePageUrl(safePage);
       } catch (error) {
         console.error('Error loading ranking songs:', error);
         songList.textContent = 'ランキングの読み込みに失敗しました。';
-        renderPagination(safePage);
+        renderPagination(safePage, 0);
       }
     }
 
