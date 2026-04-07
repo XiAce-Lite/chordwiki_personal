@@ -130,6 +130,28 @@ function updateSongKeyDisplay(renderResult, fallbackKey = '') {
     : `Key: ${playKey}`;
 }
 
+function updateAutoScrollSafeTop() {
+  const rootStyle = document.documentElement?.style;
+  if (!rootStyle) {
+    return;
+  }
+
+  const adminActionsEl = document.getElementById('song-admin-actions');
+  let safeTop = 14;
+
+  if (adminActionsEl && !adminActionsEl.hidden) {
+    const computedStyle = window.getComputedStyle(adminActionsEl);
+    if (computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden') {
+      const rect = adminActionsEl.getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        safeTop = Math.max(safeTop, Math.round(rect.bottom + 8));
+      }
+    }
+  }
+
+  rootStyle.setProperty('--autoscroll-safe-top', `${safeTop}px`);
+}
+
 function updateEditorActions(artist, id) {
   const adminActionsEl = document.getElementById('song-admin-actions');
   const editLinkEl = document.getElementById('edit-link');
@@ -144,6 +166,7 @@ function updateEditorActions(artist, id) {
       adminActionsEl.hidden = true;
     }
     deleteButtonEl.disabled = true;
+    updateAutoScrollSafeTop();
     return;
   }
 
@@ -153,6 +176,7 @@ function updateEditorActions(artist, id) {
 
   deleteButtonEl.disabled = false;
   editLinkEl.href = `/edit.html?mode=edit&artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
+  updateAutoScrollSafeTop();
 }
 
 function getSheetEl() {
@@ -297,6 +321,21 @@ function setDurationInputs(durationSec) {
   if (secondsInput) {
     secondsInput.value = String(safeDuration % 60);
   }
+}
+
+function applyDurationPreset(minutes, seconds) {
+  const minutesInput = document.getElementById('autoscroll-minutes');
+  const secondsInput = document.getElementById('autoscroll-seconds');
+
+  if (minutesInput) {
+    minutesInput.value = String(Math.max(0, Number.parseInt(minutes, 10) || 0));
+  }
+
+  if (secondsInput) {
+    secondsInput.value = String(clamp(Number.parseInt(seconds, 10) || 0, 0, 59));
+  }
+
+  syncDurationFromInputs({ notify: true });
 }
 
 function saveAutoScrollState({ notify = true } = {}) {
@@ -868,12 +907,19 @@ function initializeAutoScrollUi() {
   document.getElementById('autoscroll-minutes')?.addEventListener('input', onDurationInput);
   document.getElementById('autoscroll-seconds')?.addEventListener('input', onDurationInput);
 
+  document.querySelectorAll('.autoscroll-preset').forEach((button) => {
+    button.addEventListener('click', () => {
+      applyDurationPreset(button.dataset.minutes, button.dataset.seconds);
+    });
+  });
+
   document.querySelector('.sheet-stage')?.addEventListener('click', handleSheetPrimaryClick);
 
   ensureMarkerElements();
   setDurationInputs(DEFAULT_DURATION_SEC);
   updateAutoScrollControls();
   setStatus('Stopped', 'info');
+  updateAutoScrollSafeTop();
 
   window.addEventListener('scroll', () => {
     renderMarkerPositions();
@@ -884,6 +930,7 @@ function initializeAutoScrollUi() {
   }, { passive: true });
 
   window.addEventListener('resize', () => {
+    updateAutoScrollSafeTop();
     renderMarkerPositions();
 
     if (autoScrollState.isPlaying) {
@@ -925,5 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.ChordWikiAuth?.applyRoleVisibility();
   initializeAutoScrollUi();
   updateTransposeDisplay();
+  updateAutoScrollSafeTop();
+  window.requestAnimationFrame(updateAutoScrollSafeTop);
   loadSong();
 });
