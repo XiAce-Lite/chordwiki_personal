@@ -18,6 +18,7 @@ const START_SCROLL_TOLERANCE_PX = 10;
 const END_MARKER_STOP_RATIO = 2 / 3;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
+const AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed';
 
 const autoScrollState = {
   storageKey: null,
@@ -128,6 +129,47 @@ function updateSongKeyDisplay(renderResult, fallbackKey = '') {
   keyEl.textContent = transposeSemitones !== 0
     ? `Original Key: ${keyText} / Play: ${playKey}`
     : `Key: ${playKey}`;
+}
+
+function getAutoScrollUiEl() {
+  return document.getElementById('autoscroll-ui');
+}
+
+function setAutoScrollCollapsed(collapsed) {
+  const uiEl = getAutoScrollUiEl();
+  const toggleButton = document.getElementById('autoscroll-collapse-toggle');
+  const isCollapsed = Boolean(collapsed);
+
+  if (uiEl) {
+    uiEl.classList.toggle('is-collapsed', isCollapsed);
+  }
+
+  if (toggleButton) {
+    toggleButton.textContent = isCollapsed ? '≪' : '≫';
+    toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
+    toggleButton.setAttribute('aria-label', isCollapsed ? 'Expand song controls' : 'Collapse song controls');
+  }
+
+  try {
+    window.localStorage.setItem(AUTO_SCROLL_COLLAPSED_STORAGE_KEY, isCollapsed ? '1' : '0');
+  } catch (error) {
+    console.warn('Failed to save collapse state:', error);
+  }
+}
+
+function restoreAutoScrollCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(AUTO_SCROLL_COLLAPSED_STORAGE_KEY);
+    setAutoScrollCollapsed(raw === '1');
+  } catch (error) {
+    console.warn('Failed to restore collapse state:', error);
+    setAutoScrollCollapsed(false);
+  }
+}
+
+function toggleAutoScrollCollapsed() {
+  const uiEl = getAutoScrollUiEl();
+  setAutoScrollCollapsed(!uiEl?.classList.contains('is-collapsed'));
 }
 
 function updateAutoScrollSafeTop() {
@@ -902,6 +944,7 @@ function initializeAutoScrollUi() {
   document.getElementById('autoscroll-toggle')?.addEventListener('click', toggleAutoScroll);
   document.getElementById('autoscroll-reset')?.addEventListener('click', resetAutoScrollSettings);
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
+  document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
 
   const onDurationInput = () => syncDurationFromInputs({ notify: true });
   document.getElementById('autoscroll-minutes')?.addEventListener('input', onDurationInput);
@@ -919,6 +962,7 @@ function initializeAutoScrollUi() {
   setDurationInputs(DEFAULT_DURATION_SEC);
   updateAutoScrollControls();
   setStatus('Stopped', 'info');
+  restoreAutoScrollCollapsedState();
   updateAutoScrollSafeTop();
 
   window.addEventListener('scroll', () => {

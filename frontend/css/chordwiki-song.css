@@ -215,14 +215,30 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .autoscroll-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+}
+
+.autoscroll-header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .autoscroll-title {
   font-weight: 700;
   color: #0f4c81;
+}
+
+.autoscroll-collapse-toggle {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  line-height: 1.2;
+  border-radius: 999px !important;
 }
 
 .control-section {
@@ -349,7 +365,7 @@ p.comment,
   display: inline-block;
   width: fit-content;
   max-width: 100%;
-  margin: 0 0 1em;
+  margin: 0.4em 0 0.95em;
   padding: 2px 8px;
   border-radius: 4px;
   background-color: #e6e6e6;
@@ -364,7 +380,7 @@ p.comment,
 
 p.comment + p.comment,
 .cw-comment + .cw-comment {
-  margin-top: 0.35em;
+  margin-top: 0.5em;
 }
 
 p.comment.ci,
@@ -514,9 +530,28 @@ body.is-dragging-marker * {
   cursor: grabbing !important;
 }
 
+.autoscroll-ui.is-collapsed {
+  width: 32px;
+  padding: 8px 4px;
+  overflow: hidden;
+}
+
+.autoscroll-ui.is-collapsed .autoscroll-header {
+  justify-content: center;
+}
+
+.autoscroll-ui.is-collapsed .autoscroll-header-main,
+.autoscroll-ui.is-collapsed .control-section {
+  display: none;
+}
+
+.autoscroll-ui.is-collapsed .autoscroll-collapse-toggle {
+  margin: 0 auto;
+}
+
 @media (max-width: 720px) {
   :root {
-    --marker-safe-left: 5em;
+    --marker-safe-left: 4.5em;
   }
 
   .autoscroll-ui {
@@ -533,7 +568,7 @@ body.is-dragging-marker * {
 
 @media (max-width: 480px) {
   :root {
-    --marker-safe-left: 4.5em;
+    --marker-safe-left: 4.25em;
   }
 }
 
