@@ -362,7 +362,7 @@ p.line.blank:empty::before {
 p.comment {
   display: block;
   margin-top: 0.4em;
-  margin-bottom: 1em;
+  margin-bottom: 1.2em;
   line-height: 1.6;
   font-size: var(--song-text-size);
 }
