@@ -142,10 +142,10 @@
   <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <div class="search-panel">
     <form id="search-form" class="search-form">
-      <input type="text" id="search" placeholder="1ワード検索（ダブルコーテーションで括ると完全一致検索、その他は部分一致あり。対象はタイトルとアーティストのみ）" title="1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。">
+      <input type="text" id="search" placeholder="1ワード検索（対象はタイトルとアーティストのみ）" title="1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。">
       <button type="submit" id="search-button">検索</button>
     </form>
-    <p class="search-help">※ 1ワード検索のみ対応します。半角スペースでAND/OR検索はしません。<code>"..."</code> で完全一致です。</p>
+    <p class="search-help">※ 1ワード検索のみ対応します。半角スペースで区切ってもAND/OR検索はしません。<code>"..."</code> で完全一致です。Top300の再表示は空文字で検索ボタンを押してください。</p>
   </div>
   <div id="song-list"></div>
   <div id="pagination" aria-label="Ranking pages"></div>
