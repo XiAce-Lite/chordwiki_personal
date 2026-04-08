@@ -22,6 +22,10 @@ const DEFAULT_DURATION_ESTIMATE_MAX_SEC = (4 * 60) + 5;
 const AUTO_SCROLL_ESTIMATE_RATIO = 0.97;
 const START_SCROLL_TOLERANCE_PX = 10;
 const END_MARKER_STOP_RATIO = 2 / 3;
+const MARKER_EDGE_SCROLL_ZONE_PX = 64;
+const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
+const MARKER_EDGE_SCROLL_MAX_SPEED = 1600;
+const MARKER_EDGE_SCROLL_POINTER_SPEED_FACTOR = 0.35;
 const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
 const AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed';
@@ -2362,15 +2366,23 @@ function restoreAutoScrollState() {
   }
 }
 
-function setMarkerY(markerName, docY) {
+function setMarkerY(markerName, docY, { persist = true, notify = true } = {}) {
   const defaults = getDefaultMarkerPositions();
   const fallbackY = markerName === 'start' ? defaults.startY : defaults.endY;
   const nextY = clampMarkerToSheet(docY, fallbackY);
 
   if (markerName === 'start') {
-    autoScrollState.startY = nextY;
+    const maxStartY = clampMarkerToSheet(
+      Number.isFinite(autoScrollState.endY) ? autoScrollState.endY : defaults.endY,
+      defaults.endY
+    );
+    autoScrollState.startY = Math.min(nextY, maxStartY);
   } else {
-    autoScrollState.endY = nextY;
+    const minEndY = clampMarkerToSheet(
+      Number.isFinite(autoScrollState.startY) ? autoScrollState.startY : defaults.startY,
+      defaults.startY
+    );
+    autoScrollState.endY = Math.max(nextY, minEndY);
   }
 
   renderMarkerPositions();
@@ -2379,22 +2391,148 @@ function setMarkerY(markerName, docY) {
     return;
   }
 
-  saveAutoScrollState({ notify: true });
+  if (persist) {
+    saveAutoScrollState({ notify });
+  } else if (!autoScrollState.isPlaying) {
+    updateStoppedStatus(false);
+  }
+}
+
+function stopMarkerDragEdgeAutoScroll() {
+  const dragging = autoScrollState.dragging;
+  if (!dragging) {
+    return;
+  }
+
+  if (dragging.frameId) {
+    window.cancelAnimationFrame(dragging.frameId);
+    dragging.frameId = null;
+  }
+
+  dragging.edgeScrollSpeedPxPerSec = 0;
+  dragging.lastFrameMs = 0;
+}
+
+function getMarkerDragEdgeScrollSpeed(clientY, pointerSpeedPxPerSec = 0) {
+  const edgeZone = Math.max(24, MARKER_EDGE_SCROLL_ZONE_PX);
+  let direction = 0;
+  let edgeRatio = 0;
+
+  if (clientY < edgeZone) {
+    direction = -1;
+    edgeRatio = (edgeZone - clientY) / edgeZone;
+  } else if (clientY > window.innerHeight - edgeZone) {
+    direction = 1;
+    edgeRatio = (clientY - (window.innerHeight - edgeZone)) / edgeZone;
+  }
+
+  edgeRatio = clamp(edgeRatio, 0, 1);
+  if (!direction || edgeRatio <= 0) {
+    return 0;
+  }
+
+  const pointerBoost = Math.min(Math.abs(pointerSpeedPxPerSec || 0), 1400) * MARKER_EDGE_SCROLL_POINTER_SPEED_FACTOR;
+  const rampedSpeed = MARKER_EDGE_SCROLL_BASE_SPEED
+    + ((MARKER_EDGE_SCROLL_MAX_SPEED - MARKER_EDGE_SCROLL_BASE_SPEED) * edgeRatio * edgeRatio)
+    + pointerBoost;
+
+  return direction * Math.min(MARKER_EDGE_SCROLL_MAX_SPEED, rampedSpeed);
+}
+
+function updateMarkerDragTracking(clientY, timeStamp = performance.now()) {
+  const dragging = autoScrollState.dragging;
+  if (!dragging) {
+    return;
+  }
+
+  let pointerSpeedPxPerSec = dragging.pointerSpeedPxPerSec || 0;
+  if (Number.isFinite(dragging.lastClientY) && Number.isFinite(dragging.lastClientTime) && timeStamp > dragging.lastClientTime) {
+    pointerSpeedPxPerSec = Math.abs(clientY - dragging.lastClientY) / ((timeStamp - dragging.lastClientTime) / 1000);
+  }
+
+  dragging.currentClientY = clientY;
+  dragging.pointerSpeedPxPerSec = pointerSpeedPxPerSec;
+  dragging.lastClientY = clientY;
+  dragging.lastClientTime = timeStamp;
+  dragging.edgeScrollSpeedPxPerSec = getMarkerDragEdgeScrollSpeed(clientY, pointerSpeedPxPerSec);
+
+  if (Math.abs(dragging.edgeScrollSpeedPxPerSec) > 0.5) {
+    if (!dragging.frameId) {
+      dragging.lastFrameMs = 0;
+      dragging.frameId = window.requestAnimationFrame(runMarkerDragEdgeAutoScrollFrame);
+    }
+    return;
+  }
+
+  stopMarkerDragEdgeAutoScroll();
+}
+
+function runMarkerDragEdgeAutoScrollFrame(nowMs) {
+  const dragging = autoScrollState.dragging;
+  if (!dragging) {
+    return;
+  }
+
+  dragging.frameId = null;
+
+  if (!Number.isFinite(dragging.edgeScrollSpeedPxPerSec) || Math.abs(dragging.edgeScrollSpeedPxPerSec) <= 0.5) {
+    dragging.lastFrameMs = 0;
+    return;
+  }
+
+  const previousFrameMs = dragging.lastFrameMs || nowMs;
+  const deltaSec = Math.max(0, (nowMs - previousFrameMs) / 1000);
+  dragging.lastFrameMs = nowMs;
+
+  const previousScrollY = window.scrollY;
+  const nextScrollY = clamp(
+    previousScrollY + (dragging.edgeScrollSpeedPxPerSec * deltaSec),
+    0,
+    getMaxWindowScrollY()
+  );
+
+  if (Math.abs(nextScrollY - previousScrollY) > 0.1) {
+    window.scrollTo(0, nextScrollY);
+  }
+
+  const nextMarkerY = (dragging.currentClientY + window.scrollY) - dragging.offsetY;
+  setMarkerY(dragging.markerName, nextMarkerY, { persist: false, notify: false });
+
+  if (!autoScrollState.dragging || Math.abs(dragging.edgeScrollSpeedPxPerSec) <= 0.5) {
+    dragging.lastFrameMs = 0;
+    return;
+  }
+
+  if (Math.abs(nextScrollY - previousScrollY) <= 0.1) {
+    dragging.lastFrameMs = 0;
+    return;
+  }
+
+  dragging.frameId = window.requestAnimationFrame(runMarkerDragEdgeAutoScrollFrame);
 }
 
 function onMarkerPointerDown(event) {
   const markerName = event.currentTarget.dataset.marker;
   const currentY = markerName === 'start' ? autoScrollState.startY : autoScrollState.endY;
+  const nowMs = Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now();
 
   autoScrollState.dragging = {
     pointerId: event.pointerId,
     markerName,
-    offsetY: (event.clientY + window.scrollY) - (Number.isFinite(currentY) ? currentY : 0)
+    offsetY: (event.clientY + window.scrollY) - (Number.isFinite(currentY) ? currentY : 0),
+    currentClientY: event.clientY,
+    lastClientY: event.clientY,
+    lastClientTime: nowMs,
+    pointerSpeedPxPerSec: 0,
+    edgeScrollSpeedPxPerSec: 0,
+    frameId: null,
+    lastFrameMs: 0
   };
 
   event.currentTarget.setPointerCapture(event.pointerId);
   event.currentTarget.classList.add('is-dragging');
   document.body.classList.add('is-dragging-marker');
+  updateMarkerDragTracking(event.clientY, nowMs);
   event.preventDefault();
 }
 
@@ -2412,7 +2550,8 @@ function onMarkerPointerMove(event) {
   }
 
   const nextY = (event.clientY + window.scrollY) - autoScrollState.dragging.offsetY;
-  setMarkerY(autoScrollState.dragging.markerName, nextY);
+  setMarkerY(autoScrollState.dragging.markerName, nextY, { persist: false, notify: false });
+  updateMarkerDragTracking(event.clientY, Number.isFinite(event.timeStamp) ? event.timeStamp : performance.now());
   event.preventDefault();
 }
 
@@ -2421,6 +2560,7 @@ function onMarkerPointerUp(event) {
     return;
   }
 
+  stopMarkerDragEdgeAutoScroll();
   event.currentTarget.classList.remove('is-dragging');
   document.body.classList.remove('is-dragging-marker');
 
@@ -2429,6 +2569,7 @@ function onMarkerPointerUp(event) {
   }
 
   autoScrollState.dragging = null;
+  saveAutoScrollState({ notify: true });
 }
 
 function hasEndMarkerReachedStopLine() {
