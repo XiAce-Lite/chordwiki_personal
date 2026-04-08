@@ -57,6 +57,7 @@
         <label for="autoscroll-seconds" aria-label="Seconds">
           <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
         </label>
+        <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
       </div>
 
       <div class="autoscroll-presets" aria-label="Time presets">
@@ -68,7 +69,7 @@
 
       <div class="autoscroll-buttons">
         <button id="autoscroll-toggle" type="button">Start</button>
-        <button id="autoscroll-reset" type="button">Reset</button>
+        <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
       </div>
     </section>
 
@@ -92,6 +93,16 @@
         <label class="display-toggle-option" for="display-mnoto-enabled">
           <input id="display-mnoto-enabled" type="checkbox" />
           <span>MNoto Sans フォント対応</span>
+        </label>
+
+        <label class="display-toggle-option" for="display-lyric-weight">
+          <input id="display-lyric-weight" type="checkbox" />
+          <span>歌詞行太字</span>
+        </label>
+
+        <label class="display-toggle-option" for="display-comment-weight">
+          <input id="display-comment-weight" type="checkbox" />
+          <span>コメント行太字</span>
         </label>
 
         <div class="display-number-grid">

@@ -10,6 +10,8 @@ let transposeSemitones = 0;
 let accidentalMode = 'none';
 let songPrefsStorageKey = null;
 let currentSongKey = '';
+let currentSongEstimatedKey = '';
+let currentSongEstimatedKeyMode = 'sharp';
 let currentSongData = null;
 
 const MIN_TRANSPOSE = -6;
@@ -28,6 +30,8 @@ const DISPLAY_PREFS_STORAGE_KEY = 'displayPrefs:v1';
 const DISPLAY_PREFS_COLLAPSED_STORAGE_KEY = 'displayPrefsCollapsed';
 const CHORD_ALLOWED_PATTERN = /^[A-G](#|b)?((?:m|M|maj|min|sus[0-9]*|add[0-9]*|dim|aug)*[0-9]*(?:-[0-9]+)?)(?:\([^)]+\)|\{[^}]+\})*(?:\/[A-G](#|b)?(?:\([^)]+\)|\{[^}]+\})*)?$/i;
 const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
+const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';
+const LOCAL_TEST_SONG_GLOBAL_KEY = '__LOCAL_TEST_SONG__';
 
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
@@ -36,7 +40,9 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   chordFontSize: 14,
   chordOffsetPx: 7,
   lyricLineGapPx: 15,
-  commentLineGapPx: 16
+  commentLineGapPx: 16,
+  lyricFontWeight: 'normal',
+  commentFontWeight: 'bold'
 });
 
 const displayPrefsState = {
@@ -71,6 +77,9 @@ const autoScrollState = {
 };
 
 const youtubeTitleCache = new Map();
+const localTestSongState = {
+  scriptPromise: null
+};
 const youtubePlayerState = {
   apiPromise: null,
   playerPromise: null,
@@ -100,12 +109,293 @@ function getSongPrefsStorageKey(artist, id) {
   return `${SONG_PREFS_STORAGE_PREFIX}:${artist}:${id}`;
 }
 
+function isLocalFilePreview() {
+  return window.location.protocol === 'file:';
+}
+
 function normalizeAccidentalModeValue(mode) {
   return mode === 'sharp' || mode === 'flat' ? mode : 'none';
 }
 
 function getErrorDetail(payload, fallback = '処理に失敗しました。') {
   return payload?.error?.detail || payload?.detail || payload?.error || fallback;
+}
+
+function normalizeEstimatedChordQuality(suffix = '') {
+  const normalized = String(suffix || '').trim().toLowerCase();
+  if (!normalized) {
+    return 'major';
+  }
+
+  if (normalized.includes('dim') || normalized.includes('m7b5') || normalized.includes('ø')) {
+    return 'diminished';
+  }
+
+  if (normalized === 'm' || normalized.startsWith('min') || (normalized.startsWith('m') && !normalized.startsWith('maj'))) {
+    return 'minor';
+  }
+
+  if (normalized.includes('sus') || normalized.startsWith('5') || normalized.includes('aug')) {
+    return 'major';
+  }
+
+  return 'major';
+}
+
+function analyzeChordForKeyEstimate(chordText = '') {
+  const trimmed = String(chordText || '').trim();
+  if (!trimmed || isNoChordToken(trimmed) || isBarToken(trimmed)) {
+    return null;
+  }
+
+  const chordHead = trimmed.split('/')[0].trim();
+  const match = chordHead.match(/^([A-Ga-g])([#b]?)(.*)$/);
+  if (!match) {
+    return null;
+  }
+
+  const root = match[1].toUpperCase() + (match[2] || '');
+  const semitone = typeof noteToSemitone === 'function' ? noteToSemitone(root) : null;
+  if (semitone === null) {
+    return null;
+  }
+
+  return {
+    text: trimmed,
+    root,
+    semitone,
+    quality: normalizeEstimatedChordQuality(match[3] || '')
+  };
+}
+
+function collectChordCandidatesFromChordPro(chordProText = '') {
+  const parsed = typeof parseChordPro === 'function' ? parseChordPro(chordProText) : null;
+  const chords = [];
+
+  if (Array.isArray(parsed?.lines)) {
+    parsed.lines.forEach((line, lineIndex) => {
+      if (line.type !== 'lyrics') {
+        return;
+      }
+
+      const tokens = Array.isArray(line.tokens)
+        ? line.tokens
+        : (typeof tokenizeLyricsLine === 'function' ? tokenizeLyricsLine(line.text || '') : []);
+      const lineChords = tokens
+        .filter((token) => token?.kind === 'chord')
+        .map((token) => analyzeChordForKeyEstimate(token.text || ''))
+        .filter(Boolean);
+
+      if (lineChords.length === 0) {
+        return;
+      }
+
+      const nextLine = parsed.lines[lineIndex + 1] || null;
+      const isPhraseBoundary = !nextLine || nextLine.type === 'blank' || nextLine.type === 'comment' || nextLine.type === 'comment_italic';
+
+      lineChords.forEach((chord, chordIndex) => {
+        chords.push({
+          ...chord,
+          lineIndex,
+          chordIndex,
+          isLineStart: chordIndex === 0,
+          isLineEnd: chordIndex === lineChords.length - 1,
+          isPhraseEnd: isPhraseBoundary && chordIndex === lineChords.length - 1
+        });
+      });
+    });
+  } else {
+    const chordMatches = String(chordProText || '').match(/\[([^\]]+)\]/g) || [];
+    chordMatches.forEach((match, index) => {
+      const analyzed = analyzeChordForKeyEstimate(match.slice(1, -1));
+      if (!analyzed) {
+        return;
+      }
+
+      chords.push({
+        ...analyzed,
+        lineIndex: 0,
+        chordIndex: index,
+        isLineStart: index === 0,
+        isLineEnd: index === chordMatches.length - 1,
+        isPhraseEnd: index === chordMatches.length - 1
+      });
+    });
+  }
+
+  return {
+    parsed,
+    chords
+  };
+}
+
+function scoreEstimatedKeyCandidate(chords, tonicSemitone, isMinorKey = false) {
+  if (!Array.isArray(chords) || chords.length === 0) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const profile = isMinorKey
+    ? {
+        0: { minor: 4.6, major: 1.9, diminished: 1.0, default: 2.0 },
+        2: { diminished: 1.8, minor: 1.2, major: 0.6, default: 0.7 },
+        3: { major: 2.7, minor: 1.2, diminished: 0.8, default: 1.3 },
+        5: { minor: 3.1, major: 1.4, diminished: 0.8, default: 1.5 },
+        7: { major: 4.2, minor: 2.6, diminished: 0.9, default: 1.8 },
+        8: { major: 3.0, minor: 1.2, diminished: 0.7, default: 1.6 },
+        10: { major: 2.4, minor: 1.1, diminished: 0.7, default: 1.2 }
+      }
+    : {
+        0: { major: 4.6, minor: 1.8, diminished: 1.1, default: 2.0 },
+        2: { minor: 2.8, major: 0.8, diminished: 1.2, default: 1.0 },
+        4: { minor: 2.1, major: 0.7, diminished: 0.6, default: 0.8 },
+        5: { major: 3.0, minor: 1.7, diminished: 0.8, default: 1.4 },
+        7: { major: 4.1, minor: 1.6, diminished: 0.7, default: 2.0 },
+        9: { minor: 3.0, major: 1.0, diminished: 0.8, default: 1.5 },
+        11: { diminished: 1.8, minor: 1.0, major: 0.6, default: 0.6 }
+      };
+  const tonicQuality = isMinorKey ? 'minor' : 'major';
+  const diatonicDegrees = isMinorKey ? new Set([0, 2, 3, 5, 7, 8, 10]) : new Set([0, 2, 4, 5, 7, 9, 11]);
+
+  let score = 0;
+  const tonicMatches = chords.filter((chord) => chord.semitone === tonicSemitone).length;
+  const dominantSemitone = (tonicSemitone + 7) % 12;
+  const subdominantSemitone = (tonicSemitone + 5) % 12;
+  const dominantMatches = chords.filter((chord) => chord.semitone === dominantSemitone).length;
+
+  chords.forEach((chord, index) => {
+    const degree = ((chord.semitone - tonicSemitone) % 12 + 12) % 12;
+    const bucket = profile[degree];
+    score += bucket?.[chord.quality] ?? bucket?.default ?? -0.9;
+
+    if (!diatonicDegrees.has(degree)) {
+      score -= chord.quality === 'diminished' ? 0.15 : 0.55;
+    }
+
+    if (index === 0 && chord.semitone === tonicSemitone) {
+      score += chord.quality === tonicQuality ? 1.25 : 0.75;
+    }
+
+    if (chord.isLineStart && chord.semitone === tonicSemitone) {
+      score += 0.45;
+    }
+
+    if (chord.isLineEnd) {
+      if (chord.semitone === tonicSemitone) {
+        score += chord.quality === tonicQuality ? 1.1 : 0.6;
+      } else if (chord.semitone === dominantSemitone) {
+        score += 0.4;
+      }
+    }
+
+    if (chord.isPhraseEnd) {
+      if (chord.semitone === tonicSemitone) {
+        score += chord.quality === tonicQuality ? 1.7 : 0.85;
+      } else if (chord.semitone === dominantSemitone || chord.semitone === subdominantSemitone) {
+        score += 0.5;
+      }
+    }
+
+    if (index === chords.length - 1) {
+      if (chord.semitone === tonicSemitone) {
+        score += chord.quality === tonicQuality ? 2.3 : 1.2;
+      } else if (chord.semitone === dominantSemitone) {
+        score += 0.85;
+      }
+    }
+  });
+
+  for (let index = 0; index < chords.length - 1; index += 1) {
+    const current = chords[index];
+    const next = chords[index + 1];
+    const currentDegree = ((current.semitone - tonicSemitone) % 12 + 12) % 12;
+    const nextDegree = ((next.semitone - tonicSemitone) % 12 + 12) % 12;
+
+    if (currentDegree === 7 && nextDegree === 0) {
+      score += current.quality === 'major' ? 2.2 : 1.4;
+      if (next.quality === tonicQuality) {
+        score += 0.5;
+      }
+      continue;
+    }
+
+    if (currentDegree === 5 && nextDegree === 0) {
+      score += 0.9;
+      continue;
+    }
+
+    if (currentDegree === 2 && nextDegree === 7) {
+      score += isMinorKey && current.quality === 'diminished' ? 1.1 : 0.75;
+      continue;
+    }
+
+    if (!isMinorKey && currentDegree === 7 && nextDegree === 9) {
+      score += 0.7;
+      continue;
+    }
+
+    if (!isMinorKey && currentDegree === 9 && nextDegree === 5) {
+      score += 0.45;
+      continue;
+    }
+
+    if (isMinorKey && currentDegree === 7 && nextDegree === 8) {
+      score += 0.55;
+      continue;
+    }
+
+    if (currentDegree === 11 && nextDegree === 0) {
+      score += 1.0;
+    }
+  }
+
+  score += tonicMatches * 0.35;
+  score += dominantMatches * 0.12;
+  return score;
+}
+
+function inferChordAccidentalModeFromChordPro(chordProText = '') {
+  const parsed = typeof parseChordPro === 'function' ? parseChordPro(chordProText) : null;
+  if (!Array.isArray(parsed?.lines) || typeof inferAccidentalPreferenceFromLines !== 'function') {
+    return 'sharp';
+  }
+
+  return inferAccidentalPreferenceFromLines(parsed.lines) === 'flat' ? 'flat' : 'sharp';
+}
+
+function estimateKeyFromChordPro(chordProText = '') {
+  const { parsed, chords } = collectChordCandidatesFromChordPro(chordProText);
+  if (chords.length < 3) {
+    return '';
+  }
+
+  const uniqueRoots = new Set(chords.map((chord) => chord.semitone));
+  if (uniqueRoots.size < 2) {
+    return '';
+  }
+
+  const candidates = [];
+  for (let semitone = 0; semitone < 12; semitone += 1) {
+    candidates.push({ semitone, isMinor: false, score: scoreEstimatedKeyCandidate(chords, semitone, false) });
+    candidates.push({ semitone, isMinor: true, score: scoreEstimatedKeyCandidate(chords, semitone, true) });
+  }
+
+  candidates.sort((left, right) => right.score - left.score);
+  const best = candidates[0];
+  const next = candidates[1];
+  const confidenceGap = best && next ? best.score - next.score : 99;
+
+  if (!best || best.score < 7.5 || confidenceGap < 1.35) {
+    return '';
+  }
+
+  const preferredMode = Array.isArray(parsed?.lines) && typeof inferAccidentalPreferenceFromLines === 'function'
+    ? inferAccidentalPreferenceFromLines(parsed.lines)
+    : 'sharp';
+  const noteName = typeof semitoneToNote === 'function'
+    ? semitoneToNote(best.semitone, preferredMode === 'flat' ? 'flat' : 'sharp')
+    : '';
+
+  return noteName ? `${noteName}${best.isMinor ? 'm' : ''}` : '';
 }
 
 async function parseJsonResponse(response) {
@@ -205,6 +495,8 @@ function loadDisplayPreferences() {
       32,
       DEFAULT_DISPLAY_PREFS.commentLineGapPx
     );
+    displayPrefsState.lyricFontWeight = storedPrefs.lyricFontWeight === 'bold' ? 'bold' : 'normal';
+    displayPrefsState.commentFontWeight = storedPrefs.commentFontWeight === 'normal' ? 'normal' : 'bold';
   } catch (error) {
     console.warn('Failed to restore display preferences:', error);
   }
@@ -226,6 +518,8 @@ function syncDisplayPreferenceUi() {
   const offsetInput = document.getElementById('display-chord-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
   const commentGapInput = document.getElementById('display-comment-gap');
+  const lyricWeightInput = document.getElementById('display-lyric-weight');
+  const commentWeightInput = document.getElementById('display-comment-weight');
   const detailEl = document.getElementById('display-custom-detail');
 
   if (enabledInput) {
@@ -260,6 +554,16 @@ function syncDisplayPreferenceUi() {
   if (commentGapInput) {
     commentGapInput.value = String(displayPrefsState.commentLineGapPx);
     commentGapInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (lyricWeightInput) {
+    lyricWeightInput.checked = displayPrefsState.lyricFontWeight === 'bold';
+    lyricWeightInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (commentWeightInput) {
+    commentWeightInput.checked = displayPrefsState.commentFontWeight === 'bold';
+    commentWeightInput.disabled = !displayPrefsState.enabled;
   }
 
   detailEl?.classList.toggle('is-disabled', !displayPrefsState.enabled);
@@ -333,15 +637,21 @@ function findPreviousLyricElement(wordtop) {
   }
 
   let previousLine = parentLine.previousElementSibling;
-  while (previousLine && (!previousLine.matches('p.line') || previousLine.matches('p.comment'))) {
+  while (previousLine) {
+    if (!previousLine.matches('p.line') || previousLine.matches('p.comment')) {
+      previousLine = previousLine.previousElementSibling;
+      continue;
+    }
+
+    const lyricSpans = Array.from(previousLine.children).filter((child) => isLyricSpanElement(child));
+    if (lyricSpans.length > 0) {
+      return lyricSpans[lyricSpans.length - 1];
+    }
+
     previousLine = previousLine.previousElementSibling;
   }
-  if (!previousLine) {
-    return null;
-  }
 
-  const lyricSpans = Array.from(previousLine.children).filter((child) => isLyricSpanElement(child));
-  return lyricSpans.length ? lyricSpans[lyricSpans.length - 1] : null;
+  return null;
 }
 
 function normalizeChordBarSpans() {
@@ -663,6 +973,8 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
   rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
   rootEl.style.setProperty('--user-comment-gap', `${displayPrefsState.commentLineGapPx}px`);
+  rootEl.dataset.lyricWeight = displayPrefsState.lyricFontWeight;
+  rootEl.dataset.commentWeight = displayPrefsState.commentFontWeight;
 
   syncDisplayPreferenceUi();
 
@@ -684,26 +996,123 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   });
 }
 
-function updateSongKeyDisplay(renderResult, fallbackKey = '') {
+function updateSongKeyDisplay(renderResult, fallbackKey = '', estimatedKey = '', estimatedMode = 'sharp') {
   const keyEl = document.getElementById('key');
   if (!keyEl) {
     return;
   }
 
-  const keyText = String(renderResult?.key || fallbackKey || '').trim();
+  const explicitKeyText = String(renderResult?.key || fallbackKey || '').trim();
+  const estimatedKeyText = explicitKeyText ? '' : String(estimatedKey || '').trim();
+  const keyText = explicitKeyText || estimatedKeyText;
+
   if (!keyText) {
     keyEl.textContent = '';
+    keyEl.hidden = true;
     return;
   }
 
+  keyEl.hidden = false;
+
+  const isEstimated = !explicitKeyText && Boolean(estimatedKeyText);
   const formatKey = typeof window.transposeKeyText === 'function'
     ? window.transposeKeyText
     : ((value) => value);
-  const playKey = formatKey(keyText, transposeSemitones, accidentalMode);
+  const effectiveMode = isEstimated && accidentalMode === 'none'
+    ? (estimatedMode === 'flat' ? 'flat' : 'sharp')
+    : accidentalMode;
+  const playKey = formatKey(keyText, transposeSemitones, effectiveMode);
 
-  keyEl.textContent = transposeSemitones !== 0
-    ? `Original Key: ${keyText} / Play: ${playKey}`
+  if (transposeSemitones !== 0) {
+    keyEl.textContent = isEstimated
+      ? `予想Key: ${keyText} / 移調後: ${playKey}`
+      : `原曲Key: ${keyText} / 移調後: ${playKey}`;
+    return;
+  }
+
+  keyEl.textContent = isEstimated
+    ? `予想Key: ${playKey}`
     : `Key: ${playKey}`;
+}
+
+function normalizeLoadedSong(song = {}, fallbackArtist = '', fallbackId = '') {
+  return {
+    ...song,
+    artist: String(song?.artist || fallbackArtist || 'Local Sample Artist').trim(),
+    id: String(song?.id || fallbackId || 'local-test-song').trim(),
+    title: String(song?.title || '').trim(),
+    slug: String(song?.slug || '').trim(),
+    chordPro: String(song?.chordPro || '').trim(),
+    tags: normalizeSongTags(song?.tags),
+    youtube: normalizeSongYoutubeEntries(song?.youtube)
+  };
+}
+
+function renderLoadedSong(song = {}, fallbackArtist = '', fallbackId = '') {
+  const titleEl = document.getElementById('title');
+  const artistEl = document.getElementById('artist');
+  const sheetEl = getSheetEl();
+  if (!titleEl || !artistEl || !sheetEl) {
+    return false;
+  }
+
+  currentSongData = normalizeLoadedSong(song, fallbackArtist, fallbackId);
+  currentSongKey = String(song?.key || '').trim();
+  originalChordPro = currentSongData.chordPro;
+  currentSongEstimatedKey = estimateKeyFromChordPro(originalChordPro);
+  currentSongEstimatedKeyMode = inferChordAccidentalModeFromChordPro(originalChordPro);
+
+  const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
+  const displayTitle = renderResult.title || currentSongData.title || 'タイトルなし';
+  const displayArtist = renderResult.subtitle || currentSongData.artist || '';
+
+  titleEl.textContent = displayTitle;
+  artistEl.textContent = displayArtist;
+  updateSongKeyDisplay(renderResult, currentSongKey, currentSongEstimatedKey, currentSongEstimatedKeyMode);
+  renderSongSideRail(currentSongData, displayTitle, displayArtist);
+  applyChordLayoutAdjustments();
+  refreshAutoScrollAfterRender({ restoreSavedState: true });
+  void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);
+  return true;
+}
+
+async function loadLocalTestSongData() {
+  if (!isLocalFilePreview()) {
+    return null;
+  }
+
+  const existingSong = window[LOCAL_TEST_SONG_GLOBAL_KEY];
+  if (existingSong && typeof existingSong === 'object') {
+    return existingSong;
+  }
+
+  if (!localTestSongState.scriptPromise) {
+    localTestSongState.scriptPromise = new Promise((resolve) => {
+      const scriptEl = document.createElement('script');
+      scriptEl.src = LOCAL_TEST_SONG_SCRIPT_PATH;
+      scriptEl.async = true;
+      scriptEl.dataset.localTestSong = 'true';
+      scriptEl.onload = () => resolve(window[LOCAL_TEST_SONG_GLOBAL_KEY] || null);
+      scriptEl.onerror = () => resolve(null);
+      document.head.appendChild(scriptEl);
+    });
+  }
+
+  const localSong = await localTestSongState.scriptPromise;
+  return localSong && typeof localSong === 'object' ? localSong : null;
+}
+
+async function tryRenderLocalTestSong(artist = '', id = '') {
+  const localSong = await loadLocalTestSongData();
+  if (!localSong) {
+    return false;
+  }
+
+  const rendered = renderLoadedSong(localSong, artist, id);
+  if (rendered) {
+    setStatus('Local sample loaded', 'success');
+  }
+  return rendered;
 }
 
 function trackSongView(artist, id) {
@@ -2145,13 +2554,22 @@ async function handleDeleteSong() {
   }
 }
 
-function resetAutoScrollSettings() {
+function resetAutoScrollDuration() {
+  autoScrollState.durationSec = DEFAULT_DURATION_SEC;
+  setDurationInputs(autoScrollState.durationSec);
+
+  if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
+    return;
+  }
+
+  saveAutoScrollState({ notify: true });
+}
+
+function resetAutoScrollMarkers() {
   const defaults = getDefaultMarkerPositions();
   autoScrollState.startY = defaults.startY;
   autoScrollState.endY = defaults.endY;
-  autoScrollState.durationSec = DEFAULT_DURATION_SEC;
 
-  setDurationInputs(autoScrollState.durationSec);
   renderMarkerPositions();
 
   if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
@@ -2179,6 +2597,8 @@ async function loadSong() {
   const id = getQueryParam('id');
 
   currentSongKey = '';
+  currentSongEstimatedKey = '';
+  currentSongEstimatedKeyMode = 'sharp';
   currentSongData = null;
   originalChordPro = '';
   autoScrollEstimateState.attempted = false;
@@ -2192,10 +2612,15 @@ async function loadSong() {
   updateEditorActions(artist, id);
 
   if (!artist || !id) {
+    if (await tryRenderLocalTestSong(artist, id)) {
+      return;
+    }
+
     titleEl.textContent = 'Invalid parameters';
     artistEl.textContent = '';
     if (keyEl) {
       keyEl.textContent = '';
+      keyEl.hidden = true;
     }
     sheetEl.textContent = 'artist または id が指定されていません。';
     setStatus('Stopped · URL パラメータ不足', 'warn');
@@ -2216,10 +2641,15 @@ async function loadSong() {
     const payload = await parseJsonResponse(response);
 
     if (response.status === 404) {
+      if (await tryRenderLocalTestSong(artist, id)) {
+        return;
+      }
+
       titleEl.textContent = 'Song not found';
       artistEl.textContent = '';
       if (keyEl) {
         keyEl.textContent = '';
+        keyEl.hidden = true;
       }
       sheetEl.textContent = '指定された曲が見つかりませんでした。';
       setStatus('Stopped · 曲が見つかりません', 'warn');
@@ -2235,37 +2665,23 @@ async function loadSong() {
     }
 
     const song = payload;
-    currentSongData = {
-      ...song,
-      artist: song.artist || artist,
-      id: song.id || id,
-      title: song.title || '',
-      slug: song.slug || '',
-      chordPro: song.chordPro || '',
-      tags: normalizeSongTags(song.tags),
-      youtube: normalizeSongYoutubeEntries(song.youtube)
-    };
-    currentSongKey = song.key || '';
-    originalChordPro = song.chordPro || '';
-    const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
-    const displayTitle = renderResult.title || song.title || 'タイトルなし';
-    const displayArtist = renderResult.subtitle || song.artist || '';
+    if (!renderLoadedSong(song, artist, id)) {
+      throw new Error('Failed to render loaded song.');
+    }
 
-    titleEl.textContent = displayTitle;
-    artistEl.textContent = displayArtist;
-    updateSongKeyDisplay(renderResult, currentSongKey);
-    renderSongSideRail(currentSongData, displayTitle, displayArtist);
-    applyChordLayoutAdjustments();
-
-    refreshAutoScrollAfterRender({ restoreSavedState: true });
-    void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);
     trackSongView(artist, id);
   } catch (error) {
     console.error('Error loading song:', error);
+
+    if (await tryRenderLocalTestSong(artist, id)) {
+      return;
+    }
+
     titleEl.textContent = 'Error loading song';
     artistEl.textContent = '';
     if (keyEl) {
       keyEl.textContent = '';
+      keyEl.hidden = true;
     }
     sheetEl.textContent = '曲の読み込み中にエラーが発生しました。';
     setStatus('Stopped · 読み込みエラー', 'warn');
@@ -2299,7 +2715,7 @@ function reRender() {
   }
 
   const renderResult = renderChordWikiLike(originalChordPro, sheetEl, transposeSemitones, accidentalMode);
-  updateSongKeyDisplay(renderResult, currentSongKey);
+  updateSongKeyDisplay(renderResult, currentSongKey, currentSongEstimatedKey, currentSongEstimatedKeyMode);
   updateTransposeDisplay();
   saveSongPreferences();
   applyChordLayoutAdjustments();
@@ -2308,7 +2724,8 @@ function reRender() {
 
 function initializeAutoScrollUi() {
   document.getElementById('autoscroll-toggle')?.addEventListener('click', toggleAutoScroll);
-  document.getElementById('autoscroll-reset')?.addEventListener('click', resetAutoScrollSettings);
+  document.getElementById('autoscroll-duration-reset')?.addEventListener('click', resetAutoScrollDuration);
+  document.getElementById('autoscroll-markers-reset')?.addEventListener('click', resetAutoScrollMarkers);
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
   document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
   document.getElementById('youtube-player-close')?.addEventListener('click', closeYouTubePlayer);
@@ -2404,6 +2821,8 @@ function initializeDisplayPreferencesUi() {
   const offsetInput = document.getElementById('display-chord-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
   const commentGapInput = document.getElementById('display-comment-gap');
+  const lyricWeightInput = document.getElementById('display-lyric-weight');
+  const commentWeightInput = document.getElementById('display-comment-weight');
 
   document.getElementById('display-custom-collapse-toggle')?.addEventListener('click', toggleDisplayPreferencesCollapsed);
   restoreDisplayPreferencesCollapsedState();
@@ -2433,6 +2852,8 @@ function initializeDisplayPreferencesUi() {
       32,
       DEFAULT_DISPLAY_PREFS.commentLineGapPx
     );
+    displayPrefsState.lyricFontWeight = lyricWeightInput?.checked ? 'bold' : 'normal';
+    displayPrefsState.commentFontWeight = commentWeightInput?.checked ? 'bold' : 'normal';
   };
 
   const commitDisplayPreferences = () => {
@@ -2460,6 +2881,8 @@ function initializeDisplayPreferencesUi() {
   offsetInput?.addEventListener('change', commitDisplayPreferences);
   lyricGapInput?.addEventListener('change', commitDisplayPreferences);
   commentGapInput?.addEventListener('change', commitDisplayPreferences);
+  lyricWeightInput?.addEventListener('change', commitDisplayPreferences);
+  commentWeightInput?.addEventListener('change', commitDisplayPreferences);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
