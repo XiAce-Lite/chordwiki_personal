@@ -48,6 +48,22 @@ function buildSongUrl(artist, id) {
   return `/song.html?artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
 }
 
+function buildSongApiUrl(artist, id) {
+  const query = new URLSearchParams({
+    artist: String(artist || '').trim(),
+    id: String(id || '').trim()
+  });
+  return `/api/song?${query.toString()}`;
+}
+
+function buildEditSongApiUrl(artist, id) {
+  const query = new URLSearchParams({
+    artist: String(artist || '').trim(),
+    id: String(id || '').trim()
+  });
+  return `/api/edit/song?${query.toString()}`;
+}
+
 function showMessage(text, type = '') {
   messageEl.textContent = text || '';
   messageEl.className = `message${type ? ` ${type}` : ''}`;
@@ -233,7 +249,7 @@ async function loadSongForEdit() {
 
   try {
     const response = await fetch(
-      `/api/song/${encodeURIComponent(state.originalArtist)}/${encodeURIComponent(state.originalId)}`,
+      buildSongApiUrl(state.originalArtist, state.originalId),
       { credentials: 'include' }
     );
 
@@ -285,7 +301,7 @@ async function handleDelete() {
 
   try {
     const response = await fetch(
-      `/api/edit/song/${encodeURIComponent(state.originalArtist)}/${encodeURIComponent(state.originalId)}`,
+      buildEditSongApiUrl(state.originalArtist, state.originalId),
       {
         method: 'DELETE',
         credentials: 'include'
@@ -347,7 +363,7 @@ async function handleSubmit(event) {
 
   const isEdit = state.mode === 'edit';
   const endpoint = isEdit
-    ? `/api/edit/song/${encodeURIComponent(state.originalArtist)}/${encodeURIComponent(state.originalId)}`
+    ? buildEditSongApiUrl(state.originalArtist, state.originalId)
     : '/api/edit/song';
 
   state.isSubmitting = true;

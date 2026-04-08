@@ -154,8 +154,8 @@ async function readExistingSong(originalArtist, originalId) {
 }
 
 async function handleUpdate(context, req) {
-  const originalArtist = String(context.bindingData.artist || "").trim();
-  const originalId = String(context.bindingData.id || "").trim();
+  const originalArtist = String(req.query?.artist || context.bindingData.artist || "").trim();
+  const originalId = String(req.query?.id || context.bindingData.id || "").trim();
 
   if (!originalArtist || !originalId) {
     badRequest(context, "artist and id route parameters are required for update.");
@@ -198,9 +198,9 @@ async function handleUpdate(context, req) {
   context.res = { status: 200, body: resource };
 }
 
-async function handleDelete(context) {
-  const originalArtist = String(context.bindingData.artist || "").trim();
-  const originalId = String(context.bindingData.id || "").trim();
+async function handleDelete(context, req) {
+  const originalArtist = String(req.query?.artist || context.bindingData.artist || "").trim();
+  const originalId = String(req.query?.id || context.bindingData.id || "").trim();
 
   if (!originalArtist || !originalId) {
     badRequest(context, "artist and id route parameters are required for delete.");
@@ -246,7 +246,7 @@ module.exports = async function (context, req) {
     }
 
     if (method === "DELETE") {
-      await handleDelete(context);
+      await handleDelete(context, req);
       return;
     }
 

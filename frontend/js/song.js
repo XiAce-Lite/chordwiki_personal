@@ -109,6 +109,20 @@ function getSongPrefsStorageKey(artist, id) {
   return `${SONG_PREFS_STORAGE_PREFIX}:${artist}:${id}`;
 }
 
+function buildSongApiUrl(artist, id) {
+  const params = new URLSearchParams();
+  params.set('artist', String(artist || '').trim());
+  params.set('id', String(id || '').trim());
+  return `/api/song?${params.toString()}`;
+}
+
+function buildEditSongApiUrl(artist, id) {
+  const params = new URLSearchParams();
+  params.set('artist', String(artist || '').trim());
+  params.set('id', String(id || '').trim());
+  return `/api/edit/song?${params.toString()}`;
+}
+
 function isLocalFilePreview() {
   return window.location.protocol === 'file:';
 }
@@ -1829,7 +1843,7 @@ async function saveSongMetaModal() {
 
   try {
     const response = await fetch(
-      `/api/edit/song/${encodeURIComponent(currentSongData.artist)}/${encodeURIComponent(currentSongData.id)}`,
+      buildEditSongApiUrl(currentSongData.artist, currentSongData.id),
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -2533,7 +2547,7 @@ async function handleDeleteSong() {
 
   try {
     const response = await fetch(
-      `/api/edit/song/${encodeURIComponent(artist)}/${encodeURIComponent(id)}`,
+      buildEditSongApiUrl(artist, id),
       {
         method: 'DELETE',
         credentials: 'include'
@@ -2634,7 +2648,7 @@ async function loadSong() {
 
   try {
     const response = await fetch(
-      `/api/song/${encodeURIComponent(artist)}/${encodeURIComponent(id)}`,
+      buildSongApiUrl(artist, id),
       { credentials: 'include' }
     );
 

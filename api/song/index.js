@@ -8,9 +8,16 @@ const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 const client = new CosmosClient({ endpoint, key });
 
 module.exports = async function (context, req) {
-  // v3(function.json) ではこっち
-  const artist = context.bindingData.artist;
-  const id = context.bindingData.id;
+  const artist = String(req.query?.artist || context.bindingData.artist || '').trim();
+  const id = String(req.query?.id || context.bindingData.id || '').trim();
+
+  if (!artist || !id) {
+    context.res = {
+      status: 400,
+      body: { error: 'BadRequest', detail: 'artist and id are required.' }
+    };
+    return;
+  }
 
   try {
     const container = client.database(databaseId).container(containerId);

@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get"],
-      "route": "song/{artist}/{id}"
+      "route": "song/{artist?}/{id?}"
     },
     {
       "type": "http",
