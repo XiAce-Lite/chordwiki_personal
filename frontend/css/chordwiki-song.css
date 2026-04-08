@@ -73,6 +73,8 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .back-link {
+  grid-column: 1;
+  justify-self: start;
   position: static;
   transform: none;
   margin-left: 16px;
@@ -83,6 +85,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-admin-actions {
+  grid-column: 3;
   position: static;
   transform: none;
   margin-right: 16px;
@@ -120,6 +123,8 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-title {
+  grid-column: 2;
+  justify-self: stretch;
   min-width: 0;
   margin: 0;
   text-align: center;
