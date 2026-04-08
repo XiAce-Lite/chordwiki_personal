@@ -668,6 +668,58 @@ function findPreviousLyricElement(wordtop) {
   return null;
 }
 
+function mergeOverflowTextIntoLine(lineEl, previousWord, overflowText) {
+  if (!lineEl || !overflowText) {
+    return false;
+  }
+
+  const lyricSpans = Array.from(lineEl.children).filter((child) => isLyricSpanElement(child));
+  let trailingBarSpan = null;
+  let targetSpan = null;
+
+  for (let index = lyricSpans.length - 1; index >= 0; index -= 1) {
+    const span = lyricSpans[index];
+    if (cleanDisplayText(span.textContent) === '|') {
+      if (!trailingBarSpan) {
+        trailingBarSpan = span;
+      }
+      continue;
+    }
+
+    targetSpan = span;
+    break;
+  }
+
+  if (!targetSpan && isLyricSpanElement(previousWord)) {
+    targetSpan = previousWord;
+  }
+
+  if (!targetSpan) {
+    targetSpan = document.createElement('span');
+    targetSpan.className = lyricSpans.length === 0 ? 'wordtop' : 'word';
+
+    if (trailingBarSpan) {
+      lineEl.insertBefore(targetSpan, trailingBarSpan);
+    } else {
+      lineEl.appendChild(targetSpan);
+    }
+  }
+
+  const existingText = String(targetSpan.textContent || '');
+  const hadInlineBar = /\|\s*$/.test(existingText);
+  const baseText = existingText.replace(/\s*\|\s*$/, '').replace(/\s*$/, '');
+  const separator = baseText ? ' ' : '';
+  const needsBarSuffix = hadInlineBar || !trailingBarSpan;
+
+  targetSpan.textContent = `${baseText}${separator}${overflowText}${needsBarSuffix ? ' | ' : ''}`;
+
+  if (trailingBarSpan) {
+    trailingBarSpan.textContent = trailingBarSpan.classList.contains('wordtop') ? '| ' : ' | ';
+  }
+
+  return true;
+}
+
 function normalizeChordBarSpans() {
   const sheetEl = getSheetEl();
   if (!sheetEl) {
@@ -729,16 +781,11 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
-    const overflowText = cleanedText.replace(/\|+\s*$/, '');
-    let appendText = ` ${overflowText} | `;
-    const lastElement = parentLine.lastElementChild;
-
-    if (lastElement && /\|\s*$/.test(String(lastElement.textContent || ''))) {
-      appendText = ` ${overflowText} |`;
-      lastElement.textContent = String(lastElement.textContent || '').replace(/\|\s*$/, '');
+    const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
+    if (!mergeOverflowTextIntoLine(parentLine, previousWord, overflowText)) {
+      return;
     }
 
-    parentLine.appendChild(document.createTextNode(appendText));
     wordtop.textContent = '| ';
   });
 }
