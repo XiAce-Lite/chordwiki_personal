@@ -604,6 +604,10 @@ function isRhythmMarkerOnlyText(text) {
   return Boolean(normalized) && /^[\-=>!~≫≧＞○●ー－\s]+$/u.test(normalized);
 }
 
+function startsWithRhythmMarker(text) {
+  return /^[\-=~>!≫≧＞○●ー－\s]+/u.test(cleanDisplayText(text));
+}
+
 function isChordTextAllowed(text) {
   const normalized = cleanDisplayText(text).replace(/\s+/g, '');
   return Boolean(normalized) && CHORD_ALLOWED_PATTERN.test(normalized);
@@ -768,7 +772,7 @@ function moveOverflowWordtopsToPreviousLine() {
     }
 
     const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
-    if (!overflowText || isRhythmMarkerOnlyText(overflowText)) {
+    if (!overflowText || isRhythmMarkerOnlyText(overflowText) || startsWithRhythmMarker(overflowText)) {
       return;
     }
 
