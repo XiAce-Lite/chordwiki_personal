@@ -935,6 +935,30 @@ span.wordtop {
   min-height: 1em;
 }
 
+span.male,
+span.male2,
+span.female,
+span.female2 {
+  display: inline;
+  font-weight: 900;
+}
+
+span.male {
+  color: #0000cd;
+}
+
+span.male2 {
+  color: #006400;
+}
+
+span.female {
+  color: #ff1493;
+}
+
+span.female2 {
+  color: #ff8c00;
+}
+
 html[data-display-custom="on"] {
   --song-text-size: 16px;
   --song-line-height: 1.35;

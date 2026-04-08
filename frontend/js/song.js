@@ -36,6 +36,13 @@ const CHORD_ALLOWED_PATTERN = /^[A-G](#|b)?((?:m|M|maj|min|sus[0-9]*|add[0-9]*|d
 const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
 const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';
 const LOCAL_TEST_SONG_GLOBAL_KEY = '__LOCAL_TEST_SONG__';
+const VOICE_MARKER_PATTERN = /[♠♣♥♦]/u;
+const VOICE_MARKER_CLASS_MAP = Object.freeze({
+  '♠': 'male',
+  '♣': 'male2',
+  '♥': 'female',
+  '♦': 'female2'
+});
 
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
@@ -598,6 +605,41 @@ function cleanDisplayText(text) {
   return String(text || '').replace(/　/g, '').trim();
 }
 
+function containsVoiceMarkerSymbol(text) {
+  return VOICE_MARKER_PATTERN.test(String(text || ''));
+}
+
+function applyVoiceMarkerSymbolClasses() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return;
+  }
+
+  sheetEl.querySelectorAll('span.word, span.wordtop').forEach((span) => {
+    const rawText = String(span.textContent || '');
+    if (!containsVoiceMarkerSymbol(rawText)) {
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    for (const character of rawText) {
+      const className = VOICE_MARKER_CLASS_MAP[character];
+      if (className) {
+        const markerSpan = document.createElement('span');
+        markerSpan.className = className;
+        markerSpan.textContent = character;
+        fragment.appendChild(markerSpan);
+        continue;
+      }
+
+      fragment.appendChild(document.createTextNode(character));
+    }
+
+    span.textContent = '';
+    span.appendChild(fragment);
+  });
+}
+
 function isRhythmMarkerOnlyText(text) {
   const normalized = cleanDisplayText(text)
     .replace(/ /g, '')
@@ -775,18 +817,22 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
+    if (containsVoiceMarkerSymbol(cleanedText)) {
+      return;
+    }
+
     const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
-    if (!overflowText || isRhythmMarkerOnlyText(overflowText) || startsWithRhythmMarker(overflowText)) {
+    if (!overflowText || isRhythmMarkerOnlyText(overflowText) || startsWithRhythmMarker(overflowText) || containsVoiceMarkerSymbol(overflowText)) {
       return;
     }
 
     const previousWord = findPreviousLyricElement(wordtop);
-    if (!previousWord) {
+    if (!previousWord || containsVoiceMarkerSymbol(previousWord.textContent)) {
       return;
     }
 
     const parentLine = previousWord.closest('p.line');
-    if (!parentLine) {
+    if (!parentLine || containsVoiceMarkerSymbol(parentLine.textContent)) {
       return;
     }
 
@@ -916,6 +962,7 @@ function applyChordLayoutAdjustments() {
   });
 
   applyChordDisplayTextTransforms();
+  applyVoiceMarkerSymbolClasses();
 
   if (!(displayPrefsState.enabled && displayPrefsState.adjustChordPos)) {
     return;
