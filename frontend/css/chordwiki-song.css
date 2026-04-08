@@ -2,6 +2,8 @@
   --song-text-size: 14px;
   --song-line-height: 1.5;
   --song-chord-size: 12.5px;
+  --user-chord-size: 16px;
+  --user-chord-offset: 0px;
   --marker-safe-left: 6em;
   --autoscroll-safe-top: 64px;
   --song-extras-safe-top: 240px;
@@ -614,12 +616,45 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   color: #333;
 }
 
-.autoscroll-duration input {
+.autoscroll-duration input,
+.display-number-grid input {
   width: 4.5em;
   padding: 4px 6px;
   font-size: 14px;
   border: 1px solid #ccc;
   border-radius: 4px;
+}
+
+.display-custom-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.display-custom-detail.is-disabled {
+  opacity: 0.65;
+}
+
+.display-toggle-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #23415f;
+  cursor: pointer;
+}
+
+.display-toggle-option input {
+  margin: 0;
+  accent-color: #0078d4;
+}
+
+.display-number-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 13px;
+  color: #35506a;
 }
 
 .autoscroll-presets {
@@ -755,6 +790,53 @@ span.wordtop {
   color: #222;
   white-space: pre-wrap;
   min-height: 1em;
+}
+
+html[data-display-custom="on"] {
+  --song-text-size: 16px;
+  --song-line-height: 1.35;
+  --song-chord-size: var(--user-chord-size, 16px);
+}
+
+html[data-display-custom="on"] body {
+  font-size: 16px;
+}
+
+html[data-display-custom="on"] p.line {
+  margin-bottom: 0.95rem;
+}
+
+html[data-display-custom="on"] p.comment {
+  margin-bottom: 1rem;
+}
+
+html[data-display-custom="on"] p.comment .comment-body {
+  padding: 0 6px;
+  font-size: 15px;
+  color: #4a4a4a;
+}
+
+html[data-display-custom="on"] span.chord {
+  color: #3273cd;
+  font-weight: 600;
+  transform: translateY(calc(-1 * var(--user-chord-offset, 0px)));
+}
+
+html[data-display-custom="on"][data-mnoto="on"] span.chord {
+  font-family: "MNoto Sans alpha V2", "Noto Sans JP", "Segoe UI", sans-serif;
+}
+
+html[data-display-custom="on"] .song-key {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background-color: #feecf0;
+  color: #8f2948;
+}
+
+.cw-adjusted-lyric {
+  vertical-align: top;
 }
 
 .autoscroll-marker-layer {

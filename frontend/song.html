@@ -71,6 +71,34 @@
         <button id="autoscroll-reset" type="button">Reset</button>
       </div>
     </section>
+
+    <section class="control-section" aria-labelledby="display-section-title">
+      <div id="display-section-title" class="control-section-title">表示カスタマイズ</div>
+      <label class="display-toggle-option" for="display-custom-enabled">
+        <input id="display-custom-enabled" type="checkbox" />
+        <span>カスタマイズを有効化</span>
+      </label>
+
+      <div id="display-custom-detail" class="display-custom-detail">
+        <label class="display-toggle-option" for="display-adjust-chordpos">
+          <input id="display-adjust-chordpos" type="checkbox" />
+          <span>長いコード時の歌詞位置調整</span>
+        </label>
+
+        <label class="display-toggle-option" for="display-mnoto-enabled">
+          <input id="display-mnoto-enabled" type="checkbox" />
+          <span>MNoto Sans フォント対応</span>
+        </label>
+
+        <div class="display-number-grid">
+          <label for="display-chord-font-size">コードサイズ(px)</label>
+          <input id="display-chord-font-size" type="number" min="10" max="24" step="1" value="16" inputmode="numeric" />
+
+          <label for="display-chord-offset">コード縦位置補正(px)</label>
+          <input id="display-chord-offset" type="number" min="-6" max="12" step="1" value="0" inputmode="numeric" />
+        </div>
+      </div>
+    </section>
   </div>
 
   <div class="container">

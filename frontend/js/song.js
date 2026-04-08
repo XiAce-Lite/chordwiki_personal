@@ -24,6 +24,19 @@ const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
 const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
 const AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed';
 const SONG_EXTRAS_COLLAPSED_STORAGE_KEY = 'songExtrasCollapsed';
+const DISPLAY_PREFS_STORAGE_KEY = 'displayPrefs:v1';
+
+const DEFAULT_DISPLAY_PREFS = Object.freeze({
+  enabled: false,
+  adjustChordPos: true,
+  mnotoEnabled: false,
+  chordFontSize: 16,
+  chordOffsetPx: 0
+});
+
+const displayPrefsState = {
+  ...DEFAULT_DISPLAY_PREFS
+};
 
 const songMetaModalState = {
   mode: 'tags',
@@ -142,6 +155,154 @@ function saveSongPreferences() {
 function syncAccidentalModeUi() {
   document.querySelectorAll('input[name="accidental-mode"]').forEach((input) => {
     input.checked = input.value === accidentalMode;
+  });
+}
+
+function clampDisplayPreferenceNumber(value, min, max, fallback) {
+  const parsed = Number.parseInt(String(value ?? ''), 10);
+  return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback;
+}
+
+function loadDisplayPreferences() {
+  Object.assign(displayPrefsState, DEFAULT_DISPLAY_PREFS);
+
+  try {
+    const raw = window.localStorage.getItem(DISPLAY_PREFS_STORAGE_KEY);
+    const storedPrefs = raw ? JSON.parse(raw) : null;
+    if (!storedPrefs) {
+      return;
+    }
+
+    displayPrefsState.enabled = storedPrefs.enabled === true;
+    displayPrefsState.adjustChordPos = storedPrefs.adjustChordPos !== false;
+    displayPrefsState.mnotoEnabled = storedPrefs.mnotoEnabled === true;
+    displayPrefsState.chordFontSize = clampDisplayPreferenceNumber(
+      storedPrefs.chordFontSize,
+      10,
+      24,
+      DEFAULT_DISPLAY_PREFS.chordFontSize
+    );
+    displayPrefsState.chordOffsetPx = clampDisplayPreferenceNumber(
+      storedPrefs.chordOffsetPx,
+      -6,
+      12,
+      DEFAULT_DISPLAY_PREFS.chordOffsetPx
+    );
+  } catch (error) {
+    console.warn('Failed to restore display preferences:', error);
+  }
+}
+
+function saveDisplayPreferences() {
+  try {
+    window.localStorage.setItem(DISPLAY_PREFS_STORAGE_KEY, JSON.stringify(displayPrefsState));
+  } catch (error) {
+    console.warn('Failed to save display preferences:', error);
+  }
+}
+
+function syncDisplayPreferenceUi() {
+  const enabledInput = document.getElementById('display-custom-enabled');
+  const adjustInput = document.getElementById('display-adjust-chordpos');
+  const mnotoInput = document.getElementById('display-mnoto-enabled');
+  const fontSizeInput = document.getElementById('display-chord-font-size');
+  const offsetInput = document.getElementById('display-chord-offset');
+  const detailEl = document.getElementById('display-custom-detail');
+
+  if (enabledInput) {
+    enabledInput.checked = displayPrefsState.enabled;
+  }
+
+  if (adjustInput) {
+    adjustInput.checked = displayPrefsState.adjustChordPos;
+    adjustInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (mnotoInput) {
+    mnotoInput.checked = displayPrefsState.mnotoEnabled;
+    mnotoInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (fontSizeInput) {
+    fontSizeInput.value = String(displayPrefsState.chordFontSize);
+    fontSizeInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (offsetInput) {
+    offsetInput.value = String(displayPrefsState.chordOffsetPx);
+    offsetInput.disabled = !displayPrefsState.enabled;
+  }
+
+  detailEl?.classList.toggle('is-disabled', !displayPrefsState.enabled);
+}
+
+function applyChordLayoutAdjustments() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return;
+  }
+
+  sheetEl.querySelectorAll('.cw-adjusted-lyric').forEach((span) => {
+    span.classList.remove('cw-adjusted-lyric');
+    span.style.display = '';
+    span.style.minWidth = '';
+  });
+
+  if (!(displayPrefsState.enabled && displayPrefsState.adjustChordPos)) {
+    return;
+  }
+
+  sheetEl.querySelectorAll('p.line').forEach((lineEl) => {
+    const spans = Array.from(lineEl.children);
+
+    spans.forEach((spanEl, index) => {
+      if (!spanEl.classList.contains('chord')) {
+        return;
+      }
+
+      const lyricEl = spans[index + 1];
+      if (!lyricEl || (!lyricEl.classList.contains('word') && !lyricEl.classList.contains('wordtop'))) {
+        return;
+      }
+
+      const chordWidth = Math.ceil(spanEl.getBoundingClientRect().width);
+      const lyricWidth = Math.ceil(lyricEl.getBoundingClientRect().width);
+      if ((chordWidth - lyricWidth) < 8) {
+        return;
+      }
+
+      lyricEl.style.display = 'inline-block';
+      lyricEl.style.minWidth = `${chordWidth + 2}px`;
+      lyricEl.classList.add('cw-adjusted-lyric');
+    });
+  });
+}
+
+function applyDisplayPreferences({ refreshLayout = true } = {}) {
+  const rootEl = document.documentElement;
+  if (!rootEl) {
+    return;
+  }
+
+  rootEl.dataset.displayCustom = displayPrefsState.enabled ? 'on' : 'off';
+  rootEl.dataset.mnoto = displayPrefsState.enabled && displayPrefsState.mnotoEnabled ? 'on' : 'off';
+  rootEl.dataset.adjustChordPos = displayPrefsState.enabled && displayPrefsState.adjustChordPos ? 'on' : 'off';
+  rootEl.style.setProperty('--user-chord-size', `${displayPrefsState.chordFontSize}px`);
+  rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
+
+  syncDisplayPreferenceUi();
+
+  if (!refreshLayout) {
+    applyChordLayoutAdjustments();
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    applyChordLayoutAdjustments();
+
+    if (getSheetEl()?.childElementCount) {
+      refreshAutoScrollAfterRender({ restoreSavedState: false });
+    }
   });
 }
 
@@ -1706,6 +1867,7 @@ async function loadSong() {
     artistEl.textContent = displayArtist;
     updateSongKeyDisplay(renderResult, currentSongKey);
     renderSongSideRail(currentSongData, displayTitle, displayArtist);
+    applyChordLayoutAdjustments();
 
     refreshAutoScrollAfterRender({ restoreSavedState: true });
     void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);
@@ -1752,6 +1914,7 @@ function reRender() {
   updateSongKeyDisplay(renderResult, currentSongKey);
   updateTransposeDisplay();
   saveSongPreferences();
+  applyChordLayoutAdjustments();
   refreshAutoScrollAfterRender({ restoreSavedState: false });
 }
 
@@ -1842,6 +2005,56 @@ function initializeSongExtrasUi() {
   restoreSongExtrasCollapsedState();
 }
 
+function initializeDisplayPreferencesUi() {
+  loadDisplayPreferences();
+  applyDisplayPreferences({ refreshLayout: false });
+
+  const enabledInput = document.getElementById('display-custom-enabled');
+  const adjustInput = document.getElementById('display-adjust-chordpos');
+  const mnotoInput = document.getElementById('display-mnoto-enabled');
+  const fontSizeInput = document.getElementById('display-chord-font-size');
+  const offsetInput = document.getElementById('display-chord-offset');
+
+  const updateNumericSettings = () => {
+    displayPrefsState.chordFontSize = clampDisplayPreferenceNumber(
+      fontSizeInput?.value,
+      10,
+      24,
+      DEFAULT_DISPLAY_PREFS.chordFontSize
+    );
+    displayPrefsState.chordOffsetPx = clampDisplayPreferenceNumber(
+      offsetInput?.value,
+      -6,
+      12,
+      DEFAULT_DISPLAY_PREFS.chordOffsetPx
+    );
+  };
+
+  const commitDisplayPreferences = () => {
+    updateNumericSettings();
+    saveDisplayPreferences();
+    applyDisplayPreferences({ refreshLayout: true });
+  };
+
+  enabledInput?.addEventListener('change', () => {
+    displayPrefsState.enabled = enabledInput.checked;
+    commitDisplayPreferences();
+  });
+
+  adjustInput?.addEventListener('change', () => {
+    displayPrefsState.adjustChordPos = adjustInput.checked;
+    commitDisplayPreferences();
+  });
+
+  mnotoInput?.addEventListener('change', () => {
+    displayPrefsState.mnotoEnabled = mnotoInput.checked;
+    commitDisplayPreferences();
+  });
+
+  fontSizeInput?.addEventListener('change', commitDisplayPreferences);
+  offsetInput?.addEventListener('change', commitDisplayPreferences);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transpose-down').addEventListener('click', () => {
     transposeSemitones = clampTranspose(transposeSemitones - 1);
@@ -1868,6 +2081,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.ChordWikiAuth?.applyRoleVisibility();
   initializeAutoScrollUi();
   initializeSongExtrasUi();
+  initializeDisplayPreferencesUi();
   updateTransposeDisplay();
   updateAutoScrollSafeTop();
   window.requestAnimationFrame(updateAutoScrollSafeTop);
