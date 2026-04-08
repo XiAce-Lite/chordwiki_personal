@@ -861,7 +861,7 @@ function splitMixedChordSymbolSpans() {
 
 function applyChordDisplayTextTransforms() {
   const sheetEl = getSheetEl();
-  if (!sheetEl) {
+  if (!sheetEl || !displayPrefsState.enabled) {
     return;
   }
 
@@ -875,10 +875,6 @@ function applyChordDisplayTextTransforms() {
   Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
     span.classList.remove('cw-narrow-symbol', 'cw-mnoto-chord');
   });
-
-  if (!displayPrefsState.enabled) {
-    return;
-  }
 
   splitMixedChordSymbolSpans();
 
