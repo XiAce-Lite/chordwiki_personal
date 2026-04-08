@@ -1610,7 +1610,7 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
         tagButton.className = 'song-tag';
         tagButton.textContent = tag;
         tagButton.addEventListener('click', () => {
-          window.location.href = `/?q=${encodeURIComponent(tag)}`;
+          window.location.href = `/?q=${encodeURIComponent(tag)}&target=tag`;
         });
         tagsEl.appendChild(tagButton);
       });
@@ -2453,6 +2453,7 @@ function stopMarkerDragEdgeAutoScroll() {
 
   if (dragging.frameId) {
     window.cancelAnimationFrame(dragging.frameId);
+    window.clearTimeout(dragging.frameId);
     dragging.frameId = null;
   }
 
@@ -2505,8 +2506,10 @@ function updateMarkerDragTracking(clientY, timeStamp = performance.now()) {
 
   if (Math.abs(dragging.edgeScrollSpeedPxPerSec) > 0.5) {
     if (!dragging.frameId) {
-      dragging.lastFrameMs = 0;
-      dragging.frameId = window.requestAnimationFrame(runMarkerDragEdgeAutoScrollFrame);
+      dragging.lastFrameMs = Number.isFinite(timeStamp) ? timeStamp : performance.now();
+      dragging.frameId = window.setTimeout(() => {
+        runMarkerDragEdgeAutoScrollFrame(performance.now());
+      }, 16);
     }
     return;
   }
@@ -2527,18 +2530,22 @@ function runMarkerDragEdgeAutoScrollFrame(nowMs) {
     return;
   }
 
-  const previousFrameMs = dragging.lastFrameMs || nowMs;
+  const previousFrameMs = Number.isFinite(dragging.lastFrameMs) && dragging.lastFrameMs > 0
+    ? dragging.lastFrameMs
+    : nowMs;
   const deltaSec = Math.max(0, (nowMs - previousFrameMs) / 1000);
   dragging.lastFrameMs = nowMs;
 
   const previousScrollY = window.scrollY;
+  const maxScrollY = getMaxWindowScrollY();
   const nextScrollY = clamp(
     previousScrollY + (dragging.edgeScrollSpeedPxPerSec * deltaSec),
     0,
-    getMaxWindowScrollY()
+    maxScrollY
   );
+  const scrollDelta = Math.abs(nextScrollY - previousScrollY);
 
-  if (Math.abs(nextScrollY - previousScrollY) > 0.1) {
+  if (scrollDelta > 0.1) {
     window.scrollTo(0, nextScrollY);
   }
 
@@ -2550,12 +2557,15 @@ function runMarkerDragEdgeAutoScrollFrame(nowMs) {
     return;
   }
 
-  if (Math.abs(nextScrollY - previousScrollY) <= 0.1) {
+  const atScrollLimit = nextScrollY <= 0.1 || Math.abs(nextScrollY - maxScrollY) <= 0.1;
+  if (scrollDelta <= 0.1 && atScrollLimit) {
     dragging.lastFrameMs = 0;
     return;
   }
 
-  dragging.frameId = window.requestAnimationFrame(runMarkerDragEdgeAutoScrollFrame);
+  dragging.frameId = window.setTimeout(() => {
+    runMarkerDragEdgeAutoScrollFrame(performance.now());
+  }, 16);
 }
 
 function onMarkerPointerDown(event) {

@@ -18,13 +18,28 @@
     .search-form {
       display: flex;
       gap: 8px;
-      align-items: center;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    #search-target {
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      font-size: 15px;
+      border: 1px solid #c8d1dc;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .search-input-wrap {
+      position: relative;
+      flex: 1 1 320px;
+      min-width: 0;
     }
     #search {
-      flex: 1;
+      width: 100%;
       min-width: 0;
       padding: 10px;
       font-size: 16px;
+      box-sizing: border-box;
     }
     #search-button {
       padding: 10px 16px;
@@ -41,6 +56,43 @@
       margin: 8px 0 0;
       font-size: 12px;
       color: #666;
+    }
+    .search-suggest {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      border: 1px solid #d7e2ee;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .search-suggest-item,
+    .search-suggest-empty {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .search-suggest-item {
+      border: 0;
+      border-bottom: 1px solid #eef3f8;
+      background: #fff;
+      cursor: pointer;
+    }
+    .search-suggest-item:last-child {
+      border-bottom: 0;
+    }
+    .search-suggest-item:hover {
+      background: #f7fbff;
+    }
+    .search-suggest-empty {
+      color: #667085;
+      background: #fcfdff;
     }
     #song-list {
       margin-top: 20px;
@@ -142,10 +194,17 @@
   <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <div class="search-panel">
     <form id="search-form" class="search-form">
-      <input type="text" id="search" placeholder="1ワード検索（対象はタイトルとアーティストのみ）" title="1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。">
+      <select id="search-target" aria-label="検索対象">
+        <option value="song">曲名 / アーティスト</option>
+        <option value="tag">タグ</option>
+      </select>
+      <div class="search-input-wrap">
+        <input type="text" id="search" placeholder="1ワード検索（対象は曲名とアーティスト）" title="1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。">
+        <div id="search-suggest" class="search-suggest" hidden></div>
+      </div>
       <button type="submit" id="search-button">検索</button>
     </form>
-    <p class="search-help">※ 1ワード検索のみ対応します。半角スペースで区切ってもAND/OR検索はしません。<code>"..."</code> で完全一致です。Top300の再表示は空文字で検索ボタンを押してください。</p>
+    <p id="search-help" class="search-help">※ 曲名 / アーティスト検索は 1ワードのみ対応します。半角スペースで区切っても AND/OR 検索はしません。<code>"..."</code> で完全一致です。タグ検索はセレクトで切り替え、完全一致で実行します。</p>
   </div>
   <div id="song-list"></div>
   <div id="pagination" aria-label="Ranking pages"></div>
@@ -160,8 +219,20 @@
 
     const PAGE_SIZE = 100;
     const MAX_PAGES = 3;
+    const SONG_SEARCH_TARGET = 'song';
+    const TAG_SEARCH_TARGET = 'tag';
+    const TAG_SUGGEST_LIMIT = 10;
     const searchInput = document.getElementById('search');
     const searchForm = document.getElementById('search-form');
+    const searchTarget = document.getElementById('search-target');
+    const searchHelp = document.getElementById('search-help');
+    const searchSuggest = document.getElementById('search-suggest');
+    let suggestRequestSerial = 0;
+    let suggestHideTimer = 0;
+
+    function normalizeSearchTarget(value) {
+      return String(value || '').trim().toLowerCase() === TAG_SEARCH_TARGET ? TAG_SEARCH_TARGET : SONG_SEARCH_TARGET;
+    }
 
     function clampPage(page) {
       const parsed = Number.parseInt(String(page || '1'), 10);
@@ -182,9 +253,15 @@
       return String(params.get('q') || '').trim();
     }
 
-    function updatePageUrl(page, query = '') {
+    function getTargetFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return normalizeSearchTarget(params.get('target'));
+    }
+
+    function updatePageUrl(page, query = '', target = SONG_SEARCH_TARGET) {
       const url = new URL(window.location.href);
       const safeQuery = String(query || '').trim();
+      const safeTarget = normalizeSearchTarget(target);
 
       if (safeQuery) {
         url.searchParams.set('q', safeQuery);
@@ -192,14 +269,134 @@
         url.searchParams.delete('q');
       }
 
+      if (safeTarget === TAG_SEARCH_TARGET) {
+        url.searchParams.set('target', safeTarget);
+      } else {
+        url.searchParams.delete('target');
+      }
+
       url.searchParams.set('page', String(page));
       window.history.replaceState({}, '', url);
     }
 
-    function renderPagination(page, songCount = 0, query = '') {
+    function hideTagSuggestions() {
+      if (suggestHideTimer) {
+        window.clearTimeout(suggestHideTimer);
+        suggestHideTimer = 0;
+      }
+
+      if (!searchSuggest) {
+        return;
+      }
+
+      searchSuggest.hidden = true;
+      searchSuggest.innerHTML = '';
+    }
+
+    function renderTagSuggestions(suggestions, query = '') {
+      if (!searchSuggest) {
+        return;
+      }
+
+      const safeQuery = String(query || '').trim();
+      const safeTarget = normalizeSearchTarget(searchTarget?.value);
+      if (safeTarget !== TAG_SEARCH_TARGET || !safeQuery) {
+        hideTagSuggestions();
+        return;
+      }
+
+      searchSuggest.innerHTML = '';
+
+      if (!Array.isArray(suggestions) || suggestions.length === 0) {
+        const emptyEl = document.createElement('div');
+        emptyEl.className = 'search-suggest-empty';
+        emptyEl.textContent = '一致するタグがありません';
+        searchSuggest.appendChild(emptyEl);
+        searchSuggest.hidden = false;
+        return;
+      }
+
+      suggestions.slice(0, TAG_SUGGEST_LIMIT).forEach((tag) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'search-suggest-item';
+        button.textContent = tag;
+        button.addEventListener('click', () => {
+          searchInput.value = tag;
+          hideTagSuggestions();
+          loadSongs(1, tag, TAG_SEARCH_TARGET);
+        });
+        searchSuggest.appendChild(button);
+      });
+
+      searchSuggest.hidden = false;
+    }
+
+    async function updateTagSuggestions(query = searchInput?.value || '') {
+      const safeTarget = normalizeSearchTarget(searchTarget?.value);
+      const safeQuery = String(query || '').trim();
+      if (safeTarget !== TAG_SEARCH_TARGET || !safeQuery) {
+        hideTagSuggestions();
+        return;
+      }
+
+      const requestId = ++suggestRequestSerial;
+
+      try {
+        const response = await fetch(
+          `/api/songs/search?target=${encodeURIComponent(TAG_SEARCH_TARGET)}&suggest=1&q=${encodeURIComponent(safeQuery)}`,
+          { credentials: 'include' }
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (requestId !== suggestRequestSerial) {
+          return;
+        }
+
+        renderTagSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : [], safeQuery);
+      } catch (error) {
+        console.error('Error loading tag suggestions:', error);
+        if (requestId === suggestRequestSerial) {
+          renderTagSuggestions([], safeQuery);
+        }
+      }
+    }
+
+    function updateSearchUiForTarget(target = SONG_SEARCH_TARGET) {
+      const safeTarget = normalizeSearchTarget(target);
+      if (searchTarget && searchTarget.value !== safeTarget) {
+        searchTarget.value = safeTarget;
+      }
+
+      if (!searchInput) {
+        return;
+      }
+
+      if (safeTarget === TAG_SEARCH_TARGET) {
+        searchInput.placeholder = 'タグを入力（完全一致検索）';
+        searchInput.title = 'タグ検索は完全一致です。入力中は前方一致サジェストを表示します。';
+        if (searchHelp) {
+          searchHelp.innerHTML = '※ タグ検索は <strong>完全一致</strong> で実行し、入力中サジェストは前方一致です。曲名 / アーティスト検索では AND/OR や全文検索は行いません。';
+        }
+      } else {
+        searchInput.placeholder = '1ワード検索（対象は曲名とアーティスト）';
+        searchInput.title = '1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。';
+        if (searchHelp) {
+          searchHelp.innerHTML = '※ 曲名 / アーティスト検索は 1ワードのみ対応します。半角スペースで区切っても AND/OR 検索はしません。<code>"..."</code> で完全一致です。タグ検索はセレクトで切り替えます。';
+        }
+        hideTagSuggestions();
+      }
+    }
+
+    function renderPagination(page, songCount = 0, query = '', target = SONG_SEARCH_TARGET) {
       const paginationEl = document.getElementById('pagination');
       const availablePages = Math.max(1, Math.ceil(songCount / PAGE_SIZE));
       const appliedQuery = String(query || '').trim();
+      const safeTarget = normalizeSearchTarget(target);
       paginationEl.innerHTML = '';
 
       for (let p = 1; p <= MAX_PAGES; p += 1) {
@@ -212,7 +409,7 @@
 
         if (!isUnavailable) {
           button.addEventListener('click', () => {
-            loadSongs(p, appliedQuery);
+            loadSongs(p, appliedQuery, safeTarget);
           });
         }
 
@@ -268,18 +465,20 @@
       });
     }
 
-    async function loadSongs(page = getPageFromUrl(), query = getQueryFromUrl()) {
+    async function loadSongs(page = getPageFromUrl(), query = getQueryFromUrl(), target = getTargetFromUrl()) {
       const safePage = clampPage(page);
       const appliedQuery = String(query || '').trim();
+      const safeTarget = normalizeSearchTarget(target);
       const songList = document.getElementById('song-list');
       const endpoint = appliedQuery
-        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}`
+        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}`
         : `/api/songs/ranking?page=${safePage}`;
 
       if (searchInput && searchInput.value !== appliedQuery) {
         searchInput.value = appliedQuery;
       }
 
+      updateSearchUiForTarget(safeTarget);
       songList.textContent = 'Loading...';
 
       try {
@@ -298,28 +497,59 @@
           : (((safePage - 1) * PAGE_SIZE) + songs.length);
 
         renderSongs(songs, safePage, appliedQuery);
-        renderPagination(safePage, totalSongs, appliedQuery);
-        updatePageUrl(safePage, appliedQuery);
+        renderPagination(safePage, totalSongs, appliedQuery, safeTarget);
+        updatePageUrl(safePage, appliedQuery, safeTarget);
       } catch (error) {
         console.error('Error loading songs:', error);
         songList.textContent = appliedQuery
           ? '検索結果の読み込みに失敗しました。'
           : 'ランキングの読み込みに失敗しました。';
-        renderPagination(safePage, 0, appliedQuery);
+        renderPagination(safePage, 0, appliedQuery, safeTarget);
       }
     }
 
     searchForm.addEventListener('submit', (event) => {
       event.preventDefault();
-      loadSongs(1, searchInput.value);
+      hideTagSuggestions();
+      loadSongs(1, searchInput.value, searchTarget?.value);
+    });
+
+    searchTarget?.addEventListener('change', () => {
+      updateSearchUiForTarget(searchTarget.value);
+      if (normalizeSearchTarget(searchTarget.value) === TAG_SEARCH_TARGET && String(searchInput.value || '').trim()) {
+        updateTagSuggestions(searchInput.value);
+      }
+    });
+
+    searchInput?.addEventListener('input', () => {
+      if (normalizeSearchTarget(searchTarget?.value) === TAG_SEARCH_TARGET) {
+        updateTagSuggestions(searchInput.value);
+      } else {
+        hideTagSuggestions();
+      }
+    });
+
+    searchInput?.addEventListener('focus', () => {
+      if (normalizeSearchTarget(searchTarget?.value) === TAG_SEARCH_TARGET && String(searchInput.value || '').trim()) {
+        updateTagSuggestions(searchInput.value);
+      }
+    });
+
+    searchInput?.addEventListener('blur', () => {
+      suggestHideTimer = window.setTimeout(hideTagSuggestions, 120);
+    });
+
+    searchSuggest?.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
     });
 
     window.addEventListener('popstate', () => {
-      loadSongs(getPageFromUrl(), getQueryFromUrl());
+      loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
     });
 
     window.addEventListener('load', () => {
-      loadSongs(getPageFromUrl(), getQueryFromUrl());
+      updateSearchUiForTarget(getTargetFromUrl());
+      loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
     });
   </script>
 </body>

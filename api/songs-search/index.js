@@ -8,6 +8,7 @@ const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 const PAGE_SIZE = 100;
 const MAX_PAGES = 3;
 const TOTAL_LIMIT = PAGE_SIZE * MAX_PAGES;
+const TAG_SUGGEST_LIMIT = 10;
 
 let container = null;
 if (endpoint && key) {
@@ -61,6 +62,20 @@ function normalizeSearchQuery(value) {
   return { raw, term, isExact };
 }
 
+function normalizeSearchTarget(value) {
+  return String(value || '').trim().toLowerCase() === 'tag' ? 'tag' : 'song';
+}
+
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean);
+}
+
 function mapSongSummary(song) {
   return {
     id: song.id,
@@ -80,20 +95,46 @@ function compareSongsForRanking(a, b) {
   return normalizeViewedAt(b.last_viewed_at) - normalizeViewedAt(a.last_viewed_at);
 }
 
-function matchesSearch(song, search) {
-  const title = normalizeText(song.title);
-  const artist = normalizeText(song.artist);
+function matchesSearch(song, search, target = 'song') {
   const needle = normalizeText(search.term);
 
   if (!needle) {
     return false;
   }
 
+  if (target === 'tag') {
+    const tags = normalizeTags(song.tags).map((tag) => normalizeText(tag));
+    return tags.some((tag) => tag === needle);
+  }
+
+  const title = normalizeText(song.title);
+  const artist = normalizeText(song.artist);
+
   if (search.isExact) {
     return title === needle || artist === needle;
   }
 
   return title.includes(needle) || artist.includes(needle);
+}
+
+function collectTagSuggestions(songs, term, limit = TAG_SUGGEST_LIMIT) {
+  const needle = normalizeText(term);
+  if (!needle) {
+    return [];
+  }
+
+  const uniqueTags = new Set();
+  (songs || []).forEach((song) => {
+    normalizeTags(song.tags).forEach((tag) => {
+      if (normalizeText(tag).startsWith(needle)) {
+        uniqueTags.add(tag);
+      }
+    });
+  });
+
+  return Array.from(uniqueTags)
+    .sort((a, b) => a.localeCompare(b, 'ja-JP', { sensitivity: 'base', numeric: true }))
+    .slice(0, limit);
 }
 
 module.exports = async function (context, req) {
@@ -107,22 +148,34 @@ module.exports = async function (context, req) {
 
   const page = normalizePage(req.query.page);
   const offset = (page - 1) * PAGE_SIZE;
+  const target = normalizeSearchTarget(req.query.target);
   const search = normalizeSearchQuery(req.query.q);
+  const isTagSuggest = target === 'tag' && String(req.query.suggest || '').trim() === '1';
 
   if (!search.raw || !search.term) {
-    context.res = jsonResponse(200, {
-      page,
-      pageSize: PAGE_SIZE,
-      totalLimit: TOTAL_LIMIT,
-      totalSongs: 0,
-      songs: []
-    });
+    context.res = jsonResponse(200, isTagSuggest
+      ? {
+          target,
+          query: '',
+          limit: TAG_SUGGEST_LIMIT,
+          suggestions: []
+        }
+      : {
+          page,
+          pageSize: PAGE_SIZE,
+          totalLimit: TOTAL_LIMIT,
+          totalSongs: 0,
+          songs: []
+        });
     return;
   }
 
   try {
+    const needsTags = target === 'tag' || isTagSuggest;
     const query = {
-      query: "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at FROM c"
+      query: needsTags
+        ? "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at, c.tags FROM c"
+        : "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at FROM c"
     };
 
     const { resources } = await container.items.query(query, {
@@ -130,9 +183,19 @@ module.exports = async function (context, req) {
       maxItemCount: TOTAL_LIMIT
     }).fetchAll();
 
+    if (isTagSuggest) {
+      context.res = jsonResponse(200, {
+        target,
+        query: search.term,
+        limit: TAG_SUGGEST_LIMIT,
+        suggestions: collectTagSuggestions(resources || [], search.term)
+      });
+      return;
+    }
+
     const limitedSearchResults = (resources || [])
+      .filter((song) => matchesSearch(song, search, target))
       .map(mapSongSummary)
-      .filter((song) => matchesSearch(song, search))
       .sort(compareSongsForRanking)
       .slice(0, TOTAL_LIMIT);
 
