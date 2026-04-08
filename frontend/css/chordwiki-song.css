@@ -65,15 +65,16 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-header {
-  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 4px;
 }
 
 .back-link {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  transform: none;
   margin-left: 16px;
   font-size: 14px;
   text-decoration: none;
@@ -82,12 +83,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-admin-actions {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  transform: none;
   margin-right: 16px;
   align-items: center;
+  justify-self: end;
   gap: 8px;
 }
 
@@ -120,7 +120,12 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-title {
+  min-width: 0;
+  margin: 0;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .song-artist {
