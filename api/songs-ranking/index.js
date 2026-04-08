@@ -5,8 +5,8 @@ const key = process.env.COSMOS_KEY || process.env.COSMOS_DB_KEY;
 const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
 const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 
-const PAGE_SIZE = 100;
-const MAX_PAGES = 3;
+const PAGE_SIZE = 50;
+const MAX_PAGES = 6;
 const TOTAL_LIMIT = PAGE_SIZE * MAX_PAGES;
 
 let container = null;
@@ -46,12 +46,23 @@ function normalizeViewedAt(value) {
   return Number.isFinite(time) ? time : 0;
 }
 
+function normalizeTags(tags) {
+  if (!Array.isArray(tags)) {
+    return [];
+  }
+
+  return tags
+    .map((tag) => String(tag || '').trim())
+    .filter(Boolean);
+}
+
 function mapSongSummary(song) {
   return {
     id: song.id,
     artist: song.artist,
     title: song.title,
     slug: song.slug,
+    tags: normalizeTags(song.tags),
     score: normalizeScore(song.score),
     last_viewed_at: song.last_viewed_at || null
   };
@@ -79,7 +90,7 @@ module.exports = async function (context, req) {
 
   try {
     const query = {
-      query: "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at FROM c"
+      query: "SELECT c.id, c.artist, c.title, c.slug, c.score, c.last_viewed_at, c.tags FROM c"
     };
 
     const { resources } = await container.items.query(query, {

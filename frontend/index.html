@@ -109,7 +109,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px 14px;
+      padding: 10px 14px;
       border-bottom: 1px solid #e6e6e6;
       text-decoration: none;
       color: #000;
@@ -132,12 +132,22 @@
     .song-title {
       display: block;
       font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .song-meta {
       display: block;
       margin-top: 2px;
       font-size: 13px;
       color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-tags-inline {
+      font-size: 12px;
+      color: #8a94a6;
     }
     .song-score {
       font-size: 12px;
@@ -217,8 +227,8 @@
       location.href = '/edit.html?mode=add';
     });
 
-    const PAGE_SIZE = 100;
-    const MAX_PAGES = 3;
+    const PAGE_SIZE = 50;
+    const MAX_PAGES = 6;
     const SONG_SEARCH_TARGET = 'song';
     const TAG_SEARCH_TARGET = 'tag';
     const TAG_SUGGEST_LIMIT = 10;
@@ -417,6 +427,23 @@
       }
     }
 
+    function formatInlineTags(tags) {
+      if (!Array.isArray(tags) || tags.length === 0) {
+        return '';
+      }
+
+      const visibleTags = tags
+        .map((tag) => String(tag || '').trim())
+        .filter(Boolean)
+        .slice(0, 3);
+
+      if (!visibleTags.length) {
+        return '';
+      }
+
+      return `${visibleTags.join(' / ')}${tags.length > 3 ? ' …' : ''}`;
+    }
+
     function renderSongs(songs, page, query = '') {
       const songList = document.getElementById('song-list');
       const appliedQuery = String(query || '').trim();
@@ -437,6 +464,8 @@
         const titleEl = document.createElement('span');
         const metaEl = document.createElement('span');
         const scoreEl = document.createElement('span');
+        const artistText = String(song.artist || '').trim();
+        const tagsText = formatInlineTags(song.tags);
 
         link.className = 'song-item';
         link.href = `song.html?artist=${encodeURIComponent(song.artist)}&id=${encodeURIComponent(song.id)}`;
@@ -450,8 +479,24 @@
         mainEl.className = 'song-main';
         titleEl.className = 'song-title';
         titleEl.textContent = song.title || 'タイトルなし';
+        titleEl.title = song.title || 'タイトルなし';
         metaEl.className = 'song-meta';
-        metaEl.textContent = song.artist || '';
+
+        if (artistText) {
+          const artistEl = document.createElement('span');
+          artistEl.className = 'song-artist-name';
+          artistEl.textContent = artistText;
+          metaEl.appendChild(artistEl);
+        }
+
+        if (tagsText) {
+          const tagsEl = document.createElement('span');
+          tagsEl.className = 'song-tags-inline';
+          tagsEl.textContent = `${artistText ? ' · ' : ''}${tagsText}`;
+          metaEl.appendChild(tagsEl);
+        }
+
+        metaEl.title = [artistText, tagsText].filter(Boolean).join(' · ');
         mainEl.appendChild(titleEl);
         mainEl.appendChild(metaEl);
 
