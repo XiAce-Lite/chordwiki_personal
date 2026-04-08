@@ -4,6 +4,8 @@
   --song-chord-size: 12.5px;
   --user-chord-size: 14px;
   --user-chord-offset: 7px;
+  --user-lyric-gap: 15px;
+  --user-comment-gap: 16px;
   --marker-safe-left: 6em;
   --autoscroll-safe-top: 64px;
   --song-extras-safe-top: 240px;
@@ -826,11 +828,11 @@ html[data-display-custom="on"] body {
 }
 
 html[data-display-custom="on"] p.line {
-  margin-bottom: 0.95rem;
+  margin-bottom: var(--user-lyric-gap, 15px);
 }
 
 html[data-display-custom="on"] p.comment {
-  margin-bottom: 1rem;
+  margin-bottom: var(--user-comment-gap, 16px);
 }
 
 html[data-display-custom="on"] p.comment .comment-body {

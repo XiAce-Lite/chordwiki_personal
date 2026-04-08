@@ -34,7 +34,9 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   adjustChordPos: true,
   mnotoEnabled: false,
   chordFontSize: 14,
-  chordOffsetPx: 7
+  chordOffsetPx: 7,
+  lyricLineGapPx: 15,
+  commentLineGapPx: 16
 });
 
 const displayPrefsState = {
@@ -191,6 +193,18 @@ function loadDisplayPreferences() {
       10,
       DEFAULT_DISPLAY_PREFS.chordOffsetPx
     );
+    displayPrefsState.lyricLineGapPx = clampDisplayPreferenceNumber(
+      storedPrefs.lyricLineGapPx,
+      8,
+      32,
+      DEFAULT_DISPLAY_PREFS.lyricLineGapPx
+    );
+    displayPrefsState.commentLineGapPx = clampDisplayPreferenceNumber(
+      storedPrefs.commentLineGapPx,
+      8,
+      32,
+      DEFAULT_DISPLAY_PREFS.commentLineGapPx
+    );
   } catch (error) {
     console.warn('Failed to restore display preferences:', error);
   }
@@ -210,6 +224,8 @@ function syncDisplayPreferenceUi() {
   const mnotoInput = document.getElementById('display-mnoto-enabled');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
+  const lyricGapInput = document.getElementById('display-lyric-gap');
+  const commentGapInput = document.getElementById('display-comment-gap');
   const detailEl = document.getElementById('display-custom-detail');
 
   if (enabledInput) {
@@ -234,6 +250,16 @@ function syncDisplayPreferenceUi() {
   if (offsetInput) {
     offsetInput.value = String(displayPrefsState.chordOffsetPx);
     offsetInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (lyricGapInput) {
+    lyricGapInput.value = String(displayPrefsState.lyricLineGapPx);
+    lyricGapInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (commentGapInput) {
+    commentGapInput.value = String(displayPrefsState.commentLineGapPx);
+    commentGapInput.disabled = !displayPrefsState.enabled;
   }
 
   detailEl?.classList.toggle('is-disabled', !displayPrefsState.enabled);
@@ -635,6 +661,8 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   rootEl.dataset.adjustChordPos = displayPrefsState.enabled && displayPrefsState.adjustChordPos ? 'on' : 'off';
   rootEl.style.setProperty('--user-chord-size', `${displayPrefsState.chordFontSize}px`);
   rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
+  rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
+  rootEl.style.setProperty('--user-comment-gap', `${displayPrefsState.commentLineGapPx}px`);
 
   syncDisplayPreferenceUi();
 
@@ -2374,6 +2402,8 @@ function initializeDisplayPreferencesUi() {
   const mnotoInput = document.getElementById('display-mnoto-enabled');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
+  const lyricGapInput = document.getElementById('display-lyric-gap');
+  const commentGapInput = document.getElementById('display-comment-gap');
 
   document.getElementById('display-custom-collapse-toggle')?.addEventListener('click', toggleDisplayPreferencesCollapsed);
   restoreDisplayPreferencesCollapsedState();
@@ -2390,6 +2420,18 @@ function initializeDisplayPreferencesUi() {
       -3,
       10,
       DEFAULT_DISPLAY_PREFS.chordOffsetPx
+    );
+    displayPrefsState.lyricLineGapPx = clampDisplayPreferenceNumber(
+      lyricGapInput?.value,
+      8,
+      32,
+      DEFAULT_DISPLAY_PREFS.lyricLineGapPx
+    );
+    displayPrefsState.commentLineGapPx = clampDisplayPreferenceNumber(
+      commentGapInput?.value,
+      8,
+      32,
+      DEFAULT_DISPLAY_PREFS.commentLineGapPx
     );
   };
 
@@ -2416,6 +2458,8 @@ function initializeDisplayPreferencesUi() {
 
   fontSizeInput?.addEventListener('change', commitDisplayPreferences);
   offsetInput?.addEventListener('change', commitDisplayPreferences);
+  lyricGapInput?.addEventListener('change', commitDisplayPreferences);
+  commentGapInput?.addEventListener('change', commitDisplayPreferences);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
