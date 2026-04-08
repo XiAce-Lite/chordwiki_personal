@@ -1,4 +1,9 @@
 const { CosmosClient } = require("@azure/cosmos");
+const {
+  normalizeScore,
+  attachDisplayScore,
+  compareSongsForRanking
+} = require("../shared/ranking-score");
 
 const endpoint = process.env.COSMOS_ENDPOINT || process.env.COSMOS_DB_ENDPOINT;
 const key = process.env.COSMOS_KEY || process.env.COSMOS_DB_KEY;
@@ -32,20 +37,6 @@ function normalizePage(value) {
   return Math.min(MAX_PAGES, Math.max(1, parsed));
 }
 
-function normalizeScore(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.trunc(numeric));
-}
-
-function normalizeViewedAt(value) {
-  const time = Date.parse(value || "");
-  return Number.isFinite(time) ? time : 0;
-}
-
 function normalizeTags(tags) {
   if (!Array.isArray(tags)) {
     return [];
@@ -56,8 +47,8 @@ function normalizeTags(tags) {
     .filter(Boolean);
 }
 
-function mapSongSummary(song) {
-  return {
+function mapSongSummary(song, now = Date.now()) {
+  return attachDisplayScore({
     id: song.id,
     artist: song.artist,
     title: song.title,
@@ -65,15 +56,7 @@ function mapSongSummary(song) {
     tags: normalizeTags(song.tags),
     score: normalizeScore(song.score),
     last_viewed_at: song.last_viewed_at || null
-  };
-}
-
-function compareSongsForRanking(a, b) {
-  if (b.score !== a.score) {
-    return b.score - a.score;
-  }
-
-  return normalizeViewedAt(b.last_viewed_at) - normalizeViewedAt(a.last_viewed_at);
+  }, now);
 }
 
 module.exports = async function (context, req) {
@@ -87,6 +70,7 @@ module.exports = async function (context, req) {
 
   const page = normalizePage(req.query.page);
   const offset = (page - 1) * PAGE_SIZE;
+  const now = Date.now();
 
   try {
     const query = {
@@ -99,8 +83,8 @@ module.exports = async function (context, req) {
     }).fetchAll();
 
     const limitedRankedSongs = (resources || [])
-      .map(mapSongSummary)
-      .sort(compareSongsForRanking)
+      .map((song) => mapSongSummary(song, now))
+      .sort((a, b) => compareSongsForRanking(a, b, now))
       .slice(0, TOTAL_LIMIT);
 
     const songs = limitedRankedSongs.slice(offset, offset + PAGE_SIZE);
