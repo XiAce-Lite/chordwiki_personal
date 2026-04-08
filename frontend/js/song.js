@@ -594,6 +594,16 @@ function cleanDisplayText(text) {
   return String(text || '').replace(/　/g, '').trim();
 }
 
+function isRhythmMarkerOnlyText(text) {
+  const normalized = cleanDisplayText(text)
+    .replace(/ /g, '')
+    .replace(/[|｜]/g, '')
+    .replace(/ /g, '')
+    .trim();
+
+  return Boolean(normalized) && /^[\-=>!~≫≧＞○●ー－\s]+$/u.test(normalized);
+}
+
 function isChordTextAllowed(text) {
   const normalized = cleanDisplayText(text).replace(/\s+/g, '');
   return Boolean(normalized) && CHORD_ALLOWED_PATTERN.test(normalized);
@@ -757,6 +767,11 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
+    const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
+    if (!overflowText || isRhythmMarkerOnlyText(overflowText)) {
+      return;
+    }
+
     const previousWord = findPreviousLyricElement(wordtop);
     if (!previousWord) {
       return;
@@ -767,7 +782,6 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
-    const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
     if (!mergeOverflowTextIntoLine(parentLine, previousWord, overflowText)) {
       return;
     }
