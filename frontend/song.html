@@ -85,15 +85,26 @@
           <span>カスタマイズを有効化</span>
         </label>
 
-        <label class="display-toggle-option" for="display-adjust-chordpos">
+        <div class="display-toggle-option display-toggle-option-with-help">
           <input id="display-adjust-chordpos" type="checkbox" />
-          <span>長いコード時の歌詞位置調整</span>
-        </label>
+          <label for="display-adjust-chordpos" class="display-toggle-label">長いコード時の歌詞位置調整</label>
+          <span class="display-help">
+            <button type="button" class="display-help-button" aria-label="長いコード時の歌詞位置調整の説明">?</button>
+            <span class="display-help-tooltip" role="tooltip">テンションノートなどが多いコードの場合、歌詞が大幅に右になる場合に、左に少し詰めます。</span>
+          </span>
+        </div>
 
-        <label class="display-toggle-option" for="display-mnoto-enabled">
+        <div class="display-toggle-option display-toggle-option-with-help">
           <input id="display-mnoto-enabled" type="checkbox" />
-          <span>MNoto Sans フォント対応</span>
-        </label>
+          <label for="display-mnoto-enabled" class="display-toggle-label">MNoto Sans フォント対応</label>
+          <span class="display-help">
+            <button type="button" class="display-help-button" aria-label="MNoto Sans フォント対応の説明">?</button>
+            <span class="display-help-tooltip" role="tooltip">
+              MNoto Sans V2フォントをインストールしてある環境で、コード表示にそのフォントを使用します。
+              <a href="https://github.com/ykwe/MNoto-Sans-alpha" target="_blank" rel="noopener noreferrer">ダウンロードはこちら</a>
+            </span>
+          </span>
+        </div>
 
         <label class="display-toggle-option" for="display-lyric-weight">
           <input id="display-lyric-weight" type="checkbox" />

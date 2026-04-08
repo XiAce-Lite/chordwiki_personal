@@ -668,6 +668,90 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   cursor: pointer;
 }
 
+.display-toggle-option-with-help {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.display-toggle-label {
+  cursor: pointer;
+}
+
+.display-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  cursor: default;
+}
+
+.display-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #9bb8d4;
+  border-radius: 999px;
+  background: #fff;
+  color: #335d84;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: help;
+}
+
+.display-help-button:hover,
+.display-help-button:focus-visible {
+  background: #eaf4ff;
+  border-color: #6da6dd;
+  outline: none;
+}
+
+.display-help-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 30;
+  display: block;
+  width: min(280px, calc(100vw - 72px));
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(22, 43, 64, 0.96);
+  color: #f8fbff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.14s ease, transform 0.14s ease, visibility 0.14s ease;
+}
+
+.display-help-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 10px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(22, 43, 64, 0.96);
+}
+
+.display-help:hover .display-help-tooltip,
+.display-help:focus-within .display-help-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.display-help-tooltip a {
+  color: #bfe2ff;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .display-toggle-option input {
   margin: 0;
   accent-color: #0078d4;
