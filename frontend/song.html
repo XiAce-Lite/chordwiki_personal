@@ -72,14 +72,18 @@
       </div>
     </section>
 
-    <section class="control-section" aria-labelledby="display-section-title">
-      <div id="display-section-title" class="control-section-title">表示カスタマイズ</div>
-      <label class="display-toggle-option" for="display-custom-enabled">
-        <input id="display-custom-enabled" type="checkbox" />
-        <span>カスタマイズを有効化</span>
-      </label>
+    <section id="display-custom-section" class="control-section display-custom-section" aria-labelledby="display-section-title">
+      <div class="control-section-heading">
+        <div id="display-section-title" class="control-section-title">表示カスタマイズ</div>
+        <button id="display-custom-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse display customization">▼</button>
+      </div>
 
       <div id="display-custom-detail" class="display-custom-detail">
+        <label class="display-toggle-option" for="display-custom-enabled">
+          <input id="display-custom-enabled" type="checkbox" />
+          <span>カスタマイズを有効化</span>
+        </label>
+
         <label class="display-toggle-option" for="display-adjust-chordpos">
           <input id="display-adjust-chordpos" type="checkbox" />
           <span>長いコード時の歌詞位置調整</span>
@@ -91,11 +95,11 @@
         </label>
 
         <div class="display-number-grid">
-          <label for="display-chord-font-size">コードサイズ(px)</label>
-          <input id="display-chord-font-size" type="number" min="10" max="24" step="1" value="16" inputmode="numeric" />
+          <label for="display-chord-font-size">記号サイズ(px)</label>
+          <input id="display-chord-font-size" type="number" min="6" max="18" step="1" value="14" inputmode="numeric" />
 
-          <label for="display-chord-offset">コード縦位置補正(px)</label>
-          <input id="display-chord-offset" type="number" min="-6" max="12" step="1" value="0" inputmode="numeric" />
+          <label for="display-chord-offset">記号縦位置(px)</label>
+          <input id="display-chord-offset" type="number" min="-3" max="10" step="1" value="7" inputmode="numeric" />
         </div>
       </div>
     </section>

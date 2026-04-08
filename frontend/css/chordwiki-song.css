@@ -2,8 +2,8 @@
   --song-text-size: 14px;
   --song-line-height: 1.5;
   --song-chord-size: 12.5px;
-  --user-chord-size: 16px;
-  --user-chord-offset: 0px;
+  --user-chord-size: 14px;
+  --user-chord-offset: 7px;
   --marker-safe-left: 6em;
   --autoscroll-safe-top: 64px;
   --song-extras-safe-top: 240px;
@@ -609,6 +609,29 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   color: #47627d;
 }
 
+.control-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-collapse-toggle {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  line-height: 1.2;
+  border: 1px solid #c4d4e4;
+  border-radius: 999px !important;
+  background: #fff;
+  cursor: pointer;
+}
+
+.display-custom-section.is-collapsed {
+  gap: 0;
+}
+
 .autoscroll-duration label {
   display: inline-flex;
   align-items: center;
@@ -795,7 +818,7 @@ span.wordtop {
 html[data-display-custom="on"] {
   --song-text-size: 16px;
   --song-line-height: 1.35;
-  --song-chord-size: var(--user-chord-size, 16px);
+  --song-chord-size: 16px;
 }
 
 html[data-display-custom="on"] body {
@@ -819,11 +842,16 @@ html[data-display-custom="on"] p.comment .comment-body {
 html[data-display-custom="on"] span.chord {
   color: #3273cd;
   font-weight: 600;
-  transform: translateY(calc(-1 * var(--user-chord-offset, 0px)));
 }
 
-html[data-display-custom="on"][data-mnoto="on"] span.chord {
+html[data-display-custom="on"][data-mnoto="on"] span.chord.cw-mnoto-chord:not(.cw-narrow-symbol) {
   font-family: "MNoto Sans alpha V2", "Noto Sans JP", "Segoe UI", sans-serif;
+}
+
+html[data-display-custom="on"] span.chord.cw-narrow-symbol {
+  font-family: "Arial Narrow", Arial, "Roboto Condensed", "Helvetica Neue Condensed", sans-serif !important;
+  font-size: var(--user-chord-size, 14px) !important;
+  vertical-align: var(--user-chord-offset, 7px);
 }
 
 html[data-display-custom="on"] .song-key {
