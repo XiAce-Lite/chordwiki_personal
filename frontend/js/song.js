@@ -1140,6 +1140,11 @@ function setAutoScrollCollapsed(collapsed) {
     toggleButton.setAttribute('aria-label', isCollapsed ? 'Expand song controls' : 'Collapse song controls');
   }
 
+  window.requestAnimationFrame(() => {
+    updateAutoScrollSafeTop();
+    renderMarkerPositions();
+  });
+
   try {
     window.localStorage.setItem(AUTO_SCROLL_COLLAPSED_STORAGE_KEY, isCollapsed ? '1' : '0');
   } catch (error) {
@@ -1180,6 +1185,11 @@ function setSongExtrasCollapsed(collapsed) {
     toggleButton.setAttribute('aria-expanded', String(!isCollapsed));
     toggleButton.setAttribute('aria-label', isCollapsed ? 'Expand song extras' : 'Collapse song extras');
   }
+
+  window.requestAnimationFrame(() => {
+    updateAutoScrollSafeTop();
+    renderMarkerPositions();
+  });
 
   try {
     window.localStorage.setItem(SONG_EXTRAS_COLLAPSED_STORAGE_KEY, isCollapsed ? '1' : '0');
