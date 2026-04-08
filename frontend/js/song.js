@@ -615,7 +615,7 @@ function applyVoiceMarkerSymbolClasses() {
     return;
   }
 
-  sheetEl.querySelectorAll('span.word, span.wordtop').forEach((span) => {
+  sheetEl.querySelectorAll('span.word, span.wordtop, p.comment .comment-body').forEach((span) => {
     const rawText = String(span.textContent || '');
     if (!containsVoiceMarkerSymbol(rawText)) {
       return;
