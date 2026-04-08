@@ -673,50 +673,36 @@ function mergeOverflowTextIntoLine(lineEl, previousWord, overflowText) {
     return false;
   }
 
+  const wordSpans = Array.from(lineEl.querySelectorAll('span.word'));
   const lyricSpans = Array.from(lineEl.children).filter((child) => isLyricSpanElement(child));
-  let trailingBarSpan = null;
-  let targetSpan = null;
-
-  for (let index = lyricSpans.length - 1; index >= 0; index -= 1) {
-    const span = lyricSpans[index];
-    if (cleanDisplayText(span.textContent) === '|') {
-      if (!trailingBarSpan) {
-        trailingBarSpan = span;
-      }
-      continue;
-    }
-
-    targetSpan = span;
-    break;
-  }
+  let targetSpan = wordSpans[wordSpans.length - 1] || null;
 
   if (!targetSpan && isLyricSpanElement(previousWord)) {
     targetSpan = previousWord;
   }
 
+  if (!targetSpan && lyricSpans.length > 0) {
+    targetSpan = lyricSpans[lyricSpans.length - 1];
+  }
+
   if (!targetSpan) {
     targetSpan = document.createElement('span');
     targetSpan.className = lyricSpans.length === 0 ? 'wordtop' : 'word';
-
-    if (trailingBarSpan) {
-      lineEl.insertBefore(targetSpan, trailingBarSpan);
-    } else {
-      lineEl.appendChild(targetSpan);
-    }
+    lineEl.appendChild(targetSpan);
   }
 
   const existingText = String(targetSpan.textContent || '');
-  const hadInlineBar = /\|\s*$/.test(existingText);
-  const baseText = existingText.replace(/\s*\|\s*$/, '').replace(/\s*$/, '');
-  const separator = baseText ? ' ' : '';
-  const needsBarSuffix = hadInlineBar || !trailingBarSpan;
+  const trimmedText = existingText.replace(/\s+$/, '');
 
-  targetSpan.textContent = `${baseText}${separator}${overflowText}${needsBarSuffix ? ' | ' : ''}`;
-
-  if (trailingBarSpan) {
-    trailingBarSpan.textContent = trailingBarSpan.classList.contains('wordtop') ? '| ' : ' | ';
+  if (/\|$/.test(trimmedText)) {
+    const textWithoutBar = trimmedText.replace(/\|+$/, '').replace(/\s+$/, '');
+    const separator = textWithoutBar ? ' ' : '';
+    targetSpan.textContent = `${textWithoutBar}${separator}${overflowText} | `;
+    return true;
   }
 
+  const separator = trimmedText ? ' ' : '';
+  targetSpan.textContent = `${trimmedText}${separator}${overflowText}`;
   return true;
 }
 
