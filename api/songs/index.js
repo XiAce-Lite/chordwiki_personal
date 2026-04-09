@@ -1,7 +1,7 @@
 const { CosmosClient } = require("@azure/cosmos");
 
-const endpoint = process.env.COSMOS_DB_ENDPOINT;
-const key = process.env.COSMOS_DB_KEY;
+const endpoint = process.env.COSMOS_ENDPOINT;
+const key = process.env.COSMOS_KEY;
 
 // 文字列は直書きでも動くが、後で変えたくなるので env 対応も入れておく
 const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
@@ -9,7 +9,7 @@ const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 
 // ここが空だと必ず落ちるので、早めにエラー化
 if (!endpoint || !key) {
-  throw new Error("Missing COSMOS_DB_ENDPOINT or COSMOS_DB_KEY in app settings");
+  throw new Error("Missing COSMOS_ENDPOINT or COSMOS_KEY in app settings");
 }
 
 const client = new CosmosClient({ endpoint, key });

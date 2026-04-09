@@ -2,6 +2,10 @@
   "name": "chordwiki-api",
   "private": true,
   "version": "1.0.0",
+  "scripts": {
+    "start": "func start",
+    "start:storage": "npx --yes azurite --silent --location ./.azurite --debug ./.azurite/debug.log"
+  },
   "dependencies": {
     "@azure/cosmos": "^4.0.0"
   }

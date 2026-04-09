@@ -11,8 +11,8 @@ const {
   calculateTotalLimit
 } = require("../shared/pagination");
 
-const endpoint = process.env.COSMOS_ENDPOINT || process.env.COSMOS_DB_ENDPOINT;
-const key = process.env.COSMOS_KEY || process.env.COSMOS_DB_KEY;
+const endpoint = process.env.COSMOS_ENDPOINT;
+const key = process.env.COSMOS_KEY;
 const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
 const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 
@@ -119,7 +119,7 @@ module.exports = async function (context, req) {
   if (!container) {
     context.res = jsonResponse(500, {
       error: "ServerConfigError",
-      detail: "Missing COSMOS_ENDPOINT/COSMOS_KEY (or COSMOS_DB_ENDPOINT/COSMOS_DB_KEY)."
+      detail: "Missing COSMOS_ENDPOINT or COSMOS_KEY."
     });
     return;
   }

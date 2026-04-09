@@ -1,7 +1,7 @@
 const { CosmosClient } = require("@azure/cosmos");
 
-const endpoint = process.env.COSMOS_DB_ENDPOINT; // ←SWAの設定と一致させる
-const key = process.env.COSMOS_DB_KEY;           // ←SWAの設定と一致させる
+const endpoint = process.env.COSMOS_ENDPOINT;
+const key = process.env.COSMOS_KEY;
 const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
 const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
 

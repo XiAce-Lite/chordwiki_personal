@@ -12,73 +12,70 @@
 
 本プロジェクトは、以下の Azure サービスを利用して構築されています。
 
-- Azure Static Web Apps  
-- Azure Functions（Static Web Apps 付属 API）  
-- Azure Cosmos DB（Core SQL / NoSQL）  
+- Azure Static Web Apps
+- Azure Functions（Static Web Apps 付属 API）
+- Azure Cosmos DB（Core SQL / NoSQL）
 
 ---
 
-## 1. Azure リソースの準備
+## この README の進め方
 
-### 1.1 Azure アカウント
+**最初からこの順で進めれば動きます。**
 
-- 個人の Azure アカウントを用意します
-- 無料枠（Free Tier）で構築可能です
-
----
-
-### 1.2 Azure Cosmos DB の作成
-
-1. Azure Portal で **Cosmos DB** を作成します  
-2. API は **Core (SQL / NoSQL)** を選択します  
-3. Free Tier を有効化します（推奨）  
-
-作成後、以下を設定します。
-
-#### データベース・コンテナ
-
-- **Database 名**：任意（例：`ChordWiki`）  
-- **Container 名**：任意（例：`Songs`）  
-- **Partition Key**：`/artist`  
-
-> 曲情報はドキュメントとして保存され、  
-> スキーマ制約はアプリケーション側で管理します。
+1. ローカルで必要なツールを入れる
+2. このリポジトリを取得する
+3. ローカルで frontend / API を起動して確認する
+4. Azure Cosmos DB を作成する
+5. GitHub に push する
+6. Azure Static Web Apps を作成して GitHub と連携する
+7. 環境変数と認証を設定する
+8. 曲データを登録して運用を開始する
 
 ---
 
-### 1.3 Cosmos DB 接続情報の取得
+## 0. 事前に用意するもの
 
-Cosmos DB → **Keys** 画面で、以下の値を控えます。
+### 必須
 
-- Endpoint URI  
-- Primary Key  
+- GitHub アカウント
+- 個人の Azure アカウント
+- Python 3.x
+- Node.js **20.x**
+- Azure Functions Core Tools **v4**
 
-これらは後続の Static Web Apps 設定で使用します。
+### 確認コマンド（Windows）
+
+```powershell
+python --version
+node -v
+func --version
+```
+
+> `func start` 後に `Node.js v16 reached EOL...` と出る場合は、Node.js が古いです。  
+> **Node 20.x に更新**してください。
+
+```powershell
+winget install OpenJS.NodeJS.20
+```
 
 ---
 
-## 2. GitHub リポジトリの準備
-
-### 2.1 リポジトリの取得
-
-以下のコマンドで、本リポジトリを取得します。
+## 1. リポジトリを取得する
 
 ```bash
 git clone <このリポジトリのURL>
+cd chordwiki_personal
 ```
 
-### 2.2 GitHub への push
-
-1. 自分の GitHub アカウント上に、新しいリポジトリを作成します  
-2. clone したソースコードを、そのリポジトリへ push します  
+自分の GitHub アカウント上に新しいリポジトリを作る場合は、この時点で `origin` を差し替えて push します。
 
 ---
 
-## 2.5 ローカル動作確認（commit / deploy 前）
+## 2. まずローカルで動作確認する
 
-GitHub へ push する前に、ローカル環境で表示と API の動作確認ができます。
+Azure に上げる前に、ローカルで表示と API を確認します。
 
-### 2.5.1 frontend をローカル配信
+### 2.1 frontend をローカル配信
 
 ```bash
 cd frontend
@@ -89,19 +86,75 @@ python -m http.server 8080
 
 - `http://localhost:8080`
 
-### 2.5.2 API をローカル起動
+### 2.2 `func` コマンドがない場合（Windows）
 
-別ターミナルで以下を実行します。
+#### 方法1: `winget`
+
+```powershell
+winget search "Functions Core Tools"
+winget install Microsoft.Azure.FunctionsCoreTools
+```
+
+#### 方法2: `npm`
+
+```powershell
+npm install -g azure-functions-core-tools@4 --unsafe-perm true
+```
+
+#### 方法3: 公式 MSI
+
+- `https://learn.microsoft.com/ja-jp/azure/azure-functions/functions-run-local#install-the-azure-functions-core-tools`
+
+### 2.3 API で使うローカル設定を用意
+
+`api/local.settings.json` を作成し、**`COSMOS_ENDPOINT` と `COSMOS_KEY` は手動入力**します。
+
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "COSMOS_ENDPOINT": "<Cosmos DB Endpoint>",
+    "COSMOS_KEY": "<Cosmos DB Primary Key>",
+    "COSMOS_DB_NAME": "ChordWiki",
+    "COSMOS_DB_CONTAINER": "Songs"
+  }
+}
+```
+
+> `api/local.settings.json` はキー情報を含むため、**GitHub にコミットしません**。
+
+### 2.4 依存関係をインストール
 
 ```bash
 cd api
 npm install
+```
+
+### 2.5 Azurite を起動
+
+`AzureWebJobsStorage` の警告を避けるため、先に Azurite を起動します。
+
+```bash
+cd api
+npm run start:storage
+```
+
+### 2.6 Azure Functions を起動
+
+別ターミナルで:
+
+```bash
+cd api
 func start
 ```
 
-既定では Azure Functions は `http://localhost:7071` で起動します。
+既定では、以下で起動します。
 
-### 2.5.3 フロントとの接続
+- `http://localhost:7071`
+
+### 2.7 フロントとの接続
 
 `frontend/js/runtime-config.js` により、以下の条件ではフロントが自動的にローカル API を参照します。
 
@@ -110,115 +163,153 @@ func start
 
 この場合、`/api/...` への呼び出しは自動で `http://localhost:7071/api/...` に向きます。
 
-### 2.5.4 API なしで表示・検索だけ試す
+### 2.8 API なしで UI だけ試す場合
 
-Azure Functions や Cosmos DB をまだ起動していない場合でも、トップページは `frontend/.local/local-test-songs.js` のテストデータへ自動フォールバックします。
+Azure Functions や Cosmos DB をまだ起動していない場合でも、
+トップページは `frontend/.local/local-test-songs.js` の
+テストデータへ自動フォールバックします。
+
+ローカル配信だけで、以下を確認できます。
 
 - ランキング表示
 - 曲名 / アーティスト検索
 - タグ検索とサジェスト
 
-をローカル配信 (`file://` / `http://localhost:*`) だけで確認できます。
-
-テスト内容を増やしたい場合は、`frontend/.local/local-test-songs.js` の `title` / `artist` / `tags` / `score` を編集してください。
-
-> 補足  
->
-> - `/.auth/me` はローカル HTTP 配信では利用できないため、editor 権限の表示は未ログイン扱いになります  
-> - Cosmos DB を使う機能は、`COSMOS_ENDPOINT` などの環境変数が未設定だと 500/設定エラーになります
+> `/.auth/me` はローカル HTTP 配信では使えないため、editor 権限表示は未ログイン扱いです。
 
 ---
 
-## 3. Azure Static Web Apps の作成
+## 3. Azure Cosmos DB を作成する
 
-### 3.1 Static Web Apps の作成
+Azure Portal で **Cosmos DB** を作成します。
 
-Azure Portal で **Static Web Apps** を作成し、以下を指定します。
+### 設定の目安
 
-- **プラン**：Free または Standard  
-- **ソース**：GitHub  
-- **リポジトリ**：上記で作成したもの  
-- **ブランチ**：`main` など  
+- API: **Core (SQL / NoSQL)**
+- Free Tier: **有効化推奨**
+- Database 名: `ChordWiki`
+- Container 名: `Songs`
+- Partition Key: `/artist`
 
-#### ビルド設定
+作成後、**Keys** 画面から以下を控えます。
 
-- **App location**：`frontend`  
-- **API location**：`api`  
-- **Output location**：空欄（ビルドなし）  
+- Endpoint URI
+- Primary Key
 
-保存すると、GitHub Actions による自動デプロイが設定されます。
-
----
-
-### 3.2 初回デプロイの確認
-
-- GitHub Actions が正常に完了することを確認します  
-- Static Web Apps に割り当てられた URL へアクセスできることを確認します  
+これらを Static Web Apps の環境変数に設定します。
 
 ---
 
-## 4. Static Web Apps の設定
+## 4. GitHub に push する
 
-### 4.1 環境変数の設定（必須）
+1. 自分の GitHub アカウントで新しいリポジトリを作成
+2. このソースコードを push
 
-Static Web Apps → **Configuration** → Application settings に  
-以下の環境変数を追加します。
+```bash
+git remote set-url origin <自分のGitHubリポジトリURL>
+git push -u origin main
+```
+
+---
+
+## 5. Azure Static Web Apps を作成する
+
+Azure Portal で **Static Web Apps** を作成し、GitHub リポジトリと連携します。
+
+### 指定値
+
+- プラン: `Free` または `Standard`
+- ソース: `GitHub`
+- リポジトリ: 上で push したもの
+- ブランチ: `main`
+
+### ビルド設定
+
+- **App location**: `frontend`
+- **API location**: `api`
+- **Output location**: 空欄
+
+保存すると、GitHub Actions による自動デプロイが構成されます。
+
+---
+
+## 6. Static Web Apps の設定を入れる
+
+### 6.1 環境変数（必須）
+
+Static Web Apps → **Configuration** → **Application settings** に、以下を追加します。
 
 | 変数名 | 内容 |
-| ------ | ------ |
+| ------ | ---- |
 | `COSMOS_ENDPOINT` | Cosmos DB Endpoint |
 | `COSMOS_KEY` | Cosmos DB Primary Key |
 | `COSMOS_DB_NAME` | Database 名 |
 | `COSMOS_DB_CONTAINER` | Container 名 |
 
-> **注意**  
->
-> - 本番環境・プレビュー環境それぞれに設定が必要です  
-> - 設定後、Static Web Apps は自動的に再デプロイされます  
+> 本番環境・プレビュー環境それぞれに設定が必要です。  
+> 設定後は自動で再デプロイされます。
 
----
-
-### 4.2 認証の有効化
+### 6.2 認証を有効化
 
 Static Web Apps → **Authentication** から認証を有効化します。
 
-- 任意の認証プロバイダ（Microsoft / GitHub など）を設定します  
-- 認証有効化後、未ログイン状態ではログイン画面へ誘導されます  
+- 本プロジェクトでは **Microsoft アカウント認証** を想定します
+- 想定しているのは **Windows サインインにも使う個人の Microsoft アカウント** です
 
 ---
 
-## 5. データ登録と運用
+## 7. 初回デプロイを確認する
 
-### 5.1 曲データの登録
+- GitHub Actions が正常に完了すること
+- Static Web Apps の URL にアクセスできること
+- ログイン後に曲一覧・曲詳細が表示できること
 
-- Web UI の編集画面から、曲とコード譜を登録します  
-- 管理用途として、Cosmos DB の Data Explorer から直接登録することも可能です  
-
----
-
-### 5.2 運用
-
-- ソースを修正し GitHub に push します  
-- GitHub Actions により Azure 環境へ自動デプロイされます  
-- 曲データは Cosmos DB に保持され続けます  
+を確認します。
 
 ---
 
-## 6. 使用しない Azure サービス
+## 8. 曲データを登録して運用開始
+
+### 曲データの登録方法
+
+- Web UI の編集画面から登録
+- 必要なら Cosmos DB Data Explorer から直接登録
+
+### 運用方法
+
+- ソース修正後に GitHub へ push
+- GitHub Actions により自動デプロイ
+- 曲データは Cosmos DB に保持され続ける
+
+---
+
+## ローカル専用でコミットしないもの
+
+以下はローカル専用です。
+
+- `api/local.settings.json`
+- `api/.azurite/`
+- `node_modules/`
+
+---
+
+## 使用しない Azure サービス
 
 本プロジェクトでは、以下の Azure サービスは使用しません。
 
-- Azure App Service  
-- Azure API Management  
-- Azure SQL Database  
-- Azure Storage Blob  
-- CDN（Static Web Apps に内包）  
+- Azure App Service
+- Azure API Management
+- Azure SQL Database
+- Azure Storage Blob
+- CDN（Static Web Apps に内包）
 
 ---
 
 ## まとめ
 
-- 自作コード譜を **個人用 Web サイト**として構築する構成です  
-- データはすべて自前の Azure Cosmos DB に保存されます  
-- 表示・API・デプロイは Azure Static Web Apps に集約されています  
-- GitHub に push するだけで継続運用が可能です  
+- **ローカル確認 → Cosmos DB 作成 → GitHub push →**
+  **Static Web Apps 作成 → 環境変数設定**
+  の順で進めれば動きます
+- データは Azure Cosmos DB に保存されます
+- 表示・API・デプロイは Azure Static Web Apps に集約されています
+- GitHub に push するだけで継続運用が可能です
