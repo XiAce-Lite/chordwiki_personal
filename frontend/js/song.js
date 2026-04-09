@@ -1689,9 +1689,9 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
     }
   }
 
-  const rawSearchTitle = String(displayTitle || song?.title || '').trim();
+  const rawSearchTitle = String(song?.title || '').trim();
   const searchTitle = stripParenthesizedTitleText(rawSearchTitle);
-  const searchArtist = String(displayArtist || song?.artist || '').trim();
+  const searchArtist = String(song?.artist || '').trim();
   const searchQuery = [searchTitle, searchArtist].filter(Boolean).join(' ');
 
   if (youtubeSearchButton) {
@@ -2101,9 +2101,9 @@ async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayA
     return;
   }
 
-  const rawTitle = String(displayTitle || song?.title || '').trim();
+  const rawTitle = String(song?.title || '').trim();
   const title = stripParenthesizedTitleText(rawTitle);
-  const artist = String(displayArtist || song?.artist || '').trim();
+  const artist = String(song?.artist || '').trim();
   if (!title || !artist) {
     return;
   }
