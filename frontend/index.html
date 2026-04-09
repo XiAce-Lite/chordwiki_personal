@@ -10,6 +10,19 @@
       text-align: center;
       margin: 20px;
     }
+    .page-title {
+      margin-bottom: 16px;
+    }
+    .home-link {
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .home-link:hover {
+      color: #0b65c2;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
     .search-panel {
       max-width: 760px;
       margin: 0 auto 10px;
@@ -56,6 +69,30 @@
       margin: 8px 0 0;
       font-size: 12px;
       color: #666;
+    }
+    .search-state {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #5f6b7a;
+    }
+    .search-state-text {
+      min-width: 0;
+    }
+    .search-clear {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: #0b65c2;
+      font: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .search-clear:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
     .search-suggest {
       position: absolute;
@@ -224,7 +261,7 @@
   </style>
 </head>
 <body>
-  <h1>ChordWiki Personal</h1>
+  <h1 class="page-title"><a id="home-link" class="home-link" href="/">ChordWiki Personal</a></h1>
   <button id="add-button" class="editor-only" data-display="inline-block" style="margin-bottom:16px;padding:10px 18px;font-size:16px;border:none;border-radius:4px;background-color:#0078d4;color:#fff;cursor:pointer;">新規追加</button>
   <div class="search-panel">
     <form id="search-form" class="search-form">
@@ -239,6 +276,10 @@
       <button type="submit" id="search-button">検索</button>
     </form>
     <p id="search-help" class="search-help">※ 曲名 / アーティスト検索は 1ワードのみ対応します。半角スペースで区切っても AND/OR 検索はしません。<code>"..."</code> で完全一致です。タグ検索はセレクトで切り替え、完全一致で実行します。</p>
+    <div id="search-state" class="search-state" hidden>
+      <span id="search-state-text" class="search-state-text"></span>
+      <button id="search-clear" class="search-clear" type="button">✕ クリア</button>
+    </div>
   </div>
   <div id="song-list"></div>
   <div id="pagination" aria-label="Ranking pages"></div>
@@ -261,6 +302,10 @@
     const searchTarget = document.getElementById('search-target');
     const searchHelp = document.getElementById('search-help');
     const searchSuggest = document.getElementById('search-suggest');
+    const searchState = document.getElementById('search-state');
+    const searchStateText = document.getElementById('search-state-text');
+    const searchClear = document.getElementById('search-clear');
+    const homeLink = document.getElementById('home-link');
     let suggestRequestSerial = 0;
     let suggestHideTimer = 0;
 
@@ -294,6 +339,7 @@
 
     function updatePageUrl(page, query = '', target = SONG_SEARCH_TARGET) {
       const url = new URL(window.location.href);
+      const safePage = clampPage(page);
       const safeQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
 
@@ -303,13 +349,18 @@
         url.searchParams.delete('q');
       }
 
-      if (safeTarget === TAG_SEARCH_TARGET) {
+      if (safeTarget === TAG_SEARCH_TARGET && safeQuery) {
         url.searchParams.set('target', safeTarget);
       } else {
         url.searchParams.delete('target');
       }
 
-      url.searchParams.set('page', String(page));
+      if (safePage > 1) {
+        url.searchParams.set('page', String(safePage));
+      } else {
+        url.searchParams.delete('page');
+      }
+
       window.history.replaceState({}, '', url);
     }
 
@@ -398,6 +449,43 @@
           renderTagSuggestions([], safeQuery);
         }
       }
+    }
+
+    function getSearchModeLabel(target = SONG_SEARCH_TARGET) {
+      return normalizeSearchTarget(target) === TAG_SEARCH_TARGET ? 'タグ' : '曲名/アーティスト';
+    }
+
+    function updateSearchState(query = '', target = SONG_SEARCH_TARGET) {
+      if (!searchState || !searchStateText) {
+        return;
+      }
+
+      const safeQuery = String(query || '').trim();
+      if (!safeQuery) {
+        searchState.hidden = true;
+        searchStateText.textContent = '';
+        return;
+      }
+
+      searchStateText.textContent = `検索条件：${getSearchModeLabel(target)} ${safeQuery}`;
+      searchState.hidden = false;
+    }
+
+    function resetToHome() {
+      hideTagSuggestions();
+
+      if (searchInput) {
+        searchInput.value = '';
+      }
+
+      if (searchTarget) {
+        searchTarget.value = SONG_SEARCH_TARGET;
+      }
+
+      updateSearchUiForTarget(SONG_SEARCH_TARGET);
+      updateSearchState('', SONG_SEARCH_TARGET);
+      updatePageUrl(1, '', SONG_SEARCH_TARGET);
+      loadSongs(1, '', SONG_SEARCH_TARGET);
     }
 
     function updateSearchUiForTarget(target = SONG_SEARCH_TARGET) {
@@ -584,6 +672,7 @@
       }
 
       updateSearchUiForTarget(safeTarget);
+      updateSearchState(appliedQuery, safeTarget);
       songList.textContent = 'Loading...';
 
       try {
@@ -617,6 +706,19 @@
       event.preventDefault();
       hideTagSuggestions();
       loadSongs(1, searchInput.value, searchTarget?.value);
+    });
+
+    searchClear?.addEventListener('click', () => {
+      resetToHome();
+    });
+
+    homeLink?.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      event.preventDefault();
+      resetToHome();
     });
 
     searchTarget?.addEventListener('change', () => {
