@@ -7,132 +7,6 @@
   <link rel="stylesheet" href="css/chordwiki-song.css" />
 </head>
 <body>
-  <div id="autoscroll-ui" class="autoscroll-ui" aria-label="Song controls">
-    <div class="autoscroll-header">
-      <div class="autoscroll-header-main">
-        <div class="autoscroll-title">Song Controls</div>
-        <div id="autoscroll-status" class="autoscroll-status" aria-live="polite">Stopped</div>
-      </div>
-      <button id="autoscroll-collapse-toggle" class="autoscroll-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song controls">≫</button>
-    </div>
-
-    <section class="control-section" aria-labelledby="transpose-section-title">
-      <div id="transpose-section-title" class="control-section-title">移調</div>
-      <div id="transpose-ui" class="transpose-ui">
-        <div class="transpose-buttons">
-          <button id="transpose-down" type="button">-</button>
-          <span id="transpose-display">Transpose: 0</span>
-          <button id="transpose-up" type="button">+</button>
-          <button id="transpose-reset" type="button">Reset</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="control-section" aria-labelledby="notation-section-title">
-      <div id="notation-section-title" class="control-section-title">表記</div>
-      <fieldset class="transpose-mode" aria-label="Accidental display mode">
-        <legend class="sr-only">Accidental display mode</legend>
-        <label class="transpose-mode-option">
-          <input type="radio" name="accidental-mode" value="sharp" />
-          <span>♯</span>
-        </label>
-        <label class="transpose-mode-option">
-          <input type="radio" name="accidental-mode" value="none" checked />
-          <span>指定なし</span>
-        </label>
-        <label class="transpose-mode-option">
-          <input type="radio" name="accidental-mode" value="flat" />
-          <span>♭</span>
-        </label>
-      </fieldset>
-    </section>
-
-    <section class="control-section" aria-labelledby="autoscroll-section-title">
-      <div id="autoscroll-section-title" class="control-section-title">オートスクロール</div>
-      <div class="autoscroll-duration">
-        <label for="autoscroll-minutes">
-          <input id="autoscroll-minutes" type="number" min="0" max="999" step="1" value="4" inputmode="numeric" />
-        </label>
-        <span class="autoscroll-separator">:</span>
-        <label for="autoscroll-seconds" aria-label="Seconds">
-          <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
-        </label>
-        <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
-      </div>
-
-      <div class="autoscroll-presets" aria-label="Time presets">
-        <button type="button" class="autoscroll-preset" data-minutes="2" data-seconds="30">2:30</button>
-        <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="0">3:00</button>
-        <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
-        <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
-      </div>
-
-      <div class="autoscroll-buttons">
-        <button id="autoscroll-toggle" type="button">Start</button>
-        <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
-      </div>
-    </section>
-
-    <section id="display-custom-section" class="control-section display-custom-section" aria-labelledby="display-section-title">
-      <div class="control-section-heading">
-        <div id="display-section-title" class="control-section-title">表示カスタマイズ</div>
-        <button id="display-custom-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse display customization">▼</button>
-      </div>
-
-      <div id="display-custom-detail" class="display-custom-detail">
-        <label class="display-toggle-option" for="display-custom-enabled">
-          <input id="display-custom-enabled" type="checkbox" />
-          <span>カスタマイズを有効化</span>
-        </label>
-
-        <div class="display-toggle-option display-toggle-option-with-help">
-          <input id="display-adjust-chordpos" type="checkbox" />
-          <label for="display-adjust-chordpos" class="display-toggle-label">長いコード時の歌詞位置調整</label>
-          <span class="display-help">
-            <button type="button" class="display-help-button" aria-label="長いコード時の歌詞位置調整の説明">?</button>
-            <span class="display-help-tooltip" role="tooltip">テンションノートなどが多いコードの場合、歌詞が大幅に右になる場合に、左に少し詰めます。</span>
-          </span>
-        </div>
-
-        <div class="display-toggle-option display-toggle-option-with-help">
-          <input id="display-mnoto-enabled" type="checkbox" />
-          <label for="display-mnoto-enabled" class="display-toggle-label">MNoto Sans フォント対応</label>
-          <span class="display-help">
-            <button type="button" class="display-help-button" aria-label="MNoto Sans フォント対応の説明">?</button>
-            <span class="display-help-tooltip" role="tooltip">
-              MNoto Sans V2フォントをインストールしてある環境で、コード表示にそのフォントを使用します。
-              <a href="https://github.com/ykwe/MNoto-Sans-alpha" target="_blank" rel="noopener noreferrer">ダウンロードはこちら</a>
-            </span>
-          </span>
-        </div>
-
-        <label class="display-toggle-option" for="display-lyric-weight">
-          <input id="display-lyric-weight" type="checkbox" />
-          <span>歌詞行太字</span>
-        </label>
-
-        <label class="display-toggle-option" for="display-comment-weight">
-          <input id="display-comment-weight" type="checkbox" />
-          <span>コメント行太字</span>
-        </label>
-
-        <div class="display-number-grid">
-          <label for="display-chord-font-size">記号サイズ(px)</label>
-          <input id="display-chord-font-size" type="number" min="6" max="18" step="1" value="14" inputmode="numeric" />
-
-          <label for="display-chord-offset">記号縦位置(px)</label>
-          <input id="display-chord-offset" type="number" min="-3" max="10" step="1" value="7" inputmode="numeric" />
-
-          <label for="display-lyric-gap">歌詞行の間隔(px)</label>
-          <input id="display-lyric-gap" type="number" min="8" max="32" step="1" value="15" inputmode="numeric" />
-
-          <label for="display-comment-gap">コメント行の間隔(px)</label>
-          <input id="display-comment-gap" type="number" min="8" max="32" step="1" value="16" inputmode="numeric" />
-        </div>
-      </div>
-    </section>
-  </div>
-
   <div class="container">
     <div class="song-header">
       <a href="/" class="back-link">← Top</a>
@@ -156,34 +30,162 @@
           <a href="/" class="back-link back-link-bottom">← Top</a>
         </div>
       </div>
+
+      <div class="song-side-column">
+        <div id="autoscroll-ui" class="autoscroll-ui" aria-label="Song controls">
+          <div class="autoscroll-header">
+            <div class="autoscroll-header-main">
+              <div class="autoscroll-title">Song Controls</div>
+              <div id="autoscroll-status" class="autoscroll-status" aria-live="polite">Stopped</div>
+            </div>
+            <button id="autoscroll-collapse-toggle" class="autoscroll-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song controls">≫</button>
+          </div>
+
+        <section class="control-section" aria-labelledby="transpose-section-title">
+          <div id="transpose-section-title" class="control-section-title">移調</div>
+          <div id="transpose-ui" class="transpose-ui">
+            <div class="transpose-buttons">
+              <button id="transpose-down" type="button">-</button>
+              <span id="transpose-display">Transpose: 0</span>
+              <button id="transpose-up" type="button">+</button>
+              <button id="transpose-reset" type="button">Reset</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-section" aria-labelledby="notation-section-title">
+          <div id="notation-section-title" class="control-section-title">表記</div>
+          <fieldset class="transpose-mode" aria-label="Accidental display mode">
+            <legend class="sr-only">Accidental display mode</legend>
+            <label class="transpose-mode-option">
+              <input type="radio" name="accidental-mode" value="sharp" />
+              <span>♯</span>
+            </label>
+            <label class="transpose-mode-option">
+              <input type="radio" name="accidental-mode" value="none" checked />
+              <span>指定なし</span>
+            </label>
+            <label class="transpose-mode-option">
+              <input type="radio" name="accidental-mode" value="flat" />
+              <span>♭</span>
+            </label>
+          </fieldset>
+        </section>
+
+        <section class="control-section" aria-labelledby="autoscroll-section-title">
+          <div id="autoscroll-section-title" class="control-section-title">オートスクロール</div>
+          <div class="autoscroll-duration">
+            <label for="autoscroll-minutes">
+              <input id="autoscroll-minutes" type="number" min="0" max="999" step="1" value="4" inputmode="numeric" />
+            </label>
+            <span class="autoscroll-separator">:</span>
+            <label for="autoscroll-seconds" aria-label="Seconds">
+              <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
+            </label>
+            <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
+          </div>
+
+          <div class="autoscroll-presets" aria-label="Time presets">
+            <button type="button" class="autoscroll-preset" data-minutes="2" data-seconds="30">2:30</button>
+            <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="0">3:00</button>
+            <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
+            <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
+          </div>
+
+          <div class="autoscroll-buttons">
+            <button id="autoscroll-toggle" type="button">Start</button>
+            <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
+          </div>
+        </section>
+
+        <section id="display-custom-section" class="control-section display-custom-section" aria-labelledby="display-section-title">
+          <div class="control-section-heading">
+            <div id="display-section-title" class="control-section-title">表示カスタマイズ</div>
+            <button id="display-custom-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse display customization">▼</button>
+          </div>
+
+          <div id="display-custom-detail" class="display-custom-detail">
+            <label class="display-toggle-option" for="display-custom-enabled">
+              <input id="display-custom-enabled" type="checkbox" />
+              <span>カスタマイズを有効化</span>
+            </label>
+
+            <div class="display-toggle-option display-toggle-option-with-help">
+              <input id="display-adjust-chordpos" type="checkbox" />
+              <label for="display-adjust-chordpos" class="display-toggle-label">長いコード時の歌詞位置調整</label>
+              <span class="display-help">
+                <button type="button" class="display-help-button" aria-label="長いコード時の歌詞位置調整の説明">?</button>
+                <span class="display-help-tooltip" role="tooltip">テンションノートなどが多いコードの場合、歌詞が大幅に右になる場合に、左に少し詰めます。</span>
+              </span>
+            </div>
+
+            <div class="display-toggle-option display-toggle-option-with-help">
+              <input id="display-mnoto-enabled" type="checkbox" />
+              <label for="display-mnoto-enabled" class="display-toggle-label">MNoto Sans フォント対応</label>
+              <span class="display-help">
+                <button type="button" class="display-help-button" aria-label="MNoto Sans フォント対応の説明">?</button>
+                <span class="display-help-tooltip" role="tooltip">
+                  MNoto Sans V2フォントをインストールしてある環境で、コード表示にそのフォントを使用します。
+                  <a href="https://github.com/ykwe/MNoto-Sans-alpha" target="_blank" rel="noopener noreferrer">ダウンロードはこちら</a>
+                </span>
+              </span>
+            </div>
+
+            <label class="display-toggle-option" for="display-lyric-weight">
+              <input id="display-lyric-weight" type="checkbox" />
+              <span>歌詞行太字</span>
+            </label>
+
+            <label class="display-toggle-option" for="display-comment-weight">
+              <input id="display-comment-weight" type="checkbox" />
+              <span>コメント行太字</span>
+            </label>
+
+            <div class="display-number-grid">
+              <label for="display-chord-font-size">記号サイズ(px)</label>
+              <input id="display-chord-font-size" type="number" min="6" max="18" step="1" value="14" inputmode="numeric" />
+
+              <label for="display-chord-offset">記号縦位置(px)</label>
+              <input id="display-chord-offset" type="number" min="-3" max="10" step="1" value="7" inputmode="numeric" />
+
+              <label for="display-lyric-gap">歌詞行の間隔(px)</label>
+              <input id="display-lyric-gap" type="number" min="8" max="32" step="1" value="15" inputmode="numeric" />
+
+              <label for="display-comment-gap">コメント行の間隔(px)</label>
+              <input id="display-comment-gap" type="number" min="8" max="32" step="1" value="16" inputmode="numeric" />
+            </div>
+          </div>
+        </section>
+        </div>
+
+        <aside id="song-extras-ui" class="song-extras-ui" aria-label="Song extras" hidden>
+          <div class="song-extras-header">
+            <div class="song-extras-title">Tags / YouTube</div>
+            <button id="song-extras-collapse-toggle" class="song-extras-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song extras">≫</button>
+          </div>
+
+          <section id="song-tags-block" class="song-side-block" hidden>
+            <button id="song-tags-header" type="button" class="song-side-header-button">
+              <span class="song-side-title">Tags</span>
+              <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
+            </button>
+            <div id="song-tags" class="song-tags"></div>
+          </section>
+
+          <section id="song-youtube-block" class="song-side-block" hidden>
+            <div class="song-side-header">
+              <button id="song-youtube-header" type="button" class="song-side-header-button">
+                <span class="song-side-title">YouTube</span>
+                <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
+              </button>
+              <button id="youtube-search-button" type="button" class="youtube-search-button">YouTubeで検索</button>
+            </div>
+            <div id="song-youtube-list" class="song-youtube-list"></div>
+          </section>
+        </aside>
+      </div>
     </div>
   </div>
-
-  <aside id="song-extras-ui" class="song-extras-ui" aria-label="Song extras" hidden>
-    <div class="song-extras-header">
-      <div class="song-extras-title">Tags / YouTube</div>
-      <button id="song-extras-collapse-toggle" class="song-extras-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song extras">≫</button>
-    </div>
-
-    <section id="song-tags-block" class="song-side-block" hidden>
-      <button id="song-tags-header" type="button" class="song-side-header-button">
-        <span class="song-side-title">Tags</span>
-        <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
-      </button>
-      <div id="song-tags" class="song-tags"></div>
-    </section>
-
-    <section id="song-youtube-block" class="song-side-block" hidden>
-      <div class="song-side-header">
-        <button id="song-youtube-header" type="button" class="song-side-header-button">
-          <span class="song-side-title">YouTube</span>
-          <span class="song-side-edit editor-only" data-display="inline-flex">Edit</span>
-        </button>
-        <button id="youtube-search-button" type="button" class="youtube-search-button">YouTubeで検索</button>
-      </div>
-      <div id="song-youtube-list" class="song-youtube-list"></div>
-    </section>
-  </aside>
 
   <div id="song-meta-modal" class="song-meta-modal" hidden>
     <div class="song-meta-dialog" role="dialog" aria-modal="true" aria-labelledby="song-meta-modal-title">

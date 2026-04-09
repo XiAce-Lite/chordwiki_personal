@@ -59,9 +59,9 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .container {
-  max-width: 980px;
+  max-width: 1380px;
   margin: 0 auto;
-  padding: 0 16px 40px;
+  padding: 0 16px 32px;
 }
 
 .song-header {
@@ -127,6 +127,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   justify-self: stretch;
   min-width: 0;
   margin: 0;
+  font-family: "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", "Noto Sans JP", "Segoe UI", sans-serif;
+  font-size: clamp(1.3rem, 1.12rem + 0.65vw, 1.6rem);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -152,24 +157,39 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .song-layout {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 22px;
 }
 
 .song-main-column {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 1 640px;
+  min-width: min(620px, 100%);
+}
+
+.song-side-column {
+  position: sticky;
+  top: 14px;
+  display: flex;
+  flex: 0 1 320px;
+  flex-direction: column;
+  align-self: flex-start;
+  gap: 14px;
+  width: min(320px, 100%);
+  min-width: min(280px, 100%);
 }
 
 .song-extras-ui {
-  position: fixed;
-  top: var(--song-extras-safe-top, 240px);
-  right: 14px;
+  position: static;
   z-index: 980;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: min(320px, calc(100vw - 28px));
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   padding: 12px 14px;
+  box-sizing: border-box;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
   background: rgba(247, 251, 255, 0.96);
@@ -565,16 +585,17 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .autoscroll-ui {
-  position: fixed;
-  top: 64px;
-  top: var(--autoscroll-safe-top, 64px);
-  right: 14px;
+  position: static;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: min(320px, calc(100vw - 28px));
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   padding: 12px 14px;
+  box-sizing: border-box;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
   background: rgba(247, 251, 255, 0.96);
@@ -1174,42 +1195,147 @@ body.is-dragging-marker * {
   margin: 0;
 }
 
-@media (max-width: 960px) {
-  .song-layout {
-    flex-direction: column;
+@media (max-width: 1180px) {
+  .song-main-column {
+    flex-basis: min(100%, 720px);
+    min-width: min(560px, 100%);
   }
 
-  .song-extras-ui {
+  .song-side-column {
+    flex-basis: 280px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 900px) {
+  :root {
+    --song-line-height: 1.58;
+  }
+
+  html[data-display-custom="on"] {
+    --song-line-height: 1.46;
+  }
+
+  .song-layout {
+    gap: 16px;
+  }
+
+  .song-main-column {
+    flex-basis: 100%;
+    min-width: 0;
+  }
+
+  .song-side-column {
+    flex: 1 1 100%;
+    min-width: 0;
     position: static;
-    width: auto;
-    margin: 16px;
   }
 }
 
 @media (max-width: 720px) {
   :root {
     --marker-safe-left: 4.5em;
+    --song-line-height: 1.68;
   }
 
-  .autoscroll-ui {
-    top: auto;
-    right: 10px;
-    bottom: 10px;
-    width: min(320px, calc(100vw - 20px));
+  html[data-display-custom="on"] {
+    --song-line-height: 1.52;
   }
 
   .container {
-    padding-bottom: 210px;
+    padding: 0 12px 28px;
   }
 
+  .song-layout {
+    gap: 14px;
+  }
+
+  .song-side-column {
+    gap: 12px;
+  }
+
+  .autoscroll-ui,
   .song-extras-ui {
-    right: 10px;
+    width: 100%;
+  }
+
+  .sheet-stage {
+    padding-bottom: clamp(120px, 18vh, 180px);
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --song-line-height: 1.78;
+  }
+
+  html[data-display-custom="on"] {
+    --song-line-height: 1.6;
+  }
+
+  .song-header {
+    gap: 8px;
+  }
+
+  .back-link {
+    margin-left: 8px;
+    font-size: 13px;
+  }
+
+  .song-admin-actions {
+    margin-right: 8px;
+    gap: 6px;
+  }
+
+  .edit-link,
+  .delete-link {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  .autoscroll-ui,
+  .song-extras-ui {
+    padding: 10px 12px;
   }
 }
 
 @media (max-width: 480px) {
   :root {
     --marker-safe-left: 4.25em;
+    --song-line-height: 1.84;
+  }
+
+  html[data-display-custom="on"] {
+    --song-line-height: 1.66;
+  }
+
+  .song-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    row-gap: 8px;
+  }
+
+  .back-link {
+    grid-column: 1;
+    margin-left: 0;
+  }
+
+  .song-admin-actions {
+    grid-column: 2;
+    margin-right: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .song-title {
+    grid-column: 1 / -1;
+    font-size: 1.16rem;
+    line-height: 1.3;
+    text-align: left;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: break-word;
   }
 }
 
