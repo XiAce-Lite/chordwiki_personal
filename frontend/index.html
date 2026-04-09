@@ -31,7 +31,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      height: var(--top-header-height);
+      min-height: var(--top-header-height);
       max-width: 1160px;
       margin: 0 auto;
       padding: 0 14px;
@@ -116,6 +116,69 @@
       font-size: 12px;
       color: #5f6b7a;
       white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      :root {
+        --top-header-height: 124px;
+      }
+
+      body {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .top-header-inner {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 12px;
+      }
+
+      .page-title {
+        justify-self: start;
+        font-size: 1.1rem;
+      }
+
+      .search-panel {
+        width: 100%;
+      }
+
+      .search-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "target target"
+          "input button";
+        align-items: center;
+        gap: 8px;
+      }
+
+      #search-target {
+        grid-area: target;
+        width: 100%;
+      }
+
+      .search-input-wrap {
+        grid-area: input;
+        min-width: 0;
+      }
+
+      #search-button {
+        grid-area: button;
+        padding: 10px 14px;
+      }
+
+      .search-state {
+        display: flex;
+        justify-content: space-between;
+        max-width: none;
+        width: 100%;
+      }
+
+      #add-button {
+        justify-self: start;
+      }
     }
     .search-state-text {
       min-width: 0;
