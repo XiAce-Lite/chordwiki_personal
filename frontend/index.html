@@ -593,15 +593,14 @@
       const safeTarget = normalizeSearchTarget(target);
       paginationEl.innerHTML = '';
 
-      for (let p = 1; p <= MAX_PAGES; p += 1) {
+      for (let p = 1; p <= availablePages; p += 1) {
         const button = document.createElement('button');
-        const isUnavailable = p > availablePages;
         button.type = 'button';
         button.className = `page-button${p === page ? ' is-active' : ''}`;
         button.textContent = String(p);
-        button.disabled = p === page || isUnavailable;
+        button.disabled = p === page;
 
-        if (!isUnavailable) {
+        if (p !== page) {
           button.addEventListener('click', () => {
             loadSongs(p, appliedQuery, safeTarget);
           });
