@@ -1689,7 +1689,10 @@ function renderSongSideRail(song = {}, displayTitle = '', displayArtist = '') {
     }
   }
 
-  const searchQuery = String(displayTitle || song?.title || '').trim();
+  const rawSearchTitle = String(displayTitle || song?.title || '').trim();
+  const searchTitle = stripParenthesizedTitleText(rawSearchTitle);
+  const searchArtist = String(displayArtist || song?.artist || '').trim();
+  const searchQuery = [searchTitle, searchArtist].filter(Boolean).join(' ');
 
   if (youtubeSearchButton) {
     youtubeSearchButton.hidden = !searchQuery;
