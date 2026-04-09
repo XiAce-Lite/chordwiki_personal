@@ -36,6 +36,7 @@ const CHORD_ALLOWED_PATTERN = /^[A-G](#|b)?((?:m|M|maj|min|sus[0-9]*|add[0-9]*|d
 const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
 const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';
 const LOCAL_TEST_SONG_GLOBAL_KEY = '__LOCAL_TEST_SONG__';
+const LOCAL_TEST_SONG_LIBRARY_GLOBAL_KEY = '__LOCAL_TEST_SONG_LIBRARY__';
 const VOICE_MARKER_PATTERN = /[♠♣♥♦]/u;
 const VOICE_MARKER_CLASS_MAP = Object.freeze({
   '♠': 'male',
@@ -120,21 +121,29 @@ function getSongPrefsStorageKey(artist, id) {
   return `${SONG_PREFS_STORAGE_PREFIX}:${artist}:${id}`;
 }
 
+function buildApiUrl(path) {
+  return window.ChordWikiRuntime?.buildApiUrl?.(path) || path;
+}
+
 function buildSongApiUrl(artist, id) {
   const params = new URLSearchParams();
   params.set('artist', String(artist || '').trim());
   params.set('id', String(id || '').trim());
-  return `/api/song?${params.toString()}`;
+  return buildApiUrl(`/api/song?${params.toString()}`);
 }
 
 function buildEditSongApiUrl(artist, id) {
   const params = new URLSearchParams();
   params.set('artist', String(artist || '').trim());
   params.set('id', String(id || '').trim());
-  return `/api/edit/song?${params.toString()}`;
+  return buildApiUrl(`/api/edit/song?${params.toString()}`);
 }
 
 function isLocalFilePreview() {
+  if (window.ChordWikiRuntime?.isLocalPreview) {
+    return window.ChordWikiRuntime.isLocalPreview(window.location);
+  }
+
   return window.location.protocol === 'file:';
 }
 
@@ -1188,13 +1197,46 @@ function renderLoadedSong(song = {}, fallbackArtist = '', fallbackId = '') {
   return true;
 }
 
-async function loadLocalTestSongData() {
+function findMatchingLocalSong(source, artist = '', id = '') {
+  const requestedArtist = String(artist || '').trim();
+  const requestedId = String(id || '').trim();
+  const candidates = [];
+
+  if (Array.isArray(source?.songs)) {
+    candidates.push(...source.songs);
+  } else if (source && typeof source === 'object') {
+    candidates.push(source);
+  }
+
+  const usableSongs = candidates.filter((song) => song && typeof song === 'object');
+  if (usableSongs.length === 0) {
+    return null;
+  }
+
+  if (!requestedArtist && !requestedId) {
+    return usableSongs[0] || null;
+  }
+
+  return usableSongs.find((song) => {
+    const songArtist = String(song.artist || '').trim();
+    const songId = String(song.id || song.slug || '').trim();
+    return (!requestedArtist || songArtist === requestedArtist)
+      && (!requestedId || songId === requestedId);
+  }) || usableSongs.find((song) => String(song.id || song.slug || '').trim() === requestedId) || null;
+}
+
+async function loadLocalTestSongData(artist = '', id = '') {
   if (!isLocalFilePreview()) {
     return null;
   }
 
-  const existingSong = window[LOCAL_TEST_SONG_GLOBAL_KEY];
-  if (existingSong && typeof existingSong === 'object') {
+  const existingLibrarySong = findMatchingLocalSong(window[LOCAL_TEST_SONG_LIBRARY_GLOBAL_KEY], artist, id);
+  if (existingLibrarySong) {
+    return existingLibrarySong;
+  }
+
+  const existingSong = findMatchingLocalSong(window[LOCAL_TEST_SONG_GLOBAL_KEY], artist, id);
+  if (existingSong) {
     return existingSong;
   }
 
@@ -1204,18 +1246,21 @@ async function loadLocalTestSongData() {
       scriptEl.src = LOCAL_TEST_SONG_SCRIPT_PATH;
       scriptEl.async = true;
       scriptEl.dataset.localTestSong = 'true';
-      scriptEl.onload = () => resolve(window[LOCAL_TEST_SONG_GLOBAL_KEY] || null);
-      scriptEl.onerror = () => resolve(null);
+      scriptEl.onload = () => resolve(true);
+      scriptEl.onerror = () => resolve(false);
       document.head.appendChild(scriptEl);
     });
   }
 
-  const localSong = await localTestSongState.scriptPromise;
-  return localSong && typeof localSong === 'object' ? localSong : null;
+  await localTestSongState.scriptPromise;
+
+  return findMatchingLocalSong(window[LOCAL_TEST_SONG_LIBRARY_GLOBAL_KEY], artist, id)
+    || findMatchingLocalSong(window[LOCAL_TEST_SONG_GLOBAL_KEY], artist, id)
+    || null;
 }
 
 async function tryRenderLocalTestSong(artist = '', id = '') {
-  const localSong = await loadLocalTestSongData();
+  const localSong = await loadLocalTestSongData(artist, id);
   if (!localSong) {
     return false;
   }
@@ -1232,7 +1277,7 @@ function trackSongView(artist, id) {
     return;
   }
 
-  fetch(`/api/songs/${encodeURIComponent(id)}/view`, {
+  fetch(buildApiUrl(`/api/songs/${encodeURIComponent(id)}/view`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
@@ -2064,7 +2109,7 @@ async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayA
   autoScrollEstimateState.inFlight = true;
 
   try {
-    const endpoint = `/api/youtube/search-duration?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`;
+    const endpoint = buildApiUrl(`/api/youtube/search-duration?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
     const response = await fetch(endpoint, { credentials: 'include' });
     if (!response.ok) {
       return;

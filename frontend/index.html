@@ -6,14 +6,15 @@
   <title>ChordWiki Personal</title>
   <style>
     :root {
-      --top-header-height: 64px;
+      --top-header-min-height: 64px;
+      --top-header-safe-space: 64px;
       --pagination-safe-space: 88px;
     }
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       margin: 0;
-      padding: calc(var(--top-header-height) + 12px) 20px calc(var(--pagination-safe-space) + env(safe-area-inset-bottom, 0px));
+      padding: calc(var(--top-header-safe-space) + 12px) 20px calc(var(--pagination-safe-space) + env(safe-area-inset-bottom, 0px));
       box-sizing: border-box;
       background: #f8fafc;
     }
@@ -31,7 +32,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      min-height: var(--top-header-height);
+      min-height: var(--top-header-min-height);
       max-width: 1160px;
       margin: 0 auto;
       padding: 0 14px;
@@ -119,7 +120,7 @@
     }
     @media (max-width: 640px) {
       :root {
-        --top-header-height: 124px;
+        --top-header-min-height: 124px;
       }
 
       body {
@@ -425,6 +426,7 @@
   </main>
   <div id="pagination" aria-label="Ranking pages"></div>
 
+  <script src="js/runtime-config.js"></script>
   <script src="js/auth.js"></script>
   <script>
     window.ChordWikiAuth?.applyRoleVisibility();
@@ -437,13 +439,15 @@
     const MIN_PAGE_SIZE = 20;
     const MAX_PAGE_SIZE = 60;
     const MAX_PAGES = 6;
-    const TOP_HEADER_MIN_HEIGHT = 72;
+    const TOP_HEADER_MIN_HEIGHT = 64;
     const PAGINATION_MIN_HEIGHT = 56;
     const PAGINATION_SAFE_MARGIN = 24;
     const SONG_ROW_HEIGHT = 56;
     const SONG_SEARCH_TARGET = 'song';
     const TAG_SEARCH_TARGET = 'tag';
     const TAG_SUGGEST_LIMIT = 10;
+    const LOCAL_TEST_SONGS_SCRIPT_PATH = './.local/local-test-songs.js';
+    const LOCAL_TEST_SONGS_GLOBAL_KEY = '__LOCAL_TEST_SONGS__';
     const searchInput = document.getElementById('search');
     const searchForm = document.getElementById('search-form');
     const searchTarget = document.getElementById('search-target');
@@ -457,6 +461,191 @@
     let suggestRequestSerial = 0;
     let suggestHideTimer = 0;
     let resizeDebounceTimer = 0;
+    const localTestSongsState = {
+      scriptPromise: null,
+      fallbackLogged: false
+    };
+
+    function buildApiUrl(path) {
+      return window.ChordWikiRuntime?.buildApiUrl?.(path) || path;
+    }
+
+    function isLocalPreview() {
+      return Boolean(window.ChordWikiRuntime?.isLocalPreview?.(window.location))
+        || window.location.protocol === 'file:'
+        || window.location.hostname === 'localhost'
+        || window.location.hostname === '127.0.0.1';
+    }
+
+    function normalizeText(value) {
+      return String(value || '').trim().toLocaleLowerCase('ja-JP');
+    }
+
+    function normalizeTags(tags) {
+      return Array.isArray(tags)
+        ? tags.map((tag) => String(tag || '').trim()).filter(Boolean)
+        : [];
+    }
+
+    function normalizeSearchQuery(value) {
+      const raw = String(value || '').trim();
+      if (!raw) {
+        return { raw: '', term: '', isExact: false };
+      }
+
+      const isExact = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
+      const term = (isExact ? raw.slice(1, -1) : raw).trim();
+      return { raw, term, isExact };
+    }
+
+    function getSongDisplayScore(song) {
+      const explicitDisplayScore = Number(song?.display_score);
+      if (Number.isFinite(explicitDisplayScore)) {
+        return explicitDisplayScore;
+      }
+
+      const baseScore = Number(song?.score);
+      return Number.isFinite(baseScore) ? baseScore : 0;
+    }
+
+    function compareSongsForRanking(a, b) {
+      const scoreDiff = getSongDisplayScore(b) - getSongDisplayScore(a);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      const titleDiff = String(a?.title || '').localeCompare(String(b?.title || ''), 'ja-JP', {
+        sensitivity: 'base',
+        numeric: true
+      });
+      if (titleDiff !== 0) {
+        return titleDiff;
+      }
+
+      return String(a?.artist || '').localeCompare(String(b?.artist || ''), 'ja-JP', {
+        sensitivity: 'base',
+        numeric: true
+      });
+    }
+
+    function matchesSearch(song, search, target = SONG_SEARCH_TARGET) {
+      const needle = normalizeText(search?.term);
+      if (!needle) {
+        return false;
+      }
+
+      if (normalizeSearchTarget(target) === TAG_SEARCH_TARGET) {
+        return normalizeTags(song?.tags).some((tag) => normalizeText(tag) === needle);
+      }
+
+      const title = normalizeText(song?.title);
+      const artist = normalizeText(song?.artist);
+
+      if (search?.isExact) {
+        return title === needle || artist === needle;
+      }
+
+      return title.includes(needle) || artist.includes(needle);
+    }
+
+    function collectTagSuggestions(songs, query, limit = TAG_SUGGEST_LIMIT) {
+      const needle = normalizeText(query);
+      if (!needle) {
+        return [];
+      }
+
+      const uniqueTags = new Set();
+      (songs || []).forEach((song) => {
+        normalizeTags(song?.tags).forEach((tag) => {
+          if (normalizeText(tag).startsWith(needle)) {
+            uniqueTags.add(tag);
+          }
+        });
+      });
+
+      return Array.from(uniqueTags)
+        .sort((a, b) => a.localeCompare(b, 'ja-JP', { sensitivity: 'base', numeric: true }))
+        .slice(0, limit);
+    }
+
+    function normalizeLocalSongSummary(song, index = 0) {
+      const fallbackId = `local-song-${index + 1}`;
+      const id = String(song?.id || fallbackId).trim() || fallbackId;
+      const title = String(song?.title || `Local Sample ${index + 1}`).trim() || `Local Sample ${index + 1}`;
+      const artist = String(song?.artist || 'Local Preview').trim();
+      const score = Number(song?.score);
+      const displayScore = Number(song?.display_score);
+
+      return {
+        id,
+        artist,
+        title,
+        slug: String(song?.slug || id).trim() || id,
+        tags: normalizeTags(song?.tags),
+        score: Number.isFinite(score) ? score : 0,
+        display_score: Number.isFinite(displayScore) ? displayScore : (Number.isFinite(score) ? score : 0),
+        last_viewed_at: song?.last_viewed_at || null
+      };
+    }
+
+    async function loadLocalTestSongsData() {
+      if (!isLocalPreview()) {
+        return [];
+      }
+
+      const readSongs = (source) => {
+        const rawSongs = Array.isArray(source)
+          ? source
+          : (Array.isArray(source?.songs) ? source.songs : []);
+
+        return rawSongs
+          .map((song, index) => normalizeLocalSongSummary(song, index))
+          .sort(compareSongsForRanking);
+      };
+
+      const existingSongs = readSongs(window[LOCAL_TEST_SONGS_GLOBAL_KEY]);
+      if (existingSongs.length > 0) {
+        return existingSongs;
+      }
+
+      if (!localTestSongsState.scriptPromise) {
+        localTestSongsState.scriptPromise = new Promise((resolve) => {
+          const scriptEl = document.createElement('script');
+          scriptEl.src = LOCAL_TEST_SONGS_SCRIPT_PATH;
+          scriptEl.async = true;
+          scriptEl.dataset.localTestSongs = 'true';
+          scriptEl.onload = () => resolve(window[LOCAL_TEST_SONGS_GLOBAL_KEY] || null);
+          scriptEl.onerror = () => resolve(null);
+          document.head.appendChild(scriptEl);
+        });
+      }
+
+      return readSongs(await localTestSongsState.scriptPromise);
+    }
+
+    async function buildLocalSongsPayload(page = 1, query = '', target = SONG_SEARCH_TARGET, pageSize = currentPageSize) {
+      const localSongs = await loadLocalTestSongsData();
+      if (!Array.isArray(localSongs) || localSongs.length === 0) {
+        return null;
+      }
+
+      const safePage = clampPage(page);
+      const safeTarget = normalizeSearchTarget(target);
+      const search = normalizeSearchQuery(query);
+      const filteredSongs = search.term
+        ? localSongs.filter((song) => matchesSearch(song, search, safeTarget))
+        : localSongs.slice();
+      const safePageSize = clampPageSize(pageSize);
+      const offset = (safePage - 1) * safePageSize;
+
+      return {
+        page: safePage,
+        pageSize: safePageSize,
+        totalSongs: filteredSongs.length,
+        songs: filteredSongs.slice(offset, offset + safePageSize),
+        isLocalFallback: true
+      };
+    }
 
     function normalizeSearchTarget(value) {
       return String(value || '').trim().toLowerCase() === TAG_SEARCH_TARGET ? TAG_SEARCH_TARGET : SONG_SEARCH_TARGET;
@@ -488,7 +677,7 @@
       const headerEl = document.querySelector('.top-header');
       const measuredHeight = headerEl ? headerEl.getBoundingClientRect().height : 0;
       const safeSpace = Math.max(TOP_HEADER_MIN_HEIGHT, Math.ceil(measuredHeight || TOP_HEADER_MIN_HEIGHT));
-      document.documentElement.style.setProperty('--top-header-height', `${safeSpace}px`);
+      document.documentElement.style.setProperty('--top-header-safe-space', `${safeSpace}px`);
       return safeSpace;
     }
 
@@ -632,7 +821,7 @@
 
       try {
         const response = await fetch(
-          `/api/songs/search?target=${encodeURIComponent(TAG_SEARCH_TARGET)}&suggest=1&q=${encodeURIComponent(safeQuery)}`,
+          buildApiUrl(`/api/songs/search?target=${encodeURIComponent(TAG_SEARCH_TARGET)}&suggest=1&q=${encodeURIComponent(safeQuery)}`),
           { credentials: 'include' }
         );
 
@@ -648,9 +837,21 @@
         renderTagSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : [], safeQuery);
       } catch (error) {
         console.error('Error loading tag suggestions:', error);
-        if (requestId === suggestRequestSerial) {
-          renderTagSuggestions([], safeQuery);
+        if (requestId !== suggestRequestSerial) {
+          return;
         }
+
+        const localSongs = await loadLocalTestSongsData();
+        if (localSongs.length > 0) {
+          if (!localTestSongsState.fallbackLogged) {
+            console.info('Using local test data for top-page preview because the API is unavailable.');
+            localTestSongsState.fallbackLogged = true;
+          }
+          renderTagSuggestions(collectTagSuggestions(localSongs, safeQuery), safeQuery);
+          return;
+        }
+
+        renderTagSuggestions([], safeQuery);
       }
     }
 
@@ -874,9 +1075,9 @@
       updateSearchState(appliedQuery, safeTarget);
 
       const { pageSize } = syncPageSizeWithViewport();
-      const endpoint = appliedQuery
+      const endpoint = buildApiUrl(appliedQuery
         ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${pageSize}`
-        : `/api/songs/ranking?page=${safePage}&pageSize=${pageSize}`;
+        : `/api/songs/ranking?page=${safePage}&pageSize=${pageSize}`);
 
       songList.textContent = 'Loading...';
 
@@ -890,6 +1091,7 @@
         }
 
         const payload = await response.json();
+        localTestSongsState.fallbackLogged = false;
         const songs = Array.isArray(payload.songs) ? payload.songs : [];
         const effectivePageSize = clampPageSize(payload.pageSize || pageSize);
         const totalSongs = Number.isFinite(Number(payload.totalSongs))
@@ -909,6 +1111,33 @@
         updatePageUrl(safePage, appliedQuery, safeTarget);
       } catch (error) {
         console.error('Error loading songs:', error);
+
+        const localPayload = await buildLocalSongsPayload(safePage, appliedQuery, safeTarget, pageSize);
+        if (localPayload) {
+          if (!localTestSongsState.fallbackLogged) {
+            console.info('Using local test data for top-page preview because the API is unavailable.');
+            localTestSongsState.fallbackLogged = true;
+          }
+
+          const effectivePageSize = clampPageSize(localPayload.pageSize || pageSize);
+          const totalSongs = Number.isFinite(Number(localPayload.totalSongs))
+            ? Number(localPayload.totalSongs)
+            : localPayload.songs.length;
+          const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(totalSongs / effectivePageSize)));
+
+          currentPageSize = effectivePageSize;
+
+          if (safePage > availablePages) {
+            loadSongs(availablePages, appliedQuery, safeTarget);
+            return;
+          }
+
+          renderSongs(localPayload.songs, safePage, appliedQuery, effectivePageSize);
+          renderPagination(safePage, totalSongs, appliedQuery, safeTarget, effectivePageSize);
+          updatePageUrl(safePage, appliedQuery, safeTarget);
+          return;
+        }
+
         songList.textContent = appliedQuery
           ? '検索結果の読み込みに失敗しました。'
           : 'ランキングの読み込みに失敗しました。';

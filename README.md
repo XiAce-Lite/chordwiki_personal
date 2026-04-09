@@ -74,6 +74,61 @@ git clone <このリポジトリのURL>
 
 ---
 
+## 2.5 ローカル動作確認（commit / deploy 前）
+
+GitHub へ push する前に、ローカル環境で表示と API の動作確認ができます。
+
+### 2.5.1 frontend をローカル配信
+
+```bash
+cd frontend
+python -m http.server 8080
+```
+
+ブラウザで以下を開きます。
+
+- `http://localhost:8080`
+
+### 2.5.2 API をローカル起動
+
+別ターミナルで以下を実行します。
+
+```bash
+cd api
+npm install
+func start
+```
+
+既定では Azure Functions は `http://localhost:7071` で起動します。
+
+### 2.5.3 フロントとの接続
+
+`frontend/js/runtime-config.js` により、以下の条件ではフロントが自動的にローカル API を参照します。
+
+- `file://` でページを開いたとき
+- `http://localhost:*` / `http://127.0.0.1:*` でページを開いたとき
+
+この場合、`/api/...` への呼び出しは自動で `http://localhost:7071/api/...` に向きます。
+
+### 2.5.4 API なしで表示・検索だけ試す
+
+Azure Functions や Cosmos DB をまだ起動していない場合でも、トップページは `frontend/.local/local-test-songs.js` のテストデータへ自動フォールバックします。
+
+- ランキング表示
+- 曲名 / アーティスト検索
+- タグ検索とサジェスト
+
+をローカル配信 (`file://` / `http://localhost:*`) だけで確認できます。
+
+テスト内容を増やしたい場合は、`frontend/.local/local-test-songs.js` の `title` / `artist` / `tags` / `score` を編集してください。
+
+> 補足  
+>
+> - `/.auth/me` はローカル HTTP 配信では利用できないため、editor 権限の表示は未ログイン扱いになります  
+> - Cosmos DB を使う機能は、`COSMOS_ENDPOINT` などの環境変数が未設定だと 500/設定エラーになります
+
+---
+
 ## 3. Azure Static Web Apps の作成
 
 ### 3.1 Static Web Apps の作成
@@ -110,13 +165,14 @@ Static Web Apps → **Configuration** → Application settings に
 以下の環境変数を追加します。
 
 | 変数名 | 内容 |
-|------|------|
+| ------ | ------ |
 | `COSMOS_ENDPOINT` | Cosmos DB Endpoint |
 | `COSMOS_KEY` | Cosmos DB Primary Key |
 | `COSMOS_DB_NAME` | Database 名 |
 | `COSMOS_DB_CONTAINER` | Container 名 |
 
 > **注意**  
+>
 > - 本番環境・プレビュー環境それぞれに設定が必要です  
 > - 設定後、Static Web Apps は自動的に再デプロイされます  
 

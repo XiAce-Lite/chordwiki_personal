@@ -48,12 +48,16 @@ function buildSongUrl(artist, id) {
   return `/song.html?artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
 }
 
+function buildApiUrl(path) {
+  return window.ChordWikiRuntime?.buildApiUrl?.(path) || path;
+}
+
 function buildSongApiUrl(artist, id) {
   const query = new URLSearchParams({
     artist: String(artist || '').trim(),
     id: String(id || '').trim()
   });
-  return `/api/song?${query.toString()}`;
+  return buildApiUrl(`/api/song?${query.toString()}`);
 }
 
 function buildEditSongApiUrl(artist, id) {
@@ -61,7 +65,7 @@ function buildEditSongApiUrl(artist, id) {
     artist: String(artist || '').trim(),
     id: String(id || '').trim()
   });
-  return `/api/edit/song?${query.toString()}`;
+  return buildApiUrl(`/api/edit/song?${query.toString()}`);
 }
 
 function showMessage(text, type = '') {
@@ -364,7 +368,7 @@ async function handleSubmit(event) {
   const isEdit = state.mode === 'edit';
   const endpoint = isEdit
     ? buildEditSongApiUrl(state.originalArtist, state.originalId)
-    : '/api/edit/song';
+    : buildApiUrl('/api/edit/song');
 
   state.isSubmitting = true;
   setFormDisabled(true);

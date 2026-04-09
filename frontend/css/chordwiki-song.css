@@ -1230,6 +1230,28 @@ body.is-dragging-marker * {
     min-width: 0;
     position: static;
   }
+
+  #sheet.cw-sheet {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 6px;
+  }
+
+  p.line {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    white-space: nowrap;
+  }
+
+  p.line span.word,
+  p.line span.wordtop,
+  p.line span.chord {
+    white-space: pre;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1262,6 +1284,7 @@ body.is-dragging-marker * {
   .sheet-stage {
     padding-bottom: clamp(120px, 18vh, 180px);
   }
+
 }
 
 @media (max-width: 560px) {
