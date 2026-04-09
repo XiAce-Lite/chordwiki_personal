@@ -528,7 +528,8 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .transpose-buttons,
 .autoscroll-duration,
-.autoscroll-buttons {
+.autoscroll-buttons,
+.autoscroll-speed-row {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -837,6 +838,35 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   white-space: nowrap;
 }
 
+.autoscroll-speed-display {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.8em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #edf5ff;
+  color: #0f4c81;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.autoscroll-speed-display[data-speed-state="slow"] {
+  background: #eef6ff;
+  color: #005a9c;
+}
+
+.autoscroll-speed-display[data-speed-state="fast"] {
+  background: #fff4e5;
+  color: #b54708;
+}
+
+.autoscroll-speed-hint {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #587189;
+}
+
 .autoscroll-separator {
   font-weight: 700;
   color: #4f647a;
@@ -875,7 +905,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .sheet-stage {
   position: relative;
   padding-left: var(--marker-safe-left);
-  padding-bottom: clamp(140px, 24vh, 220px);
+  padding-bottom: 30px;
   box-sizing: border-box;
 }
 

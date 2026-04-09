@@ -16,6 +16,16 @@
 
   const songs = [
     {
+      id: 'local-long-scroll-sample',
+      artist: 'Local Sample Choir',
+      title: '巡る灯りのロングロード',
+      slug: 'local-long-scroll-sample',
+      tags: ['local', 'long-scroll', 'sample', 'vertical', 'loop', 'practice'],
+      score: 42,
+      display_score: 41,
+      last_viewed_at: null
+    },
+    {
       id: 'local-long-line-test',
       artist: 'Local QA Band',
       title: 'スマホ幅テスト用ロング譜面 3ケース',

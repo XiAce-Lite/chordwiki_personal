@@ -76,11 +76,11 @@
           <div id="autoscroll-section-title" class="control-section-title">オートスクロール</div>
           <div class="autoscroll-duration">
             <label for="autoscroll-minutes">
-              <input id="autoscroll-minutes" type="number" min="0" max="999" step="1" value="4" inputmode="numeric" />
+              <input id="autoscroll-minutes" type="number" min="0" max="99" step="1" value="4" inputmode="numeric" />
             </label>
             <span class="autoscroll-separator">:</span>
             <label for="autoscroll-seconds" aria-label="Seconds">
-              <input id="autoscroll-seconds" type="number" min="0" max="59" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
+              <input id="autoscroll-seconds" type="number" min="-1" max="60" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
             </label>
             <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
           </div>
@@ -91,6 +91,14 @@
             <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
             <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
           </div>
+
+          <div class="autoscroll-speed-row" aria-label="Speed controls">
+            <button id="autoscroll-speed-down" type="button" aria-label="Slow down auto-scroll">－</button>
+            <span id="autoscroll-speed-display" class="autoscroll-speed-display" aria-live="polite">1.00x</span>
+            <button id="autoscroll-speed-up" type="button" aria-label="Speed up auto-scroll">＋</button>
+            <button id="autoscroll-speed-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll speed">↺ Speed</button>
+          </div>
+          <div class="autoscroll-speed-hint">再生中はホイール ↑ で遅く / ↓ で速く</div>
 
           <div class="autoscroll-buttons">
             <button id="autoscroll-toggle" type="button">Start</button>

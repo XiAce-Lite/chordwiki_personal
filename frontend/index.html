@@ -240,6 +240,43 @@
       max-width: 760px;
       margin: 0 auto;
     }
+    .local-sample-panel {
+      margin: 0 auto 14px;
+      padding: 12px 14px;
+      border: 1px solid #d9e2ec;
+      border-radius: 10px;
+      background: #fffdf6;
+      text-align: left;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    }
+    .local-sample-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #8a5a00;
+      margin-bottom: 8px;
+    }
+    .local-sample-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .local-sample-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid #f0d9a7;
+      border-radius: 999px;
+      background: #fff;
+      color: #7a4b00;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .local-sample-link:hover {
+      background: #fff7e6;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
     #song-list {
       margin-top: 0;
       text-align: left;
@@ -422,6 +459,10 @@
   </header>
   <main class="page-content">
     <p id="search-help" class="search-help">※ 曲名 / アーティスト検索は 1ワードのみ対応します。半角スペースで区切っても AND/OR 検索はしません。<code>"..."</code> で完全一致です。タグ検索はセレクトで切り替え、完全一致で実行します。</p>
+    <section id="local-sample-panel" class="local-sample-panel" hidden>
+      <div class="local-sample-title">ローカルサンプル曲</div>
+      <div id="local-sample-links" class="local-sample-links"></div>
+    </section>
     <div id="song-list"></div>
   </main>
   <div id="pagination" aria-label="Ranking pages"></div>
@@ -438,7 +479,10 @@
     const DEFAULT_PAGE_SIZE = 30;
     const MIN_PAGE_SIZE = 20;
     const MAX_PAGE_SIZE = 60;
-    const MAX_PAGES = 6;
+    const SEARCH_MAX_PAGES = 6;
+    const RANKING_PAGE_SIZE = 20;
+    const RANKING_MAX_SONGS = 100;
+    const RANKING_MAX_PAGES = 5;
     const TOP_HEADER_MIN_HEIGHT = 64;
     const PAGINATION_MIN_HEIGHT = 56;
     const PAGINATION_SAFE_MARGIN = 24;
@@ -457,6 +501,8 @@
     const searchStateText = document.getElementById('search-state-text');
     const searchClear = document.getElementById('search-clear');
     const homeLink = document.getElementById('home-link');
+    const localSamplePanel = document.getElementById('local-sample-panel');
+    const localSampleLinks = document.getElementById('local-sample-links');
     let currentPageSize = DEFAULT_PAGE_SIZE;
     let suggestRequestSerial = 0;
     let suggestHideTimer = 0;
@@ -588,6 +634,10 @@
       };
     }
 
+    function buildSongHref(song) {
+      return `song.html?artist=${encodeURIComponent(song?.artist || '')}&id=${encodeURIComponent(song?.id || '')}`;
+    }
+
     async function loadLocalTestSongsData() {
       if (!isLocalPreview()) {
         return [];
@@ -629,35 +679,70 @@
         return null;
       }
 
-      const safePage = clampPage(page);
+      const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
-      const search = normalizeSearchQuery(query);
+      const rankingMode = isRankingMode(appliedQuery, safeTarget);
+      const safePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(pageSize);
+      const safePage = clampPage(page, rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES);
+      const search = normalizeSearchQuery(appliedQuery);
       const filteredSongs = search.term
         ? localSongs.filter((song) => matchesSearch(song, search, safeTarget))
         : localSongs.slice();
-      const safePageSize = clampPageSize(pageSize);
+      const limitedSongs = rankingMode
+        ? filteredSongs.slice(0, RANKING_MAX_SONGS)
+        : filteredSongs;
       const offset = (safePage - 1) * safePageSize;
 
       return {
         page: safePage,
         pageSize: safePageSize,
-        totalSongs: filteredSongs.length,
-        songs: filteredSongs.slice(offset, offset + safePageSize),
+        totalSongs: limitedSongs.length,
+        songs: limitedSongs.slice(offset, offset + safePageSize),
         isLocalFallback: true
       };
+    }
+
+    async function renderLocalSamplePanel() {
+      if (!localSamplePanel || !localSampleLinks || !isLocalPreview()) {
+        return;
+      }
+
+      const localSongs = await loadLocalTestSongsData();
+      if (!Array.isArray(localSongs) || localSongs.length === 0) {
+        localSamplePanel.hidden = true;
+        localSampleLinks.innerHTML = '';
+        return;
+      }
+
+      localSampleLinks.innerHTML = '';
+      localSongs.slice(0, 4).forEach((song) => {
+        const linkEl = document.createElement('a');
+        linkEl.className = 'local-sample-link';
+        linkEl.href = buildSongHref(song);
+        linkEl.textContent = song.title || song.id || 'Local Sample';
+        linkEl.title = song.artist ? `${song.title} / ${song.artist}` : (song.title || song.id || 'Local Sample');
+        localSampleLinks.appendChild(linkEl);
+      });
+
+      localSamplePanel.hidden = false;
     }
 
     function normalizeSearchTarget(value) {
       return String(value || '').trim().toLowerCase() === TAG_SEARCH_TARGET ? TAG_SEARCH_TARGET : SONG_SEARCH_TARGET;
     }
 
-    function clampPage(page) {
+    function isRankingMode(query = '', target = SONG_SEARCH_TARGET) {
+      return normalizeSearchTarget(target) === SONG_SEARCH_TARGET && !String(query || '').trim();
+    }
+
+    function clampPage(page, maxPages = SEARCH_MAX_PAGES) {
       const parsed = Number.parseInt(String(page || '1'), 10);
       if (!Number.isFinite(parsed)) {
         return 1;
       }
 
-      return Math.min(MAX_PAGES, Math.max(1, parsed));
+      const safeMaxPages = Math.max(1, Number(maxPages) || SEARCH_MAX_PAGES);
+      return Math.min(safeMaxPages, Math.max(1, parsed));
     }
 
     function clampPageSize(pageSize) {
@@ -731,9 +816,12 @@
 
     function updatePageUrl(page, query = '', target = SONG_SEARCH_TARGET) {
       const url = new URL(window.location.href);
-      const safePage = clampPage(page);
       const safeQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
+      const safePage = clampPage(
+        page,
+        isRankingMode(safeQuery, safeTarget) ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES
+      );
 
       if (safeQuery) {
         url.searchParams.set('q', safeQuery);
@@ -918,29 +1006,60 @@
       }
     }
 
+    function createPaginationButton(label, targetPage, appliedQuery, safeTarget, { disabled = false, isActive = false, ariaLabel = '' } = {}) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `page-button${isActive ? ' is-active' : ''}`;
+      button.textContent = label;
+      button.disabled = disabled;
+
+      if (ariaLabel) {
+        button.setAttribute('aria-label', ariaLabel);
+      }
+
+      if (!disabled && !isActive) {
+        button.addEventListener('click', () => {
+          loadSongs(targetPage, appliedQuery, safeTarget);
+        });
+      }
+
+      return button;
+    }
+
     function renderPagination(page, songCount = 0, query = '', target = SONG_SEARCH_TARGET, pageSize = currentPageSize) {
       const paginationEl = document.getElementById('pagination');
-      const safePageSize = clampPageSize(pageSize);
-      const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(songCount / safePageSize)));
       const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
+      const rankingMode = isRankingMode(appliedQuery, safeTarget);
+      const safePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(pageSize);
+      const maxPages = rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES;
+      const availablePages = Math.max(1, Math.min(maxPages, Math.ceil(songCount / safePageSize)));
+      const safePage = clampPage(page, availablePages);
       paginationEl.innerHTML = '';
 
+      paginationEl.appendChild(
+        createPaginationButton('<', Math.max(1, safePage - 1), appliedQuery, safeTarget, {
+          disabled: safePage <= 1,
+          ariaLabel: '前のページ'
+        })
+      );
+
       for (let p = 1; p <= availablePages; p += 1) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `page-button${p === page ? ' is-active' : ''}`;
-        button.textContent = String(p);
-        button.disabled = p === page;
-
-        if (p !== page) {
-          button.addEventListener('click', () => {
-            loadSongs(p, appliedQuery, safeTarget);
-          });
-        }
-
-        paginationEl.appendChild(button);
+        paginationEl.appendChild(
+          createPaginationButton(String(p), p, appliedQuery, safeTarget, {
+            disabled: p === safePage,
+            isActive: p === safePage,
+            ariaLabel: `ページ ${p}`
+          })
+        );
       }
+
+      paginationEl.appendChild(
+        createPaginationButton('>', Math.min(availablePages, safePage + 1), appliedQuery, safeTarget, {
+          disabled: safePage >= availablePages,
+          ariaLabel: '次のページ'
+        })
+      );
 
       updatePaginationSafeSpace();
     }
@@ -1016,7 +1135,7 @@
         titleEl.className = 'song-title song-title-link';
         titleEl.textContent = song.title || 'タイトルなし';
         titleEl.title = song.title || 'タイトルなし';
-        titleEl.href = `song.html?artist=${encodeURIComponent(song.artist)}&id=${encodeURIComponent(song.id)}`;
+        titleEl.href = buildSongHref(song);
         metaEl.className = 'song-meta';
 
         if (artistText) {
@@ -1062,9 +1181,10 @@
     }
 
     async function loadSongs(page = getPageFromUrl(), query = getQueryFromUrl(), target = getTargetFromUrl()) {
-      const safePage = clampPage(page);
       const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
+      const rankingMode = isRankingMode(appliedQuery, safeTarget);
+      const safePage = clampPage(page, rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES);
       const songList = document.getElementById('song-list');
 
       if (searchInput && searchInput.value !== appliedQuery) {
@@ -1075,9 +1195,10 @@
       updateSearchState(appliedQuery, safeTarget);
 
       const { pageSize } = syncPageSizeWithViewport();
+      const requestPageSize = rankingMode ? RANKING_PAGE_SIZE : pageSize;
       const endpoint = buildApiUrl(appliedQuery
-        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${pageSize}`
-        : `/api/songs/ranking?page=${safePage}&pageSize=${pageSize}`);
+        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${requestPageSize}`
+        : `/api/songs/ranking?page=${safePage}&pageSize=${requestPageSize}`);
 
       songList.textContent = 'Loading...';
 
@@ -1093,11 +1214,15 @@
         const payload = await response.json();
         localTestSongsState.fallbackLogged = false;
         const songs = Array.isArray(payload.songs) ? payload.songs : [];
-        const effectivePageSize = clampPageSize(payload.pageSize || pageSize);
-        const totalSongs = Number.isFinite(Number(payload.totalSongs))
+        const effectivePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(payload.pageSize || requestPageSize);
+        const rawTotalSongs = Number.isFinite(Number(payload.totalSongs))
           ? Number(payload.totalSongs)
           : (((safePage - 1) * effectivePageSize) + songs.length);
-        const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(totalSongs / effectivePageSize)));
+        const totalSongs = rankingMode ? Math.min(RANKING_MAX_SONGS, rawTotalSongs) : rawTotalSongs;
+        const availablePages = Math.max(
+          1,
+          Math.min(rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES, Math.ceil(totalSongs / effectivePageSize))
+        );
 
         currentPageSize = effectivePageSize;
 
@@ -1119,11 +1244,15 @@
             localTestSongsState.fallbackLogged = true;
           }
 
-          const effectivePageSize = clampPageSize(localPayload.pageSize || pageSize);
-          const totalSongs = Number.isFinite(Number(localPayload.totalSongs))
+          const effectivePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(localPayload.pageSize || requestPageSize);
+          const rawTotalSongs = Number.isFinite(Number(localPayload.totalSongs))
             ? Number(localPayload.totalSongs)
             : localPayload.songs.length;
-          const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(totalSongs / effectivePageSize)));
+          const totalSongs = rankingMode ? Math.min(RANKING_MAX_SONGS, rawTotalSongs) : rawTotalSongs;
+          const availablePages = Math.max(
+            1,
+            Math.min(rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES, Math.ceil(totalSongs / effectivePageSize))
+          );
 
           currentPageSize = effectivePageSize;
 
@@ -1215,6 +1344,7 @@
     window.addEventListener('load', () => {
       updateSearchUiForTarget(getTargetFromUrl());
       syncPageSizeWithViewport();
+      renderLocalSamplePanel();
       loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
     });
   </script>

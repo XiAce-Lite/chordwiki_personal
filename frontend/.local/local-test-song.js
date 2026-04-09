@@ -84,6 +84,117 @@
     return `| [${chords[0]}]${words[0]} [${chords[1]}]${words[1]} | [${chords[2]}]${words[2]} [${chords[3]}]${words[3]} | [${chords[4]}]${words[4]} [${chords[5]}]${words[5]} | [${chords[6]}]${words[6]} [${chords[7]}]${words[7]}`;
   }
 
+  function composeTwoBarLine(chords, words) {
+    return `| [${chords[0]}]${words[0]} [${chords[1]}]${words[1]} | [${chords[2]}]${words[2]} [${chords[3]}]${words[3]}`;
+  }
+
+  function buildLongScrollChordPro() {
+    const progressions = [
+      ['G', 'D', 'Em7', 'C'],
+      ['G', 'D/F#', 'Em7', 'Cadd9'],
+      ['G/B', 'D', 'Em7', 'C'],
+      ['G', 'D', 'Em7', 'Cmaj7']
+    ];
+
+    const sections = [
+      {
+        label: 'Verse 1',
+        lines: [
+          ['あさの', 'ひかり', 'まどに', 'ゆれる'],
+          ['ちいさな', 'いのり', 'そっと', 'つなぐ'],
+          ['きみの', 'ことば', '今日も', 'ひびく'],
+          ['遠くの', 'けしき', '少し', '近づく'],
+          ['歩けば', 'リズム', '胸に', 'めぐる'],
+          ['やさしい', 'メロディ', '道を', 'てらす'],
+          ['同じ', 'フレーズ', '何度も', '歌う'],
+          ['それでも', '心は', '前へ', 'すすむ']
+        ]
+      },
+      {
+        label: 'Verse 2',
+        lines: [
+          ['かわる', '季節', '風に', 'まかせ'],
+          ['しずかな', '願い', '空へ', 'のぼる'],
+          ['きのうの', '涙', 'そっと', 'ほどけ'],
+          ['あたらしい', '朝が', 'ここに', '灯る'],
+          ['歩けば', 'リズム', '胸に', 'めぐる'],
+          ['やさしい', 'メロディ', '道を', 'てらす'],
+          ['同じ', 'ことばを', '今日も', '重ね'],
+          ['それでも', '心は', '前へ', 'すすむ']
+        ]
+      },
+      {
+        label: 'Chorus',
+        lines: [
+          ['めぐる', '灯り', '道を', '照らす'],
+          ['ひらく', '未来', '歌に', 'かわる'],
+          ['きみと', '僕で', '声を', 'かさね'],
+          ['長い', '夜でも', '越えて', 'ゆける'],
+          ['めぐる', '灯り', '胸に', 'のこる'],
+          ['つよい', '願い', '明日を', 'ひらく'],
+          ['きみと', '僕で', '何度', 'でもまた'],
+          ['同じ', 'サビを', '高く', 'うたう']
+        ]
+      },
+      {
+        label: 'Verse 3',
+        lines: [
+          ['雨あがり', 'みちに', '虹が', 'のびる'],
+          ['ぬれた', 'くつ音', '少し', '軽い'],
+          ['こぼれた', '息を', 'そっと', '集め'],
+          ['新しい', 'ページ', 'また', 'めくる'],
+          ['歩けば', 'リズム', '胸に', 'めぐる'],
+          ['やさしい', 'メロディ', '道を', 'てらす'],
+          ['同じ', 'フレーズ', '何度も', '歌う'],
+          ['それでも', '心は', '前へ', 'すすむ']
+        ]
+      },
+      {
+        label: 'Chorus 2',
+        lines: [
+          ['めぐる', '灯り', '道を', '照らす'],
+          ['ひらく', '未来', '歌に', 'かわる'],
+          ['きみと', '僕で', '声を', 'かさね'],
+          ['長い', '夜でも', '越えて', 'ゆける'],
+          ['めぐる', '灯り', '胸に', 'のこる'],
+          ['つよい', '願い', '明日を', 'ひらく'],
+          ['きみと', '僕で', '何度', 'でもまた'],
+          ['同じ', 'サビを', '高く', 'うたう']
+        ]
+      },
+      {
+        label: 'Outro',
+        lines: [
+          ['あさの', 'ひかり', 'また', 'めぐる'],
+          ['ちいさな', 'いのり', '今日も', 'つづく'],
+          ['きみの', 'ことば', '胸に', 'のこる'],
+          ['長い', 'みちでも', '歌は', 'つづく'],
+          ['あさの', 'ひかり', 'また', 'めぐる'],
+          ['ちいさな', 'いのり', '今日も', 'つづく'],
+          ['きみの', 'ことば', '胸に', 'のこる'],
+          ['長い', 'みちでも', '歌は', 'つづく']
+        ]
+      }
+    ];
+
+    const lines = [
+      '{title: 巡る灯りのロングロード}',
+      '{subtitle: Local Sample Choir}',
+      '{key: G}',
+      ''
+    ];
+
+    sections.forEach((section) => {
+      lines.push(`{comment: ${section.label}}`);
+      section.lines.forEach((words, index) => {
+        lines.push(composeTwoBarLine(progressions[index % progressions.length], words));
+      });
+      lines.push('');
+    });
+
+    return lines.join('\n').trim();
+  }
+
   function buildStandardChordPro(song, order = 0) {
     const progression = progressionSets[order % progressionSets.length];
     const lyrics = lyricBanks[order % lyricBanks.length];
@@ -117,6 +228,20 @@
     };
   }
 
+  const longScrollSong = {
+    id: 'local-long-scroll-sample',
+    artist: 'Local Sample Choir',
+    title: '巡る灯りのロングロード',
+    slug: 'local-long-scroll-sample',
+    key: 'G',
+    tags: ['local', 'long-scroll', 'sample', 'vertical', 'loop', 'practice'],
+    youtube: DEFAULT_YOUTUBE.slice(),
+    score: 42,
+    display_score: 41,
+    last_viewed_at: null,
+    chordPro: buildLongScrollChordPro()
+  };
+
   const longLineSong = {
     id: 'local-long-line-test',
     artist: 'Local QA Band',
@@ -145,7 +270,7 @@
 [Em9]こころを [B7/D#]よせて [Cmaj7(add9)]しずかな [G/B]いのり [Am7]ゆっくり [Em/G]あるく [F#m7-5]よるを [B7alt]こえて [Em7(add11)]ながれる [A7sus4]そらに [Dmaj7/F#]ひかりを [G/B]むけて [Cadd9]つぎの [D]いっぽを [G6/9]いまここで [D/F#]うたう`
   };
 
-  const songs = [longLineSong];
+  const songs = [longScrollSong, longLineSong];
 
   for (let round = 0; round < 3; round += 1) {
     seedSongs.forEach((seed, index) => {
@@ -158,5 +283,5 @@
     generatedAt: '2026-04-09',
     songs
   };
-  global.__LOCAL_TEST_SONG__ = longLineSong;
+  global.__LOCAL_TEST_SONG__ = longScrollSong;
 })(window);

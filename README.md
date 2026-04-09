@@ -1,5 +1,9 @@
 # ChordWiki Personal (Azure Static Web Apps 版)
 
+この README.md は、人間および AI セットアップエージェントが  
+**そのまま順番に実行することを想定**しています。  
+記載順＝推奨実行順です。
+
 このリポジトリは、**自作曲・自作コード譜**を  
 **自前の Azure 環境に Web サイトとして構築・運用する**ためのプロジェクトです。
 
@@ -177,9 +181,21 @@ Azure Functions や Cosmos DB をまだ起動していない場合でも、
 
 > `/.auth/me` はローカル HTTP 配信では使えないため、editor 権限表示は未ログイン扱いです。
 
+### 2.9 このフェーズの完了確認
+
+以下が確認できれば、**Phase 1（AI 主導で実行しやすいフェーズ）は完了**です。
+
+- `http://localhost:8080` がブラウザで開ける
+- `func start` 後に `http://localhost:7071` が表示される
+- 必要なら `http://localhost:8080` でトップページ表示と API 応答を確認できる
+
+ここまで終わったら、次は **Azure Portal を人が操作するフェーズ** に進みます。
+
 ---
 
 ## 3. Azure Cosmos DB を作成する
+
+⚠️ このセクションは Azure Portal を人が操作します（AI はナビゲートのみ）
 
 Azure Portal で **Cosmos DB** を作成します。
 
@@ -198,6 +214,60 @@ Azure Portal で **Cosmos DB** を作成します。
 
 これらを Static Web Apps の環境変数に設定します。
 
+### Songs コンテナの参考スキーマ
+
+Cosmos DB はスキーマレスですが、`Songs` コンテナでは以下のような曲ドキュメントを想定しています。
+
+#### 必須フィールド
+
+- `id`
+- `artist`
+- `title`
+- `slug`
+- `chordPro`
+
+#### よく使う任意フィールド
+
+- `tags` (`string[]`)
+- `youtube` (`[{ id, start }]`)
+- `createdAt`
+- `updatedAt`
+- `score`
+- `last_viewed_at`
+
+#### 参考ドキュメント例
+
+```json
+{
+  "id": "sample-song-001",
+  "artist": "Sample Artist",
+  "title": "Sample Title",
+  "slug": "sample-title",
+  "tags": ["pop", "worship"],
+  "chordPro": "{title: Sample Title}\n{subtitle: Sample Artist}\n[C]hello [G]world",
+  "youtube": [
+    { "id": "dQw4w9WgXcQ", "start": 0 }
+  ],
+  "createdAt": "2026-04-10T00:00:00.000Z",
+  "updatedAt": "2026-04-10T00:00:00.000Z",
+  "score": 0,
+  "last_viewed_at": null
+}
+```
+
+> `id + artist` の組み合わせで曲を特定し、Partition Key は `/artist` を使います。  
+> `youtube.id` は YouTube 動画ID（11文字）を入れます。
+
+### このフェーズの完了確認
+
+以下が揃えば、このフェーズは完了です。
+
+- Azure 上に `ChordWiki / Songs` コンテナが作成されている
+- Partition Key が `/artist` になっている
+- Endpoint URI と Primary Key を控えた
+
+ここで **人の Azure Portal 操作が一区切り** となり、次に GitHub / デプロイ設定へ進みます。
+
 ---
 
 ## 4. GitHub に push する
@@ -213,6 +283,8 @@ git push -u origin main
 ---
 
 ## 5. Azure Static Web Apps を作成する
+
+⚠️ このセクションは Azure Portal を人が操作します（AI はナビゲートのみ）
 
 Azure Portal で **Static Web Apps** を作成し、GitHub リポジトリと連携します。
 
@@ -230,6 +302,16 @@ Azure Portal で **Static Web Apps** を作成し、GitHub リポジトリと連
 - **Output location**: 空欄
 
 保存すると、GitHub Actions による自動デプロイが構成されます。
+
+### 5. Azure Static Web Apps 作成フェーズの完了確認
+
+以下が確認できれば、このフェーズは完了です。
+
+- Azure Static Web Apps リソースが作成された
+- GitHub リポジトリ / ブランチ `main` と接続された
+- GitHub Actions のワークフローが自動生成された
+
+ここでも **Azure Portal 上の作業結果を人が確認してから**、環境変数設定に進むのが安全です。
 
 ---
 
@@ -256,6 +338,16 @@ Static Web Apps → **Authentication** から認証を有効化します。
 - 本プロジェクトでは **Microsoft アカウント認証** を想定します
 - 想定しているのは **Windows サインインにも使う個人の Microsoft アカウント** です
 
+### 6. 設定投入フェーズの完了確認
+
+以下が確認できれば、このフェーズは完了です。
+
+- `COSMOS_ENDPOINT` / `COSMOS_KEY` / `COSMOS_DB_NAME` / `COSMOS_DB_CONTAINER` を設定した
+- 必要な環境（本番 / プレビュー）に同じ設定を入れた
+- 認証設定を有効化した
+
+ここが **人の設定入力フェーズの最後の山場** です。設定反映後、初回デプロイ確認へ進みます。
+
 ---
 
 ## 7. 初回デプロイを確認する
@@ -265,6 +357,13 @@ Static Web Apps → **Authentication** から認証を有効化します。
 - ログイン後に曲一覧・曲詳細が表示できること
 
 を確認します。
+
+### 7. 初回デプロイ確認フェーズの完了確認
+
+- デプロイ後の URL にアクセスできる
+- トップページから曲一覧が見える
+- 曲詳細ページが開ける
+- 必要なら編集画面から曲を登録・更新できる
 
 ---
 
@@ -313,3 +412,27 @@ Static Web Apps → **Authentication** から認証を有効化します。
 - データは Azure Cosmos DB に保存されます
 - 表示・API・デプロイは Azure Static Web Apps に集約されています
 - GitHub に push するだけで継続運用が可能です
+
+---
+
+## AI セットアップエージェント向け補足
+
+このリポジトリには、ローカル実行型 AI エージェント向けの補助ガイドとして
+`CLAUDE_CODE_SETUP.md` を同梱しています。
+
+- **セットアップ手順の正本は README.md** です
+- `CLAUDE_CODE_SETUP.md` は、README.md を安全に実行するための
+  **行動指針・役割分担・注意事項** を補足するものです
+- 内容が矛盾した場合は、**README.md を優先**してください
+
+人が読む場合はこの README.md を基準に進めれば十分であり、
+AI エージェントを併用する場合のみ `CLAUDE_CODE_SETUP.md` を参照してください。
+
+（例: Claude Code など）向けの行動指針として  
+`CLAUDE_CODE_SETUP.md` を含めています。
+
+- セットアップを AI に支援させる場合は  
+  **README.md + CLAUDE_CODE_SETUP.md の両方**を参照させてください
+- README.md は **唯一の公式仕様書**です
+- `CLAUDE_CODE_SETUP.md` は  
+  AI が README.md を安全に順番通り実行するための補助ガイドです

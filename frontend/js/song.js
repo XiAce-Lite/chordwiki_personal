@@ -16,12 +16,20 @@ let currentSongData = null;
 
 const MIN_TRANSPOSE = -6;
 const MAX_TRANSPOSE = 6;
+const MAX_AUTOSCROLL_MINUTES = 99;
+const MAX_AUTOSCROLL_DURATION_SEC = (MAX_AUTOSCROLL_MINUTES * 60) + 59;
 const DEFAULT_DURATION_SEC = 4 * 60;
 const DEFAULT_DURATION_ESTIMATE_MIN_SEC = (3 * 60) + 55;
 const DEFAULT_DURATION_ESTIMATE_MAX_SEC = (4 * 60) + 5;
 const AUTO_SCROLL_ESTIMATE_RATIO = 0.97;
 const START_SCROLL_TOLERANCE_PX = 10;
-const END_MARKER_STOP_RATIO = 2 / 3;
+const AUTO_SCROLL_STOP_VIEWPORT_RATIO = 1;
+const AUTO_SCROLL_FOCUS_VIEWPORT_RATIO = 0.54;
+const AUTO_SCROLL_SPEED_STEP = 0.05;
+const AUTO_SCROLL_SPEED_MIN_MULTIPLIER = 0.5;
+const AUTO_SCROLL_SPEED_MAX_MULTIPLIER = 2;
+const AUTO_SCROLL_WHEEL_STEP_PX = 72;
+const AUTO_SCROLL_SPEED_SMOOTHING = 0.18;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
 const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
 const MARKER_EDGE_SCROLL_MAX_SPEED = 1600;
@@ -83,6 +91,7 @@ const autoScrollState = {
   startedAtMs: 0,
   lastFrameMs: 0,
   speedPxPerSec: 0,
+  speedMultiplier: 1,
   virtualScrollY: 0,
   dragging: null,
   hasLoadedSavedState: false
@@ -2049,16 +2058,59 @@ function getEndMarkerEl() {
 }
 
 function formatDuration(totalSeconds) {
-  const safeSeconds = Math.max(0, Math.round(totalSeconds));
+  const safeSeconds = clamp(Math.round(totalSeconds), 0, MAX_AUTOSCROLL_DURATION_SEC);
   const minutes = Math.floor(safeSeconds / 60);
   const seconds = safeSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function normalizeDurationInputValues(rawMinutes, rawSeconds) {
+  let minutes = Number.parseInt(String(rawMinutes ?? '0'), 10);
+  let seconds = Number.parseInt(String(rawSeconds ?? '0'), 10);
+
+  minutes = Number.isFinite(minutes) ? minutes : 0;
+  seconds = Number.isFinite(seconds) ? seconds : 0;
+
+  if (seconds >= 60) {
+    const carryMinutes = Math.floor(seconds / 60);
+    if (minutes >= MAX_AUTOSCROLL_MINUTES) {
+      minutes = MAX_AUTOSCROLL_MINUTES;
+      seconds = 59;
+    } else {
+      minutes += carryMinutes;
+      seconds %= 60;
+    }
+  } else if (seconds < 0) {
+    if (minutes > 0) {
+      minutes -= 1;
+      seconds = 59;
+    } else {
+      minutes = 0;
+      seconds = 0;
+    }
+  }
+
+  if (minutes > MAX_AUTOSCROLL_MINUTES) {
+    minutes = MAX_AUTOSCROLL_MINUTES;
+    seconds = 59;
+  }
+
+  minutes = clamp(minutes, 0, MAX_AUTOSCROLL_MINUTES);
+  seconds = clamp(seconds, 0, 59);
+
+  return {
+    minutes,
+    seconds,
+    durationSec: Math.min(MAX_AUTOSCROLL_DURATION_SEC, (minutes * 60) + seconds)
+  };
+}
+
 function getDisplayedDurationSec() {
-  const minutes = Math.max(0, Number.parseInt(document.getElementById('autoscroll-minutes')?.value ?? '0', 10) || 0);
-  const seconds = clamp(Number.parseInt(document.getElementById('autoscroll-seconds')?.value ?? '0', 10) || 0, 0, 59);
-  return (minutes * 60) + seconds;
+  const normalized = normalizeDurationInputValues(
+    document.getElementById('autoscroll-minutes')?.value ?? '0',
+    document.getElementById('autoscroll-seconds')?.value ?? '0'
+  );
+  return normalized.durationSec;
 }
 
 function isDefaultDurationRange(seconds = getDisplayedDurationSec()) {
@@ -2211,6 +2263,66 @@ function getRangeDistancePx() {
   return Math.max(0, Math.round(autoScrollState.endY - autoScrollState.startY));
 }
 
+function formatSpeedMultiplier(multiplier = autoScrollState.speedMultiplier) {
+  const safeMultiplier = Number.isFinite(multiplier) ? multiplier : 1;
+  return `${safeMultiplier.toFixed(2)}x`;
+}
+
+function updateAutoScrollSpeedUi() {
+  const displayEl = document.getElementById('autoscroll-speed-display');
+  const resetButton = document.getElementById('autoscroll-speed-reset');
+  const multiplier = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+
+  if (displayEl) {
+    displayEl.textContent = formatSpeedMultiplier(multiplier);
+
+    let speedState = 'normal';
+    if (multiplier > 1.001) {
+      speedState = 'fast';
+    } else if (multiplier < 0.999) {
+      speedState = 'slow';
+    }
+
+    displayEl.dataset.speedState = speedState;
+  }
+
+  if (resetButton) {
+    resetButton.disabled = Math.abs(multiplier - 1) < 0.001;
+  }
+}
+
+function setAutoScrollSpeedMultiplier(value, { persist = true, notify = true } = {}) {
+  const roundedValue = Math.round((Number(value) || 1) * 100) / 100;
+  const nextMultiplier = clamp(roundedValue, AUTO_SCROLL_SPEED_MIN_MULTIPLIER, AUTO_SCROLL_SPEED_MAX_MULTIPLIER);
+  autoScrollState.speedMultiplier = nextMultiplier;
+  updateAutoScrollSpeedUi();
+
+  if (persist && autoScrollState.storageKey) {
+    saveAutoScrollState({ notify: false });
+  } else if (!autoScrollState.isPlaying) {
+    updateStoppedStatus(false);
+  }
+
+  if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
+    return;
+  }
+
+  if (notify) {
+    const prefix = autoScrollState.isPlaying ? 'Playing' : 'Stopped';
+    setStatus(`${prefix} · ${formatDuration(autoScrollState.durationSec)} · Speed ${formatSpeedMultiplier(nextMultiplier)}`, 'info');
+  }
+}
+
+function nudgeAutoScrollSpeed(direction, { steps = 1, notify = true } = {}) {
+  if (!Number.isFinite(direction) || direction === 0) {
+    return;
+  }
+
+  const safeSteps = Math.max(1, Math.round(Number(steps) || 1));
+  const delta = AUTO_SCROLL_SPEED_STEP * safeSteps * (direction > 0 ? 1 : -1);
+  setAutoScrollSpeedMultiplier((autoScrollState.speedMultiplier || 1) + delta, { persist: true, notify });
+}
+
 function setStatus(message, tone = 'info') {
   const statusEl = document.getElementById('autoscroll-status');
   if (!statusEl) {
@@ -2229,6 +2341,7 @@ function updateAutoScrollControls() {
 
   toggleButton.textContent = autoScrollState.isPlaying ? 'Stop' : 'Start';
   toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
+  updateAutoScrollSpeedUi();
 }
 
 function updateStoppedStatus(saved = false) {
@@ -2252,20 +2365,20 @@ function updateStoppedStatus(saved = false) {
   }
 
   const prefix = saved ? 'Saved' : 'Stopped';
-  setStatus(`${prefix} · ${formatDuration(autoScrollState.durationSec)} · ${getRangeDistancePx()}px`, saved ? 'success' : 'info');
+  setStatus(`${prefix} · ${formatDuration(autoScrollState.durationSec)} · ${getRangeDistancePx()}px · ${formatSpeedMultiplier()}`, saved ? 'success' : 'info');
 }
 
 function setDurationInputs(durationSec) {
   const minutesInput = document.getElementById('autoscroll-minutes');
   const secondsInput = document.getElementById('autoscroll-seconds');
-  const safeDuration = Math.max(0, Math.round(durationSec));
+  const safeDuration = clamp(Math.round(durationSec), 0, MAX_AUTOSCROLL_DURATION_SEC);
 
   if (minutesInput) {
-    minutesInput.value = String(Math.floor(safeDuration / 60));
+    minutesInput.value = String(Math.floor(safeDuration / 60)).padStart(2, '0');
   }
 
   if (secondsInput) {
-    secondsInput.value = String(safeDuration % 60);
+    secondsInput.value = String(safeDuration % 60).padStart(2, '0');
   }
 }
 
@@ -2297,7 +2410,8 @@ function saveAutoScrollState({ notify = true } = {}) {
     const payload = {
       startY: Math.round(autoScrollState.startY),
       endY: Math.round(autoScrollState.endY),
-      durationSec: Math.max(0, Math.round(autoScrollState.durationSec))
+      durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
+      speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100
     };
 
     window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
@@ -2321,18 +2435,20 @@ function syncDurationFromInputs({ notify = true } = {}) {
   const minutesInput = document.getElementById('autoscroll-minutes');
   const secondsInput = document.getElementById('autoscroll-seconds');
 
-  const minutes = Math.max(0, Number.parseInt(minutesInput?.value ?? '0', 10) || 0);
-  const seconds = clamp(Number.parseInt(secondsInput?.value ?? '0', 10) || 0, 0, 59);
+  const normalized = normalizeDurationInputValues(
+    minutesInput?.value ?? '0',
+    secondsInput?.value ?? '0'
+  );
 
   if (minutesInput) {
-    minutesInput.value = String(minutes);
+    minutesInput.value = String(normalized.minutes).padStart(2, '0');
   }
 
   if (secondsInput) {
-    secondsInput.value = String(seconds);
+    secondsInput.value = String(normalized.seconds).padStart(2, '0');
   }
 
-  autoScrollState.durationSec = (minutes * 60) + seconds;
+  autoScrollState.durationSec = normalized.durationSec;
 
   if (autoScrollState.isPlaying) {
     if (!recalculateAutoScrollSpeed()) {
@@ -2452,6 +2568,7 @@ function restoreAutoScrollState() {
   autoScrollState.startY = defaults.startY;
   autoScrollState.endY = defaults.endY;
   autoScrollState.durationSec = DEFAULT_DURATION_SEC;
+  autoScrollState.speedMultiplier = 1;
 
   if (autoScrollState.storageKey) {
     try {
@@ -2474,9 +2591,18 @@ function restoreAutoScrollState() {
     if (Number.isFinite(savedState.durationSec)) {
       autoScrollState.durationSec = Math.max(0, savedState.durationSec);
     }
+
+    if (Number.isFinite(savedState.speedMultiplier)) {
+      autoScrollState.speedMultiplier = clamp(
+        Number(savedState.speedMultiplier),
+        AUTO_SCROLL_SPEED_MIN_MULTIPLIER,
+        AUTO_SCROLL_SPEED_MAX_MULTIPLIER
+      );
+    }
   }
 
   setDurationInputs(autoScrollState.durationSec);
+  updateAutoScrollSpeedUi();
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
   if (savedState) {
@@ -2702,14 +2828,32 @@ function onMarkerPointerUp(event) {
   saveAutoScrollState({ notify: true });
 }
 
-function hasEndMarkerReachedStopLine() {
+function getAutoScrollStartScrollY() {
+  if (!Number.isFinite(autoScrollState.startY)) {
+    return 0;
+  }
+
+  const preferredViewportY = window.innerHeight * AUTO_SCROLL_FOCUS_VIEWPORT_RATIO;
+  return clamp(autoScrollState.startY - preferredViewportY, 0, getMaxWindowScrollY());
+}
+
+function getAutoScrollStopScrollY() {
+  if (!Number.isFinite(autoScrollState.endY)) {
+    return 0;
+  }
+
+  const stopViewportY = window.innerHeight * AUTO_SCROLL_STOP_VIEWPORT_RATIO;
+  return clamp(autoScrollState.endY - stopViewportY, 0, getMaxWindowScrollY());
+}
+
+function isEndMarkerVisibleInViewport() {
   const endMarkerEl = getEndMarkerEl();
   if (!endMarkerEl) {
     return false;
   }
 
-  const stopLineY = window.innerHeight * END_MARKER_STOP_RATIO;
-  return endMarkerEl.getBoundingClientRect().top <= stopLineY;
+  const rect = endMarkerEl.getBoundingClientRect();
+  return rect.bottom >= 0 && rect.top <= window.innerHeight;
 }
 
 function stopAutoScroll(message = 'Stopped', tone = 'info') {
@@ -2730,17 +2874,17 @@ function recalculateAutoScrollSpeed() {
     return true;
   }
 
-  if (hasEndMarkerReachedStopLine()) {
-    stopAutoScroll('Stopped · End が停止ラインに到達', 'success');
+  if (isEndMarkerVisibleInViewport()) {
+    stopAutoScroll('Stopped · End が見えたため停止', 'success');
     return false;
   }
 
   const elapsedSec = Math.max(0, (performance.now() - autoScrollState.startedAtMs) / 1000);
   const remainingTimeSec = autoScrollState.durationSec - elapsedSec;
-  const remainingDistancePx = getReachableScrollY(autoScrollState.endY) - window.scrollY;
+  const remainingDistancePx = getAutoScrollStopScrollY() - window.scrollY;
 
   if (remainingDistancePx <= 0.5) {
-    stopAutoScroll('Stopped · End に到達', 'success');
+    stopAutoScroll('Stopped · End が見えたため停止', 'success');
     return false;
   }
 
@@ -2749,7 +2893,15 @@ function recalculateAutoScrollSpeed() {
     return false;
   }
 
-  autoScrollState.speedPxPerSec = remainingDistancePx / remainingTimeSec;
+  const baseSpeedPxPerSec = remainingDistancePx / remainingTimeSec;
+  const targetSpeedPxPerSec = baseSpeedPxPerSec * (Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1);
+
+  if (Number.isFinite(autoScrollState.speedPxPerSec) && autoScrollState.speedPxPerSec > 0) {
+    autoScrollState.speedPxPerSec += (targetSpeedPxPerSec - autoScrollState.speedPxPerSec) * AUTO_SCROLL_SPEED_SMOOTHING;
+  } else {
+    autoScrollState.speedPxPerSec = targetSpeedPxPerSec;
+  }
+
   return true;
 }
 
@@ -2768,12 +2920,41 @@ function runAutoScrollFrame(nowMs) {
   autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
   window.scrollTo(0, autoScrollState.virtualScrollY);
 
-  if (hasEndMarkerReachedStopLine()) {
-    stopAutoScroll('Stopped · End が画面の 2/3 ラインに到達', 'success');
+  if (isEndMarkerVisibleInViewport()) {
+    stopAutoScroll('Stopped · End が見えたため停止', 'success');
     return;
   }
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
+}
+
+function handleAutoScrollWheelAdjust(event) {
+  if (!autoScrollState.isPlaying || event.defaultPrevented || event.ctrlKey || event.metaKey) {
+    return;
+  }
+
+  const deltaY = Number(event.deltaY) || 0;
+  if (Math.abs(deltaY) < 4) {
+    return;
+  }
+
+  const steps = Math.min(4, Math.max(1, Math.round(Math.abs(deltaY) / AUTO_SCROLL_WHEEL_STEP_PX)));
+
+  if (deltaY < 0) {
+    nudgeAutoScrollSpeed(-1, { steps, notify: true });
+  } else {
+    nudgeAutoScrollSpeed(1, { steps, notify: true });
+  }
+}
+
+function scrollBackToAutoScrollStart({ notify = true } = {}) {
+  const targetScrollY = getAutoScrollStartScrollY();
+  window.scrollTo(0, targetScrollY);
+  autoScrollState.virtualScrollY = targetScrollY;
+
+  if (notify) {
+    setStatus(`Stopped · 先頭に戻りました。もう一度クリックで再生 · ${formatSpeedMultiplier()}`, 'warn');
+  }
 }
 
 function shouldScrollToStart() {
@@ -2804,7 +2985,7 @@ function startAutoScroll() {
   }
 
   if (shouldScrollToStart()) {
-    window.scrollTo(0, getReachableScrollY(autoScrollState.startY));
+    window.scrollTo(0, getAutoScrollStartScrollY());
   }
 
   autoScrollState.isPlaying = true;
@@ -2824,7 +3005,7 @@ function startAutoScroll() {
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
   updateAutoScrollControls();
-  setStatus(`Playing · ${formatDuration(autoScrollState.durationSec)}`, 'info');
+  setStatus(`Playing · ${formatDuration(autoScrollState.durationSec)} · ${formatSpeedMultiplier()}`, 'info');
 }
 
 function toggleAutoScroll() {
@@ -2841,6 +3022,11 @@ function handleSheetPrimaryClick(event) {
   }
 
   if (autoScrollState.dragging || event.target.closest('.autoscroll-marker')) {
+    return;
+  }
+
+  if (!autoScrollState.isPlaying && isEndMarkerVisibleInViewport()) {
+    scrollBackToAutoScrollStart({ notify: true });
     return;
   }
 
@@ -2895,6 +3081,10 @@ function resetAutoScrollDuration() {
   }
 
   saveAutoScrollState({ notify: true });
+}
+
+function resetAutoScrollSpeed() {
+  setAutoScrollSpeedMultiplier(1, { persist: true, notify: true });
 }
 
 function resetAutoScrollMarkers() {
@@ -3058,6 +3248,9 @@ function reRender() {
 function initializeAutoScrollUi() {
   document.getElementById('autoscroll-toggle')?.addEventListener('click', toggleAutoScroll);
   document.getElementById('autoscroll-duration-reset')?.addEventListener('click', resetAutoScrollDuration);
+  document.getElementById('autoscroll-speed-down')?.addEventListener('click', () => nudgeAutoScrollSpeed(-1, { notify: true }));
+  document.getElementById('autoscroll-speed-up')?.addEventListener('click', () => nudgeAutoScrollSpeed(1, { notify: true }));
+  document.getElementById('autoscroll-speed-reset')?.addEventListener('click', resetAutoScrollSpeed);
   document.getElementById('autoscroll-markers-reset')?.addEventListener('click', resetAutoScrollMarkers);
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
   document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
@@ -3077,6 +3270,7 @@ function initializeAutoScrollUi() {
 
   ensureMarkerElements();
   setDurationInputs(DEFAULT_DURATION_SEC);
+  updateAutoScrollSpeedUi();
   updateAutoScrollControls();
   setStatus('Stopped', 'info');
   restoreAutoScrollCollapsedState();
@@ -3101,6 +3295,8 @@ function initializeAutoScrollUi() {
       updateStoppedStatus(false);
     }
   });
+
+  window.addEventListener('wheel', handleAutoScrollWheelAdjust, { passive: true });
 
   window.addEventListener('beforeunload', () => {
     saveAutoScrollState({ notify: false });
