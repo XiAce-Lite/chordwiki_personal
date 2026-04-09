@@ -2343,6 +2343,25 @@ function syncDurationFromInputs({ notify = true } = {}) {
   saveAutoScrollState({ notify });
 }
 
+function syncCompactMarkerMode() {
+  const bodyEl = document.body;
+  if (!bodyEl) {
+    return false;
+  }
+
+  const viewportWidth = Math.max(window.innerWidth || 0, document.documentElement?.clientWidth || 0);
+  const stageWidth = Math.round(document.querySelector('.sheet-stage')?.getBoundingClientRect().width || 0);
+  const shouldCompact = (viewportWidth > 0 && viewportWidth <= 720) || (stageWidth > 0 && stageWidth <= 520);
+  const shouldTight = shouldCompact && (
+    (viewportWidth > 0 && viewportWidth <= 420)
+    || (stageWidth > 0 && stageWidth <= 360)
+  );
+
+  bodyEl.classList.toggle('compact-autoscroll-markers', shouldCompact);
+  bodyEl.classList.toggle('compact-autoscroll-markers-tight', shouldTight);
+  return shouldCompact;
+}
+
 function ensureMarkerElements() {
   const layerEl = getMarkerLayerEl();
   if (!layerEl || layerEl.querySelector('.autoscroll-marker')) {
@@ -2354,6 +2373,8 @@ function ensureMarkerElements() {
     markerEl.type = 'button';
     markerEl.className = `autoscroll-marker autoscroll-marker-${config.name}`;
     markerEl.dataset.marker = config.name;
+    markerEl.setAttribute('aria-label', config.label);
+    markerEl.title = config.label;
     markerEl.innerHTML = `
       <span class="autoscroll-marker-pin" aria-hidden="true"></span>
       <span class="autoscroll-marker-label">${config.label}</span>
@@ -2374,8 +2395,12 @@ function getMarkerViewportLeft() {
     return 8;
   }
 
+  syncCompactMarkerMode();
+
   const sheetRect = sheetEl.getBoundingClientRect();
-  return Math.max(8, Math.round(sheetRect.left - 82));
+  const rootStyles = getComputedStyle(document.body || document.documentElement);
+  const markerOffset = Number.parseFloat(rootStyles.getPropertyValue('--marker-left-offset')) || 82;
+  return Math.max(4, Math.round(sheetRect.left - markerOffset));
 }
 
 function renderMarkerPositions() {
@@ -2887,6 +2912,7 @@ function resetAutoScrollMarkers() {
 }
 
 function refreshAutoScrollAfterRender({ restoreSavedState = false } = {}) {
+  syncCompactMarkerMode();
   ensureMarkerElements();
 
   if (restoreSavedState || !autoScrollState.hasLoadedSavedState) {
@@ -3066,6 +3092,7 @@ function initializeAutoScrollUi() {
 
   window.addEventListener('resize', () => {
     updateAutoScrollSafeTop();
+    syncCompactMarkerMode();
     renderMarkerPositions();
 
     if (autoScrollState.isPlaying) {

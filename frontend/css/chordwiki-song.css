@@ -7,6 +7,11 @@
   --user-lyric-gap: 15px;
   --user-comment-gap: 16px;
   --marker-safe-left: 6em;
+  --marker-left-offset: 82px;
+  --marker-pin-size: 22px;
+  --marker-pin-inner-inset: 5px;
+  --marker-gap: 8px;
+  --marker-hit-area-padding: 0px;
   --autoscroll-safe-top: 64px;
   --song-extras-safe-top: 240px;
   --youtube-player-safe-right: max(28px, calc(env(safe-area-inset-right, 0px) + 22px));
@@ -1071,9 +1076,10 @@ html[data-display-custom="on"] .song-key {
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0;
+  gap: var(--marker-gap, 8px);
+  padding: var(--marker-hit-area-padding, 0px);
   border: 0;
+  border-radius: 999px;
   background: transparent;
   pointer-events: auto;
   cursor: grab;
@@ -1092,8 +1098,8 @@ html[data-display-custom="on"] .song-key {
 
 .autoscroll-marker-pin {
   position: relative;
-  width: 22px;
-  height: 22px;
+  width: var(--marker-pin-size, 22px);
+  height: var(--marker-pin-size, 22px);
   flex: 0 0 auto;
   background: var(--marker-color, #d7263d);
   border-radius: 50% 50% 50% 0;
@@ -1104,7 +1110,7 @@ html[data-display-custom="on"] .song-key {
 .autoscroll-marker-pin::after {
   content: "";
   position: absolute;
-  inset: 5px;
+  inset: var(--marker-pin-inner-inset, 5px);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
 }
@@ -1130,6 +1136,28 @@ html[data-display-custom="on"] .song-key {
 .autoscroll-marker-end {
   --marker-color: #147ad6;
   color: #147ad6;
+}
+
+body.compact-autoscroll-markers {
+  --marker-safe-left: 2.35em;
+  --marker-left-offset: 30px;
+  --marker-pin-size: 10px;
+  --marker-pin-inner-inset: 2px;
+  --marker-gap: 0px;
+  --marker-hit-area-padding: 7px;
+}
+
+body.compact-autoscroll-markers.compact-autoscroll-markers-tight {
+  --marker-safe-left: 1.95em;
+  --marker-left-offset: 24px;
+  --marker-pin-size: 8px;
+  --marker-pin-inner-inset: 2px;
+  --marker-gap: 0px;
+  --marker-hit-area-padding: 8px;
+}
+
+body.compact-autoscroll-markers .autoscroll-marker-label {
+  display: none;
 }
 
 body.is-dragging-marker,
