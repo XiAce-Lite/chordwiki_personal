@@ -4,15 +4,17 @@ const {
   attachDisplayScore,
   compareSongsForRanking
 } = require("../shared/ranking-score");
+const {
+  MAX_PAGES,
+  normalizePage,
+  normalizePageSize,
+  calculateTotalLimit
+} = require("../shared/pagination");
 
 const endpoint = process.env.COSMOS_ENDPOINT || process.env.COSMOS_DB_ENDPOINT;
 const key = process.env.COSMOS_KEY || process.env.COSMOS_DB_KEY;
 const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
 const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
-
-const PAGE_SIZE = 50;
-const MAX_PAGES = 6;
-const TOTAL_LIMIT = PAGE_SIZE * MAX_PAGES;
 
 let container = null;
 if (endpoint && key) {
@@ -26,15 +28,6 @@ function jsonResponse(status, body) {
     headers: { "Content-Type": "application/json; charset=utf-8" },
     body
   };
-}
-
-function normalizePage(value) {
-  const parsed = Number.parseInt(String(value || "1"), 10);
-  if (!Number.isFinite(parsed)) {
-    return 1;
-  }
-
-  return Math.min(MAX_PAGES, Math.max(1, parsed));
 }
 
 function normalizeTags(tags) {
@@ -68,8 +61,10 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const page = normalizePage(req.query.page);
-  const offset = (page - 1) * PAGE_SIZE;
+  const pageSize = normalizePageSize(req.query.pageSize);
+  const totalLimit = calculateTotalLimit(pageSize);
+  const page = normalizePage(req.query.page, MAX_PAGES);
+  const offset = (page - 1) * pageSize;
   const now = Date.now();
 
   try {
@@ -79,21 +74,21 @@ module.exports = async function (context, req) {
 
     const { resources } = await container.items.query(query, {
       enableCrossPartitionQuery: true,
-      maxItemCount: TOTAL_LIMIT
+      maxItemCount: totalLimit
     }).fetchAll();
 
     const limitedRankedSongs = (resources || [])
       .map((song) => mapSongSummary(song, now))
       .sort((a, b) => compareSongsForRanking(a, b, now))
-      .slice(0, TOTAL_LIMIT);
+      .slice(0, totalLimit);
 
-    const songs = limitedRankedSongs.slice(offset, offset + PAGE_SIZE);
+    const songs = limitedRankedSongs.slice(offset, offset + pageSize);
     const totalSongs = limitedRankedSongs.length; // ranking対象総数（最大300件）
 
     context.res = jsonResponse(200, {
       page,
-      pageSize: PAGE_SIZE,
-      totalLimit: TOTAL_LIMIT,
+      pageSize,
+      totalLimit: totalLimit,
       totalPages: MAX_PAGES,
       totalSongs,
       songs

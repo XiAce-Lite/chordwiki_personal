@@ -5,10 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChordWiki Personal</title>
   <style>
+    :root {
+      --pagination-safe-space: 88px;
+    }
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       margin: 20px;
+      padding-bottom: calc(var(--pagination-safe-space) + env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
     }
     .page-title {
       margin-bottom: 16px;
@@ -220,10 +225,22 @@
       white-space: nowrap;
     }
     #pagination {
+      position: fixed;
+      left: 50%;
+      bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+      transform: translateX(-50%);
+      z-index: 40;
       display: flex;
       justify-content: center;
+      flex-wrap: wrap;
       gap: 8px;
+      width: min(760px, calc(100vw - 24px));
       margin-top: 16px;
+      padding: 10px 12px;
+      border: 1px solid #d9e2ec;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
     }
     .page-button {
       min-width: 40px;
@@ -292,8 +309,13 @@
       location.href = '/edit.html?mode=add';
     });
 
-    const PAGE_SIZE = 50;
+    const DEFAULT_PAGE_SIZE = 30;
+    const MIN_PAGE_SIZE = 20;
+    const MAX_PAGE_SIZE = 60;
     const MAX_PAGES = 6;
+    const PAGINATION_MIN_HEIGHT = 56;
+    const PAGINATION_SAFE_MARGIN = 24;
+    const SONG_ROW_HEIGHT = 56;
     const SONG_SEARCH_TARGET = 'song';
     const TAG_SEARCH_TARGET = 'tag';
     const TAG_SUGGEST_LIMIT = 10;
@@ -306,8 +328,10 @@
     const searchStateText = document.getElementById('search-state-text');
     const searchClear = document.getElementById('search-clear');
     const homeLink = document.getElementById('home-link');
+    let currentPageSize = DEFAULT_PAGE_SIZE;
     let suggestRequestSerial = 0;
     let suggestHideTimer = 0;
+    let resizeDebounceTimer = 0;
 
     function normalizeSearchTarget(value) {
       return String(value || '').trim().toLowerCase() === TAG_SEARCH_TARGET ? TAG_SEARCH_TARGET : SONG_SEARCH_TARGET;
@@ -320,6 +344,53 @@
       }
 
       return Math.min(MAX_PAGES, Math.max(1, parsed));
+    }
+
+    function clampPageSize(pageSize) {
+      const parsed = Number.parseInt(String(pageSize || DEFAULT_PAGE_SIZE), 10);
+      if (!Number.isFinite(parsed)) {
+        return DEFAULT_PAGE_SIZE;
+      }
+
+      return Math.min(MAX_PAGE_SIZE, Math.max(MIN_PAGE_SIZE, parsed));
+    }
+
+    function getSongRowHeight() {
+      return SONG_ROW_HEIGHT;
+    }
+
+    function updatePaginationSafeSpace() {
+      const paginationEl = document.getElementById('pagination');
+      const measuredHeight = paginationEl ? paginationEl.getBoundingClientRect().height : 0;
+      const safeSpace = Math.max(PAGINATION_MIN_HEIGHT, Math.ceil(measuredHeight || PAGINATION_MIN_HEIGHT)) + PAGINATION_SAFE_MARGIN;
+      document.documentElement.style.setProperty('--pagination-safe-space', `${safeSpace}px`);
+      return safeSpace;
+    }
+
+    function calculatePageSizeFromViewport() {
+      const viewportHeight = Number(window.innerHeight) || 0;
+      if (!viewportHeight) {
+        return DEFAULT_PAGE_SIZE;
+      }
+
+      const titleHeight = Math.ceil(document.querySelector('.page-title')?.getBoundingClientRect().height || 0);
+      const searchHeight = Math.ceil(document.querySelector('.search-panel')?.getBoundingClientRect().height || 0);
+      const paginationSafeSpace = updatePaginationSafeSpace();
+      const rowHeight = getSongRowHeight();
+      const availableHeight = viewportHeight - titleHeight - searchHeight - paginationSafeSpace - 12;
+
+      if (!Number.isFinite(availableHeight) || availableHeight <= 0) {
+        return DEFAULT_PAGE_SIZE;
+      }
+
+      return clampPageSize(Math.floor(availableHeight / rowHeight));
+    }
+
+    function syncPageSizeWithViewport() {
+      const nextPageSize = calculatePageSizeFromViewport();
+      const changed = nextPageSize !== currentPageSize;
+      currentPageSize = nextPageSize;
+      return { pageSize: currentPageSize, changed };
     }
 
     function getPageFromUrl() {
@@ -514,9 +585,10 @@
       }
     }
 
-    function renderPagination(page, songCount = 0, query = '', target = SONG_SEARCH_TARGET) {
+    function renderPagination(page, songCount = 0, query = '', target = SONG_SEARCH_TARGET, pageSize = currentPageSize) {
       const paginationEl = document.getElementById('pagination');
-      const availablePages = Math.max(1, Math.ceil(songCount / PAGE_SIZE));
+      const safePageSize = clampPageSize(pageSize);
+      const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(songCount / safePageSize)));
       const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
       paginationEl.innerHTML = '';
@@ -537,6 +609,8 @@
 
         paginationEl.appendChild(button);
       }
+
+      updatePaginationSafeSpace();
     }
 
     function getVisibleTags(tags) {
@@ -570,9 +644,10 @@
       return button;
     }
 
-    function renderSongs(songs, page, query = '') {
+    function renderSongs(songs, page, query = '', pageSize = currentPageSize) {
       const songList = document.getElementById('song-list');
       const appliedQuery = String(query || '').trim();
+      const safePageSize = clampPageSize(pageSize);
       songList.innerHTML = '';
 
       if (!Array.isArray(songs) || songs.length === 0) {
@@ -583,7 +658,7 @@
       }
 
       songs.forEach((song, index) => {
-        const rank = ((page - 1) * PAGE_SIZE) + index + 1;
+        const rank = ((page - 1) * safePageSize) + index + 1;
         const itemEl = document.createElement('div');
         const rankEl = document.createElement('span');
         const mainEl = document.createElement('span');
@@ -663,9 +738,6 @@
       const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
       const songList = document.getElementById('song-list');
-      const endpoint = appliedQuery
-        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}`
-        : `/api/songs/ranking?page=${safePage}`;
 
       if (searchInput && searchInput.value !== appliedQuery) {
         searchInput.value = appliedQuery;
@@ -673,6 +745,12 @@
 
       updateSearchUiForTarget(safeTarget);
       updateSearchState(appliedQuery, safeTarget);
+
+      const { pageSize } = syncPageSizeWithViewport();
+      const endpoint = appliedQuery
+        ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${pageSize}`
+        : `/api/songs/ranking?page=${safePage}&pageSize=${pageSize}`;
+
       songList.textContent = 'Loading...';
 
       try {
@@ -686,19 +764,28 @@
 
         const payload = await response.json();
         const songs = Array.isArray(payload.songs) ? payload.songs : [];
+        const effectivePageSize = clampPageSize(payload.pageSize || pageSize);
         const totalSongs = Number.isFinite(Number(payload.totalSongs))
           ? Number(payload.totalSongs)
-          : (((safePage - 1) * PAGE_SIZE) + songs.length);
+          : (((safePage - 1) * effectivePageSize) + songs.length);
+        const availablePages = Math.max(1, Math.min(MAX_PAGES, Math.ceil(totalSongs / effectivePageSize)));
 
-        renderSongs(songs, safePage, appliedQuery);
-        renderPagination(safePage, totalSongs, appliedQuery, safeTarget);
+        currentPageSize = effectivePageSize;
+
+        if (safePage > availablePages) {
+          loadSongs(availablePages, appliedQuery, safeTarget);
+          return;
+        }
+
+        renderSongs(songs, safePage, appliedQuery, effectivePageSize);
+        renderPagination(safePage, totalSongs, appliedQuery, safeTarget, effectivePageSize);
         updatePageUrl(safePage, appliedQuery, safeTarget);
       } catch (error) {
         console.error('Error loading songs:', error);
         songList.textContent = appliedQuery
           ? '検索結果の読み込みに失敗しました。'
           : 'ランキングの読み込みに失敗しました。';
-        renderPagination(safePage, 0, appliedQuery, safeTarget);
+        renderPagination(safePage, 0, appliedQuery, safeTarget, pageSize);
       }
     }
 
@@ -754,8 +841,24 @@
       loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
     });
 
+    window.addEventListener('resize', () => {
+      if (resizeDebounceTimer) {
+        window.clearTimeout(resizeDebounceTimer);
+      }
+
+      resizeDebounceTimer = window.setTimeout(() => {
+        const { changed } = syncPageSizeWithViewport();
+        if (changed) {
+          loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
+        } else {
+          updatePaginationSafeSpace();
+        }
+      }, 120);
+    });
+
     window.addEventListener('load', () => {
       updateSearchUiForTarget(getTargetFromUrl());
+      syncPageSizeWithViewport();
       loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
     });
   </script>
