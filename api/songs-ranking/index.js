@@ -1,44 +1,19 @@
-const { CosmosClient } = require("@azure/cosmos");
 const {
   normalizeScore,
   attachDisplayScore,
   compareSongsForRanking
-} = require("../shared/ranking-score");
+} = require('../shared/ranking-score');
 const {
   MAX_PAGES,
   normalizePage,
   normalizePageSize,
   calculateTotalLimit
-} = require("../shared/pagination");
+} = require('../shared/pagination');
+const { getContainer } = require('../shared/cosmos');
+const { jsonResponse, serverConfigError } = require('../shared/http');
+const { normalizeTags } = require('../shared/validation');
 
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
-const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
-
-let container = null;
-if (endpoint && key) {
-  const client = new CosmosClient({ endpoint, key });
-  container = client.database(databaseId).container(containerId);
-}
-
-function jsonResponse(status, body) {
-  return {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body
-  };
-}
-
-function normalizeTags(tags) {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-
-  return tags
-    .map((tag) => String(tag || '').trim())
-    .filter(Boolean);
-}
+const container = getContainer();
 
 function mapSongSummary(song, now = Date.now()) {
   return attachDisplayScore({
@@ -54,10 +29,7 @@ function mapSongSummary(song, now = Date.now()) {
 
 module.exports = async function (context, req) {
   if (!container) {
-    context.res = jsonResponse(500, {
-      error: "ServerConfigError",
-      detail: "Missing COSMOS_ENDPOINT or COSMOS_KEY."
-    });
+    context.res = serverConfigError();
     return;
   }
 

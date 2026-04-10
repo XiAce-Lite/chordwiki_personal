@@ -28,45 +28,21 @@ const state = {
   isSubmitting: false
 };
 
-function normalizeNewlines(text) {
-  return String(text || '').replace(/\r\n|\n\r|\r/g, '\n');
-}
-
-function generateUuid() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
-    const random = (Math.random() * 16) | 0;
-    const value = char === 'x' ? random : (random & 0x3) | 0x8;
-    return value.toString(16);
-  });
-}
-
-function buildSongUrl(artist, id) {
-  return `/song.html?artist=${encodeURIComponent(artist)}&id=${encodeURIComponent(id)}`;
-}
-
-function buildApiUrl(path) {
-  return window.ChordWikiRuntime?.buildApiUrl?.(path) || path;
-}
-
-function buildSongApiUrl(artist, id) {
-  const query = new URLSearchParams({
-    artist: String(artist || '').trim(),
-    id: String(id || '').trim()
-  });
-  return buildApiUrl(`/api/song?${query.toString()}`);
-}
-
-function buildEditSongApiUrl(artist, id) {
-  const query = new URLSearchParams({
-    artist: String(artist || '').trim(),
-    id: String(id || '').trim()
-  });
-  return buildApiUrl(`/api/edit/song?${query.toString()}`);
-}
+const {
+  buildApiUrl,
+  buildSongApiUrl,
+  buildEditSongApiUrl,
+  buildSongUrl
+} = window.ChordWikiApiUtils;
+const {
+  normalizeTextBlock,
+  normalizeTagsInput,
+  parseYoutubeTextarea,
+  formatYoutubeEntries
+} = window.ChordWikiSongUtils;
+const {
+  generateUuid
+} = window.ChordWikiIdUtils;
 
 function showMessage(text, type = '') {
   messageEl.textContent = text || '';
@@ -96,114 +72,6 @@ function setFormDisabled(disabled) {
   cancelButton.disabled = disabled;
 }
 
-function normalizeTags(text) {
-  const normalized = normalizeNewlines(text).trim();
-  if (!normalized) {
-    return [];
-  }
-
-  return normalized
-    .split('\n')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
-}
-
-function normalizeYoutubeStart(value) {
-  const parsed = Number.parseInt(String(value || '0'), 10);
-  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
-}
-
-function extractYoutubeId(text) {
-  const raw = String(text || '').trim();
-  if (!raw) {
-    return '';
-  }
-
-  const directMatch = raw.match(/^([A-Za-z0-9_-]{11})(?=$|[?&#\s])/);
-  if (directMatch) {
-    return directMatch[1];
-  }
-
-  if (/^https?:\/\//i.test(raw)) {
-    try {
-      const url = new URL(raw);
-      const hostname = url.hostname.toLowerCase();
-
-      if (hostname.includes('youtu.be')) {
-        return (url.pathname.split('/').filter(Boolean)[0] || '').trim();
-      }
-
-      if (hostname.includes('youtube.com')) {
-        const fromQuery = (url.searchParams.get('v') || '').trim();
-        if (fromQuery) {
-          return fromQuery;
-        }
-
-        const parts = url.pathname.split('/').filter(Boolean);
-        const markerIndex = parts.findIndex((part) => part === 'embed' || part === 'shorts');
-        if (markerIndex !== -1 && parts[markerIndex + 1]) {
-          return parts[markerIndex + 1].trim();
-        }
-      }
-    } catch {
-      return '';
-    }
-  }
-
-  const embeddedMatch = raw.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([A-Za-z0-9_-]{11})/i);
-  return embeddedMatch ? embeddedMatch[1] : '';
-}
-
-function extractYoutubeStart(text) {
-  const raw = String(text || '').trim();
-  const match = raw.match(/(?:[?&\s]|^)(?:t|start)\s*=\s*(\d+)(?:s)?(?=$|[&#\s])/i);
-  return normalizeYoutubeStart(match?.[1]);
-}
-
-function parseYoutubeLine(line) {
-  const raw = String(line || '').trim();
-  if (!raw) {
-    return null;
-  }
-
-  const id = extractYoutubeId(raw);
-  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-    return null;
-  }
-
-  return {
-    id,
-    start: extractYoutubeStart(raw)
-  };
-}
-
-function parseYoutubeTextarea(text) {
-  return normalizeNewlines(text)
-    .split('\n')
-    .map((line) => parseYoutubeLine(line))
-    .filter(Boolean);
-}
-
-function formatYoutubeEntries(entries) {
-  if (!Array.isArray(entries) || !entries.length) {
-    return '';
-  }
-
-  return entries
-    .map((entry) => {
-      const id = String(entry?.id || '').trim();
-      const start = normalizeYoutubeStart(entry?.start);
-
-      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-        return '';
-      }
-
-      return start > 0 ? `${id}?t=${start}` : id;
-    })
-    .filter(Boolean)
-    .join('\n');
-}
-
 function updatePageMeta() {
   const isEdit = state.mode === 'edit';
 
@@ -230,7 +98,7 @@ function populateForm(song) {
   artistInput.value = song.artist || '';
   tagsInput.value = Array.isArray(song.tags) ? song.tags.join('\n') : '';
   youtubeInput.value = formatYoutubeEntries(song.youtube);
-  chordProInput.value = normalizeNewlines(song.chordPro || '');
+  chordProInput.value = normalizeTextBlock(song.chordPro || '');
 }
 
 function initializeAddMode() {
@@ -345,8 +213,8 @@ async function handleSubmit(event) {
   const title = titleInput.value.trim();
   const slug = slugInput.value.trim();
   const artist = artistInput.value.trim();
-  const chordPro = normalizeNewlines(chordProInput.value).trim();
-  const tags = normalizeTags(tagsInput.value);
+  const chordPro = normalizeTextBlock(chordProInput.value).trim();
+  const tags = normalizeTagsInput(tagsInput.value);
   const youtube = parseYoutubeTextarea(youtubeInput.value);
 
   if (!title || !slug || !artist || !chordPro) {

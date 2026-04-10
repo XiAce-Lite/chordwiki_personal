@@ -7,7 +7,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: light)" />
   <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)" />
-  <link rel="stylesheet" href="css/chordwiki-song.css" />
+  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260410-refactor1" />
 </head>
 <body>
   <div class="container">
@@ -225,9 +225,14 @@
     <div id="youtube-player-host" class="youtube-player-frame" aria-label="YouTube mini player"></div>
   </div>
 
-  <script src="js/chordwiki-render.js"></script>
-  <script src="js/runtime-config.js"></script>
-  <script src="js/auth.js"></script>
-  <script src="js/song.js"></script>
+  <script src="js/runtime-config.js?v=20260410-refactor1"></script>
+  <script src="js/shared/api.js?v=20260410-refactor1"></script>
+  <script src="js/shared/song-utils.js?v=20260410-refactor1"></script>
+  <script src="js/chordwiki-render.js?v=20260410-refactor1"></script>
+  <script src="js/auth.js?v=20260410-refactor1"></script>
+  <script src="js/song-core.js?v=20260410-refactor1"></script>
+  <script src="js/song-extras.js?v=20260410-refactor1"></script>
+  <script src="js/song-autoscroll.js?v=20260410-refactor1"></script>
+  <script src="js/song.js?v=20260410-refactor1"></script>
 </body>
 </html>

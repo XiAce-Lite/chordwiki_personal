@@ -1,46 +1,13 @@
-const { CosmosClient } = require("@azure/cosmos");
+const { getContainer } = require('../shared/cosmos');
+const {
+  jsonResponse,
+  badRequest,
+  notFound,
+  serverConfigError
+} = require('../shared/http');
+const { parseArtistBody } = require('../shared/validation');
 
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
-const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
-
-let container = null;
-if (endpoint && key) {
-  const client = new CosmosClient({ endpoint, key });
-  container = client.database(databaseId).container(containerId);
-}
-
-function jsonResponse(status, body) {
-  return {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body
-  };
-}
-
-function parseBody(req) {
-  let body = req.body;
-
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      return { error: "Request body must be valid JSON." };
-    }
-  }
-
-  if (!body || typeof body !== "object") {
-    return { error: "Request body must be JSON." };
-  }
-
-  const artist = String(body.artist || "").trim();
-  if (!artist) {
-    return { error: "artist is required." };
-  }
-
-  return { artist };
-}
+const container = getContainer();
 
 function normalizeScore(value) {
   const numeric = Number(value);
@@ -53,10 +20,7 @@ function normalizeScore(value) {
 
 module.exports = async function (context, req) {
   if (!container) {
-    context.res = jsonResponse(500, {
-      error: "ServerConfigError",
-      detail: "Missing COSMOS_ENDPOINT or COSMOS_KEY."
-    });
+    context.res = serverConfigError();
     return;
   }
 
@@ -69,12 +33,9 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const parsed = parseBody(req);
+  const parsed = parseArtistBody(req.body);
   if (parsed.error) {
-    context.res = jsonResponse(400, {
-      error: "BadRequest",
-      detail: parsed.error
-    });
+    context.res = badRequest(parsed.error);
     return;
   }
 

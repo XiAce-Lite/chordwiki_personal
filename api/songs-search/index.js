@@ -1,65 +1,25 @@
-const { CosmosClient } = require("@azure/cosmos");
 const {
   normalizeScore,
   attachDisplayScore,
   compareSongsForRanking
-} = require("../shared/ranking-score");
+} = require('../shared/ranking-score');
 const {
   MAX_PAGES,
   normalizePage,
   normalizePageSize,
   calculateTotalLimit
-} = require("../shared/pagination");
-
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
-const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
+} = require('../shared/pagination');
+const { getContainer } = require('../shared/cosmos');
+const { jsonResponse, serverConfigError } = require('../shared/http');
+const {
+  normalizeText,
+  normalizeSearchQuery,
+  normalizeSearchTarget,
+  normalizeTags
+} = require('../shared/validation');
 
 const TAG_SUGGEST_LIMIT = 10;
-
-let container = null;
-if (endpoint && key) {
-  const client = new CosmosClient({ endpoint, key });
-  container = client.database(databaseId).container(containerId);
-}
-
-function jsonResponse(status, body) {
-  return {
-    status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
-    body
-  };
-}
-
-function normalizeText(value) {
-  return String(value || "").trim().toLocaleLowerCase("ja-JP");
-}
-
-function normalizeSearchQuery(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return { raw: "", term: "", isExact: false };
-  }
-
-  const isExact = raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"');
-  const term = (isExact ? raw.slice(1, -1) : raw).trim();
-  return { raw, term, isExact };
-}
-
-function normalizeSearchTarget(value) {
-  return String(value || '').trim().toLowerCase() === 'tag' ? 'tag' : 'song';
-}
-
-function normalizeTags(tags) {
-  if (!Array.isArray(tags)) {
-    return [];
-  }
-
-  return tags
-    .map((tag) => String(tag || '').trim())
-    .filter(Boolean);
-}
+const container = getContainer();
 
 function mapSongSummary(song, now = Date.now()) {
   return attachDisplayScore({
@@ -117,10 +77,7 @@ function collectTagSuggestions(songs, term, limit = TAG_SUGGEST_LIMIT) {
 
 module.exports = async function (context, req) {
   if (!container) {
-    context.res = jsonResponse(500, {
-      error: "ServerConfigError",
-      detail: "Missing COSMOS_ENDPOINT or COSMOS_KEY."
-    });
+    context.res = serverConfigError();
     return;
   }
 

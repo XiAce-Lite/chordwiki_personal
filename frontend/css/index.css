@@ -1,0 +1,441 @@
+    :root {
+      --top-header-min-height: 64px;
+      --top-header-safe-space: 64px;
+      --pagination-safe-space: 88px;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: calc(var(--top-header-safe-space) + 12px) 20px calc(var(--pagination-safe-space) + env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+      background: #f8fafc;
+    }
+    .top-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid #d9e2ec;
+      backdrop-filter: blur(10px);
+    }
+    .top-header-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: var(--top-header-min-height);
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 14px;
+      box-sizing: border-box;
+    }
+    .page-title {
+      flex: 0 0 auto;
+      margin: 0;
+      font-family: "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", "Noto Sans JP", "Segoe UI", sans-serif;
+      font-size: clamp(1.15rem, 1rem + 0.55vw, 1.35rem);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .site-logo {
+      display: block;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      object-fit: contain;
+    }
+    .home-link:hover {
+      color: #0b65c2;
+      text-decoration: none;
+    }
+    .search-panel {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      text-align: left;
+    }
+    .search-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: nowrap;
+    }
+    #search-target {
+      flex: 0 0 auto;
+      padding: 10px 12px;
+      font-size: 15px;
+      border: 1px solid #c8d1dc;
+      border-radius: 8px;
+      background: #fff;
+    }
+    .search-input-wrap {
+      position: relative;
+      flex: 1 1 320px;
+      min-width: 0;
+    }
+    #search {
+      width: 100%;
+      min-width: 0;
+      padding: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    #search-button {
+      padding: 10px 16px;
+      font-size: 15px;
+      font-weight: 700;
+      border: 1px solid #0078d4;
+      border-radius: 8px;
+      background: #0078d4;
+      color: #fff;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .search-help {
+      display: none;
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: #666;
+      text-align: left;
+    }
+    .search-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      max-width: 320px;
+      font-size: 12px;
+      color: #5f6b7a;
+      white-space: nowrap;
+    }
+    @media (max-width: 640px) {
+      :root {
+        --top-header-min-height: 124px;
+      }
+
+      body {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .top-header-inner {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        align-items: stretch;
+        gap: 8px;
+        padding: 10px 12px;
+      }
+
+      .page-title {
+        justify-self: start;
+        font-size: 1.1rem;
+      }
+
+      .site-logo {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
+      }
+
+      .search-panel {
+        width: 100%;
+      }
+
+      .search-form {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          "target target"
+          "input button";
+        align-items: center;
+        gap: 8px;
+      }
+
+      #search-target {
+        grid-area: target;
+        width: 100%;
+      }
+
+      .search-input-wrap {
+        grid-area: input;
+        min-width: 0;
+      }
+
+      #search-button {
+        grid-area: button;
+        padding: 10px 14px;
+      }
+
+      .search-state {
+        display: flex;
+        justify-content: space-between;
+        max-width: none;
+        width: 100%;
+      }
+
+      #add-button {
+        justify-self: start;
+      }
+    }
+    .search-state-text {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .search-clear {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: #0b65c2;
+      font: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .search-clear:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .search-suggest {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      border: 1px solid #d7e2ee;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    .search-suggest-item,
+    .search-suggest-empty {
+      display: block;
+      width: 100%;
+      padding: 10px 12px;
+      text-align: left;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .search-suggest-item {
+      border: 0;
+      border-bottom: 1px solid #eef3f8;
+      background: #fff;
+      cursor: pointer;
+    }
+    .search-suggest-item:last-child {
+      border-bottom: 0;
+    }
+    .search-suggest-item:hover {
+      background: #f7fbff;
+    }
+    .search-suggest-empty {
+      color: #667085;
+      background: #fcfdff;
+    }
+    .page-content {
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .local-sample-panel {
+      margin: 0 auto 14px;
+      padding: 12px 14px;
+      border: 1px solid #d9e2ec;
+      border-radius: 10px;
+      background: #fffdf6;
+      text-align: left;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    }
+    .local-sample-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #8a5a00;
+      margin-bottom: 8px;
+    }
+    .local-sample-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .local-sample-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid #f0d9a7;
+      border-radius: 999px;
+      background: #fff;
+      color: #7a4b00;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .local-sample-link:hover {
+      background: #fff7e6;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    #song-list {
+      margin-top: 0;
+      text-align: left;
+      max-width: 760px;
+      margin-left: auto;
+      margin-right: auto;
+      border: 1px solid #d9d9d9;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .song-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e6e6e6;
+      color: #000;
+      cursor: default;
+    }
+    .song-item:last-child {
+      border-bottom: none;
+    }
+    .song-item:hover {
+      background-color: #f7fbff;
+    }
+    .song-rank {
+      min-width: 3.5em;
+      font-weight: 700;
+      color: #0078d4;
+    }
+    .song-main {
+      flex: 1;
+      min-width: 0;
+    }
+    .song-title {
+      display: block;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-title-link {
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .song-title-link:hover {
+      color: #0b65c2;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .song-meta {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-top: 2px;
+      min-width: 0;
+      font-size: 13px;
+      color: #666;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .song-artist-name {
+      flex: 0 1 auto;
+      min-width: 0;
+      color: inherit;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .song-tags-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      overflow: hidden;
+      font-size: 12px;
+      color: #8a94a6;
+    }
+    .song-tag-inline {
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+    }
+    .song-tag-inline:hover {
+      color: #5d6c84;
+    }
+    .song-tag-ellipsis {
+      flex: 0 0 auto;
+      color: inherit;
+    }
+    .song-score {
+      font-size: 12px;
+      font-weight: 700;
+      color: #444;
+      background: #f1f5f9;
+      border-radius: 999px;
+      padding: 4px 8px;
+      white-space: nowrap;
+    }
+    #pagination {
+      position: fixed;
+      left: 50%;
+      bottom: max(10px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+      transform: translateX(-50%);
+      z-index: 40;
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: min(760px, calc(100vw - 24px));
+      margin-top: 16px;
+      padding: 10px 12px;
+      border: 1px solid #d9e2ec;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+    }
+    .page-button {
+      min-width: 40px;
+      padding: 8px 12px;
+      border: 1px solid #c8d1dc;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .page-button.is-active {
+      background: #0078d4;
+      border-color: #0078d4;
+      color: #fff;
+    }
+    .page-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    .editor-only {
+      display: none !important;
+    }
+    html.editor-enabled .editor-only {
+      display: inline-block !important;
+    }
+    html.editor-enabled .editor-only[data-display="block"] {
+      display: block !important;
+    }
+    html.editor-enabled .editor-only[data-display="flex"] {
+      display: flex !important;
+    }
+    html.editor-enabled .editor-only[data-display="inline-flex"] {
+      display: inline-flex !important;
+    }

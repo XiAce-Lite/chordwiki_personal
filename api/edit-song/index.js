@@ -1,111 +1,21 @@
-const { CosmosClient } = require("@azure/cosmos");
+const { getContainer } = require('../shared/cosmos');
+const {
+  badRequest: buildBadRequest,
+  notFound: buildNotFound,
+  serverConfigError,
+  internalServerError,
+  jsonResponse
+} = require('../shared/http');
+const { normalizeSongBody } = require('../shared/validation');
 
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DB_NAME || "ChordWiki";
-const containerId = process.env.COSMOS_DB_CONTAINER || "Songs";
-
-let container = null;
-if (endpoint && key) {
-  const client = new CosmosClient({ endpoint, key });
-  container = client.database(databaseId).container(containerId);
-}
+const container = getContainer();
 
 function badRequest(context, detail) {
-  context.res = { status: 400, body: { error: "BadRequest", detail } };
+  context.res = buildBadRequest(detail);
 }
 
 function notFound(context, detail) {
-  context.res = { status: 404, body: { error: "NotFound", detail } };
-}
-
-function normalizeNewlines(text) {
-  return String(text || "").replace(/\r\n|\n\r|\r/g, "\n");
-}
-
-function normalizeYoutubeEntries(entries) {
-  if (!Array.isArray(entries)) {
-    return [];
-  }
-
-  return entries
-    .map((entry) => {
-      const id = String(entry?.id || "").trim();
-      const rawStart = entry?.start;
-      const hasStart = rawStart !== undefined && rawStart !== null && String(rawStart).trim() !== "";
-      const start = Number.parseInt(String(rawStart ?? 0), 10);
-
-      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-        return null;
-      }
-
-      if (hasStart && !Number.isFinite(start)) {
-        return null;
-      }
-
-      return {
-        id,
-        start: Math.max(0, Math.trunc(Number.isFinite(start) ? start : 0))
-      };
-    })
-    .filter(Boolean);
-}
-
-function normalizeSongBody(rawBody, { fallbackId = "", requireId = true } = {}) {
-  let body = rawBody;
-
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      return { error: "Request body must be valid JSON." };
-    }
-  }
-
-  if (!body || typeof body !== "object") {
-    return { error: "Request body must be JSON." };
-  }
-
-  const id = String(body.id || fallbackId || "").trim();
-  const title = String(body.title || "").trim();
-  const slug = String(body.slug || "").trim();
-  const artist = String(body.artist || "").trim();
-  const createdAt = String(body.createdAt || "").trim();
-  const updatedAt = String(body.updatedAt || "").trim();
-  const chordPro = normalizeNewlines(body.chordPro || "").trim();
-  const youtube = normalizeYoutubeEntries(body.youtube);
-
-  if (requireId && !id) {
-    return { error: "id is required." };
-  }
-
-  if (!title || !slug || !artist || !chordPro) {
-    return { error: "title, slug, artist, chordPro are required." };
-  }
-
-  const rawTags = Array.isArray(body.tags)
-    ? body.tags
-    : typeof body.tags === "string"
-      ? normalizeNewlines(body.tags).split("\n")
-      : [];
-
-  const tags = rawTags
-    .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
-    .filter(Boolean);
-
-  return {
-    value: {
-      id,
-      title,
-      slug,
-      artist,
-      tags,
-      chordPro,
-      youtube,
-      createdAt,
-      updatedAt
-    }
-  };
+  context.res = buildNotFound(detail);
 }
 
 async function handleCreate(context, req) {
@@ -223,13 +133,7 @@ async function handleDelete(context, req) {
 module.exports = async function (context, req) {
   try {
     if (!container) {
-      context.res = {
-        status: 500,
-        body: {
-          error: "ServerConfigError",
-          detail: "Missing COSMOS_ENDPOINT or COSMOS_KEY"
-        }
-      };
+      context.res = serverConfigError('Missing COSMOS_ENDPOINT or COSMOS_KEY');
       return;
     }
 
@@ -250,15 +154,9 @@ module.exports = async function (context, req) {
       return;
     }
 
-    context.res = {
-      status: 405,
-      body: { error: "MethodNotAllowed", detail: `Unsupported method: ${method}` }
-    };
+    context.res = jsonResponse(405, { error: "MethodNotAllowed", detail: `Unsupported method: ${method}` });
   } catch (error) {
     context.log.error(error);
-    context.res = {
-      status: 500,
-      body: { error: "InternalServerError", detail: String(error.message || error) }
-    };
+    context.res = internalServerError(error);
   }
 };
