@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChordWiki Personal</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: light)">
+  <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)">
   <style>
     :root {
       --top-header-min-height: 64px;
@@ -49,14 +52,23 @@
       white-space: nowrap;
     }
     .home-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
       color: inherit;
       text-decoration: none;
       cursor: pointer;
     }
+    .site-logo {
+      display: block;
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      object-fit: contain;
+    }
     .home-link:hover {
       color: #0b65c2;
-      text-decoration: underline;
-      text-underline-offset: 3px;
+      text-decoration: none;
     }
     .search-panel {
       flex: 1 1 auto;
@@ -139,6 +151,12 @@
       .page-title {
         justify-self: start;
         font-size: 1.1rem;
+      }
+
+      .site-logo {
+        width: 32px;
+        height: 32px;
+        flex-basis: 32px;
       }
 
       .search-panel {
@@ -436,7 +454,12 @@
 <body>
   <header class="top-header">
     <div class="top-header-inner">
-      <h1 class="page-title"><a id="home-link" class="home-link" href="/">ChordWiki Personal</a></h1>
+      <h1 class="page-title">
+        <a id="home-link" class="home-link" href="/">
+          <img src="/site-logo.svg" alt="" class="site-logo" width="36" height="36" aria-hidden="true">
+          <span>ChordWiki Personal</span>
+        </a>
+      </h1>
       <div class="search-panel">
         <form id="search-form" class="search-form">
           <select id="search-target" aria-label="検索対象">
