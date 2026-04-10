@@ -14,7 +14,9 @@
   --marker-hit-area-padding: 0px;
   --autoscroll-safe-top: 64px;
   --song-extras-safe-top: 240px;
-  --youtube-player-safe-right: max(28px, calc(env(safe-area-inset-right, 0px) + 22px));
+  --floating-panel-safe-right: max(28px, calc(env(safe-area-inset-right, 0px) + 22px));
+  --floating-panel-width: min(320px, calc(100vw - (var(--floating-panel-safe-right) * 2)));
+  --youtube-player-safe-right: var(--floating-panel-safe-right);
   --youtube-player-safe-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
 }
 
@@ -184,17 +186,22 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .song-extras-ui {
-  position: static;
+  position: fixed;
+  top: var(--song-extras-safe-top);
+  right: var(--floating-panel-safe-right);
   z-index: 980;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 100%;
+  width: var(--floating-panel-width);
   min-width: 0;
-  max-width: none;
+  max-width: 320px;
+  max-height: calc(100vh - var(--song-extras-safe-top) - 120px);
   margin: 0;
   padding: 12px 14px;
   box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
   background: rgba(247, 251, 255, 0.96);
@@ -591,17 +598,22 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .autoscroll-ui {
-  position: static;
+  position: fixed;
+  top: var(--autoscroll-safe-top);
+  right: var(--floating-panel-safe-right);
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  width: 100%;
+  width: var(--floating-panel-width);
   min-width: 0;
-  max-width: none;
+  max-width: 320px;
+  max-height: calc(100vh - var(--autoscroll-safe-top) - 20px);
   margin: 0;
   padding: 12px 14px;
   box-sizing: border-box;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
   background: rgba(247, 251, 255, 0.96);
@@ -1287,6 +1299,16 @@ body.is-dragging-marker * {
     flex: 1 1 100%;
     min-width: 0;
     position: static;
+  }
+
+  .autoscroll-ui,
+  .song-extras-ui {
+    position: static;
+    top: auto;
+    right: auto;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
   }
 
   #sheet.cw-sheet {
