@@ -70,6 +70,18 @@ const VOICE_MARKER_CLASS_MAP = Object.freeze({
   '♥': 'female',
   '♦': 'female2'
 });
+const MNOTO_FONT_CANDIDATES = Object.freeze([
+  '"MNoto Sans alpha V2"',
+  '"MNoto Sans alpha"',
+  '"MNoto Sans"',
+  '"MNotoSans-alpha-ExtraBold"'
+]);
+
+const mnotoAvailabilityState = {
+  checked: false,
+  available: false,
+  family: ''
+};
 
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
@@ -543,10 +555,65 @@ function saveDisplayPreferences() {
   }
 }
 
+function measureTextWidthForFont(fontFamily, sampleText) {
+  const canvas = measureTextWidthForFont.canvas || (measureTextWidthForFont.canvas = document.createElement('canvas'));
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return Number.NaN;
+  }
+
+  context.font = `600 32px ${fontFamily}`;
+  return context.measureText(sampleText).width;
+}
+
+function updateMnotoFontAvailability() {
+  const fontSet = document.fonts;
+  const sampleText = 'C#M7(b9) F#m7-5 Bbadd9 N.C.';
+  const fallbackWidths = [
+    measureTextWidthForFont('sans-serif', sampleText),
+    measureTextWidthForFont('serif', sampleText),
+    measureTextWidthForFont('monospace', sampleText)
+  ].filter((width) => Number.isFinite(width));
+  let detectedFamily = '';
+
+  if (fontSet && typeof fontSet.check === 'function') {
+    detectedFamily = MNOTO_FONT_CANDIDATES.find((candidate) => {
+      try {
+        if (!fontSet.check(`16px ${candidate}`)) {
+          return false;
+        }
+
+        const candidateWidth = measureTextWidthForFont(`${candidate}, sans-serif`, sampleText);
+        if (!Number.isFinite(candidateWidth) || fallbackWidths.length === 0) {
+          return true;
+        }
+
+        return fallbackWidths.every((width) => Math.abs(width - candidateWidth) > 0.5);
+      } catch {
+        return false;
+      }
+    }) || '';
+  }
+
+  mnotoAvailabilityState.checked = true;
+  mnotoAvailabilityState.available = detectedFamily !== '';
+  mnotoAvailabilityState.family = detectedFamily;
+  return mnotoAvailabilityState.available;
+}
+
+function isMnotoFontAvailable() {
+  if (!mnotoAvailabilityState.checked) {
+    return updateMnotoFontAvailability();
+  }
+
+  return mnotoAvailabilityState.available;
+}
+
 function syncDisplayPreferenceUi() {
   const enabledInput = document.getElementById('display-custom-enabled');
   const adjustInput = document.getElementById('display-adjust-chordpos');
   const mnotoInput = document.getElementById('display-mnoto-enabled');
+  const mnotoStatusEl = document.getElementById('display-mnoto-status');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
@@ -554,6 +621,7 @@ function syncDisplayPreferenceUi() {
   const lyricWeightInput = document.getElementById('display-lyric-weight');
   const commentWeightInput = document.getElementById('display-comment-weight');
   const detailEl = document.getElementById('display-custom-detail');
+  const mnotoAvailable = isMnotoFontAvailable();
 
   if (enabledInput) {
     enabledInput.checked = displayPrefsState.enabled;
@@ -567,6 +635,17 @@ function syncDisplayPreferenceUi() {
   if (mnotoInput) {
     mnotoInput.checked = displayPrefsState.mnotoEnabled;
     mnotoInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (mnotoStatusEl) {
+    if (mnotoAvailable) {
+      const familyLabel = mnotoAvailabilityState.family.replace(/"/g, '');
+      mnotoStatusEl.textContent = `利用可能: ${familyLabel}`;
+      mnotoStatusEl.classList.remove('is-warning');
+    } else {
+      mnotoStatusEl.textContent = '未検出: このブラウザでは通常フォント表示になります';
+      mnotoStatusEl.classList.add('is-warning');
+    }
   }
 
   if (fontSizeInput) {
@@ -936,10 +1015,12 @@ function applyChordDisplayTextTransforms() {
 
   splitMixedChordSymbolSpans();
 
+  const shouldUseMnoto = displayPrefsState.mnotoEnabled && isMnotoFontAvailable();
+
   Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
     let nextText = String(span.textContent || '').replace(/maj/gi, 'M');
 
-    if (displayPrefsState.mnotoEnabled) {
+    if (shouldUseMnoto) {
       nextText = nextText.replace(/\((?:[#b+\-]?\d+(?:[,.][#b+\-]?\d+)*)\)/g, (match) => {
         const inner = match.slice(1, -1);
         return `{${/7/.test(inner) ? inner.replace(/7/g, "'") : inner}}`;
@@ -1086,9 +1167,15 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
     return;
   }
 
+  const mnotoAvailable = updateMnotoFontAvailability();
+  const mnotoActive = displayPrefsState.enabled && displayPrefsState.mnotoEnabled && mnotoAvailable;
+
   rootEl.dataset.displayCustom = displayPrefsState.enabled ? 'on' : 'off';
-  rootEl.dataset.mnoto = displayPrefsState.enabled && displayPrefsState.mnotoEnabled ? 'on' : 'off';
+  rootEl.dataset.mnoto = mnotoActive ? 'on' : 'off';
   rootEl.dataset.adjustChordPos = displayPrefsState.enabled && displayPrefsState.adjustChordPos ? 'on' : 'off';
+  rootEl.style.setProperty('--mnoto-font-family', mnotoAvailabilityState.family
+    ? `${mnotoAvailabilityState.family}, "Noto Sans JP", "Segoe UI", sans-serif`
+    : '"Noto Sans JP", "Segoe UI", sans-serif');
   rootEl.style.setProperty('--user-chord-size', `${displayPrefsState.chordFontSize}px`);
   rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
   rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
