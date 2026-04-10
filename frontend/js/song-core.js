@@ -112,7 +112,9 @@ const autoScrollState = {
   speedMultiplier: 1,
   virtualScrollY: 0,
   dragging: null,
-  hasLoadedSavedState: false
+  hasLoadedSavedState: false,
+  rewindToStartPending: false,
+  startFromMarkerPending: false
 };
 
 const youtubeTitleCache = new Map();

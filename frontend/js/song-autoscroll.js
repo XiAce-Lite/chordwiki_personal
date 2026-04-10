@@ -558,6 +558,11 @@ function restoreAutoScrollState() {
   updateAutoScrollSpeedUi();
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
+  autoScrollState.rewindToStartPending = false;
+  autoScrollState.startFromMarkerPending = Number.isFinite(autoScrollState.startY)
+    && Number.isFinite(autoScrollState.defaultStartY)
+    && Math.abs(autoScrollState.startY - autoScrollState.defaultStartY) > START_SCROLL_TOLERANCE_PX;
+
   if (savedState) {
     updateStoppedStatus(true);
   } else {
@@ -576,6 +581,7 @@ function setMarkerY(markerName, docY, { persist = true, notify = true } = {}) {
       defaults.endY
     );
     autoScrollState.startY = Math.min(nextY, maxStartY);
+    autoScrollState.startFromMarkerPending = true;
   } else {
     const minEndY = clampMarkerToSheet(
       Number.isFinite(autoScrollState.startY) ? autoScrollState.startY : defaults.startY,
@@ -584,6 +590,7 @@ function setMarkerY(markerName, docY, { persist = true, notify = true } = {}) {
     autoScrollState.endY = Math.max(nextY, minEndY);
   }
 
+  autoScrollState.rewindToStartPending = false;
   renderMarkerPositions();
 
   if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
@@ -809,7 +816,7 @@ function isEndMarkerVisibleInViewport() {
   return rect.bottom >= 0 && rect.top <= window.innerHeight;
 }
 
-function stopAutoScroll(message = 'Stopped', tone = 'info') {
+function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false } = {}) {
   if (autoScrollState.frameId) {
     window.cancelAnimationFrame(autoScrollState.frameId);
     autoScrollState.frameId = null;
@@ -817,6 +824,12 @@ function stopAutoScroll(message = 'Stopped', tone = 'info') {
 
   autoScrollState.isPlaying = false;
   autoScrollState.speedPxPerSec = 0;
+
+  if (reachedEnd) {
+    autoScrollState.rewindToStartPending = true;
+    autoScrollState.startFromMarkerPending = true;
+  }
+
   updateAutoScrollControls();
   saveAutoScrollState({ notify: false });
   setStatus(message, tone);
@@ -828,7 +841,7 @@ function recalculateAutoScrollSpeed() {
   }
 
   if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success');
+    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
     return false;
   }
 
@@ -837,7 +850,7 @@ function recalculateAutoScrollSpeed() {
   const remainingDistancePx = getAutoScrollStopScrollY() - window.scrollY;
 
   if (remainingDistancePx <= 0.5) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success');
+    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
     return false;
   }
 
@@ -874,7 +887,7 @@ function runAutoScrollFrame(nowMs) {
   window.scrollTo(0, autoScrollState.virtualScrollY);
 
   if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success');
+    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
     return;
   }
 
@@ -904,18 +917,16 @@ function scrollBackToAutoScrollStart({ notify = true } = {}) {
   const targetScrollY = getAutoScrollStartScrollY();
   window.scrollTo(0, targetScrollY);
   autoScrollState.virtualScrollY = targetScrollY;
+  autoScrollState.rewindToStartPending = false;
+  autoScrollState.startFromMarkerPending = true;
 
   if (notify) {
-    setStatus(`Stopped · 先頭に戻りました。もう一度クリックで再生 · ${formatSpeedMultiplier()}`, 'warn');
+    setStatus(`Stopped · Start に戻りました。もう一度クリックで再生 · ${formatSpeedMultiplier()}`, 'warn');
   }
 }
 
 function shouldScrollToStart() {
-  if (!Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.defaultStartY)) {
-    return true;
-  }
-
-  return Math.abs(autoScrollState.startY - autoScrollState.defaultStartY) > START_SCROLL_TOLERANCE_PX;
+  return Boolean(autoScrollState.startFromMarkerPending && Number.isFinite(autoScrollState.startY));
 }
 
 function startAutoScroll() {
@@ -941,6 +952,8 @@ function startAutoScroll() {
     window.scrollTo(0, getAutoScrollStartScrollY());
   }
 
+  autoScrollState.rewindToStartPending = false;
+  autoScrollState.startFromMarkerPending = false;
   autoScrollState.isPlaying = true;
   autoScrollState.startedAtMs = performance.now();
   autoScrollState.lastFrameMs = autoScrollState.startedAtMs;
@@ -978,7 +991,7 @@ function handleSheetPrimaryClick(event) {
     return;
   }
 
-  if (!autoScrollState.isPlaying && isEndMarkerVisibleInViewport()) {
+  if (!autoScrollState.isPlaying && autoScrollState.rewindToStartPending) {
     scrollBackToAutoScrollStart({ notify: true });
     return;
   }
@@ -1044,6 +1057,8 @@ function resetAutoScrollMarkers() {
   const defaults = getDefaultMarkerPositions();
   autoScrollState.startY = defaults.startY;
   autoScrollState.endY = defaults.endY;
+  autoScrollState.rewindToStartPending = false;
+  autoScrollState.startFromMarkerPending = true;
 
   renderMarkerPositions();
 
