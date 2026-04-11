@@ -983,9 +983,9 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 40px;
-  padding: 6px 10px !important;
+  min-width: 40px;
+  min-height: 38px;
+  padding: 5px 8px !important;
   border-radius: 12px !important;
   cursor: pointer;
   touch-action: manipulation;
@@ -998,7 +998,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .annotation-icon-button .material-symbols-outlined {
-  font-size: 21px;
+  font-size: 20px;
 }
 
 .annotation-icon-button.is-active {
@@ -1054,8 +1054,9 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .ink-floating-controls-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: nowrap;
   position: relative;
 }
 
@@ -1067,11 +1068,12 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .ink-popover-anchor {
   position: relative;
   display: inline-flex;
+  flex: 0 0 auto;
 }
 
 .annotation-popover {
   position: absolute;
-  top: calc(100% - 6px);
+  top: calc(100% + 6px);
   right: 0;
   z-index: 60;
   display: flex;
@@ -1101,8 +1103,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .ink-color-palette {
+  justify-content: center;
   flex-wrap: wrap;
-  max-width: 168px;
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
 }
 
 .ink-width-choice,

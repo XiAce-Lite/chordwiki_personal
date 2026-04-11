@@ -4,6 +4,8 @@ const AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY = 'autoscrollSectionCollapsed';
 const TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY = 'transposeNotationCollapsed';
 const ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY = 'annotationSectionCollapsed';
 const INK_TOOLBAR_COLLAPSED_STORAGE_KEY = 'inkToolbarCollapsed';
+const INK_COLOR_STORAGE_KEY = 'inkColorPreference';
+const INK_WIDTH_STORAGE_KEY = 'inkWidthPreference';
 const DEFAULT_NOTE_W = 240;
 const DEFAULT_NOTE_H = 180;
 const DEFAULT_NOTE_COLOR = '#fff3a6';
@@ -54,6 +56,33 @@ function getStickyNotesStorageKey(artist = '', id = '') {
 
 function getInkStorageKey(artist = '', id = '') {
   return `${INK_STORAGE_PREFIX}:${artist}:${id}`;
+}
+
+function persistInkToolPreferences() {
+  try {
+    window.localStorage.setItem(INK_COLOR_STORAGE_KEY, normalizeAnnotationColor(songAnnotationsState.inkColor, DEFAULT_INK_COLOR));
+    window.localStorage.setItem(INK_WIDTH_STORAGE_KEY, String(Math.round((songAnnotationsState.inkWidth || MIN_INK_WIDTH) * 10) / 10));
+  } catch (error) {
+    console.warn('Failed to store handwriting tool preferences:', error);
+  }
+}
+
+function restoreInkToolPreferences() {
+  try {
+    const storedColor = window.localStorage.getItem(INK_COLOR_STORAGE_KEY);
+    const storedWidth = window.localStorage.getItem(INK_WIDTH_STORAGE_KEY);
+
+    if (storedColor) {
+      songAnnotationsState.inkColor = normalizeAnnotationColor(storedColor, DEFAULT_INK_COLOR);
+    }
+
+    if (storedWidth !== null && storedWidth !== '') {
+      const safeWidth = Math.max(MIN_INK_WIDTH, Math.min(MAX_INK_WIDTH, Number(storedWidth) || MIN_INK_WIDTH));
+      songAnnotationsState.inkWidth = Math.round(safeWidth * 10) / 10;
+    }
+  } catch (error) {
+    console.warn('Failed to restore handwriting tool preferences:', error);
+  }
 }
 
 function sanitizeFiniteNumber(value, fallback = 0) {
@@ -1157,7 +1186,22 @@ function renderInkColorPalette() {
   customChoice.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    colorInput?.click();
+    closeInkFloatingPopovers();
+
+    if (!colorInput) {
+      return;
+    }
+
+    try {
+      if (typeof colorInput.showPicker === 'function') {
+        colorInput.showPicker();
+        return;
+      }
+    } catch (error) {
+      // Fall back to click below when showPicker is unavailable.
+    }
+
+    colorInput.click();
   });
   palette.appendChild(customChoice);
 }
@@ -1272,10 +1316,9 @@ function setInkToolbarCollapsed(collapsed) {
 
 function restoreInkToolbarCollapsedState() {
   try {
-    const raw = window.localStorage.getItem(INK_TOOLBAR_COLLAPSED_STORAGE_KEY);
-    setInkToolbarCollapsed(raw !== '0');
+    setInkToolbarCollapsed(true);
   } catch (error) {
-    console.warn('Failed to restore handwriting toolbar state:', error);
+    console.warn('Failed to initialize handwriting toolbar state:', error);
     setInkToolbarCollapsed(true);
   }
 }
@@ -1295,11 +1338,13 @@ function toggleInkPinned() {
 function setInkWidth(width) {
   const safeWidth = Math.max(MIN_INK_WIDTH, Math.min(MAX_INK_WIDTH, Number(width) || MIN_INK_WIDTH));
   songAnnotationsState.inkWidth = Math.round(safeWidth * 10) / 10;
+  persistInkToolPreferences();
   updateInkControlsUi();
 }
 
 function setInkColor(color) {
   songAnnotationsState.inkColor = normalizeAnnotationColor(color, DEFAULT_INK_COLOR);
+  persistInkToolPreferences();
   updateInkControlsUi();
 }
 
@@ -1718,6 +1763,7 @@ function initializeSongAnnotationsUi() {
   ensureViewportAnnotationLayer();
   ensureSheetAnnotationRoot();
   syncInkLayerSize();
+  restoreInkToolPreferences();
   restoreTransposeNotationCollapsedState();
   restoreAnnotationSectionCollapsedState();
   restoreInkToolbarCollapsedState();
