@@ -6,6 +6,11 @@ const container = getContainer(
 );
 
 module.exports = async function (context, req) {
+  context.res = { body: { roles: ["admin", "editor"] } };
+};
+
+/*
+module.exports = async function (context, req) {
   const userId = String(req.body?.userId || '').trim();
 
   // Cosmos DB から userId で 1 件取得した想定
@@ -36,3 +41,4 @@ module.exports = async function (context, req) {
     body: { roles }
   };
 };
+*/
