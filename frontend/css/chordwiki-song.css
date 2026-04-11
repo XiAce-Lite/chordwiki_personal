@@ -1149,17 +1149,27 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 }
 
 .sticky-note-icon-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
+  min-width: 24px;
   height: 24px;
+  min-height: 24px;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: #5d4a07;
   cursor: pointer;
+  touch-action: manipulation;
+}
+
+.sticky-note-icon-button::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 .sticky-note-icon-button .material-symbols-outlined {
@@ -1174,6 +1184,23 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .sticky-note-icon-button.is-active {
   color: #8c4a00;
+}
+
+@media (any-pointer: coarse) {
+  .sticky-note-controls {
+    gap: 2px;
+  }
+
+  .sticky-note-icon-button {
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+  }
+
+  .sticky-note-icon-button::before {
+    inset: -2px;
+  }
 }
 
 .sticky-note-color-input {
