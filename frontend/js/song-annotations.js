@@ -22,6 +22,7 @@ const songAnnotationsState = {
   notes: [],
   noteDrafts: new Map(),
   strokes: [],
+  selectedStrokeId: '',
   inkModeEnabled: false,
   inkPinned: true,
   inkToolbarCollapsed: true,
@@ -80,6 +81,10 @@ function createStickyNoteId() {
   return `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function createInkStrokeId() {
+  return `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function normalizeStickyNote(note = {}) {
   const noteId = String(note?.id || '').trim() || createStickyNoteId();
   return {
@@ -115,11 +120,32 @@ function normalizeInkStroke(stroke = {}) {
   }
 
   return {
+    id: String(stroke?.id || '').trim() || createInkStrokeId(),
     points,
     color: normalizeAnnotationColor(stroke?.color, DEFAULT_INK_COLOR),
     width: Math.max(1, sanitizeFiniteNumber(stroke?.width, DEFAULT_INK_WIDTH)),
     pinned: Boolean(stroke?.pinned),
     createdAt: Math.max(0, Math.trunc(sanitizeFiniteNumber(stroke?.createdAt, Date.now())))
+  };
+}
+
+function serializeInkStroke(stroke = {}) {
+  const normalized = normalizeInkStroke(stroke);
+  if (!normalized) {
+    return null;
+  }
+
+  return {
+    id: normalized.id,
+    points: normalized.points.map((point) => ({
+      x: Math.round(point.x * 100) / 100,
+      y: Math.round(point.y * 100) / 100,
+      ...(typeof point.pressure === 'number' ? { pressure: Math.round(point.pressure * 100) / 100 } : {})
+    })),
+    color: normalizeAnnotationColor(normalized.color, DEFAULT_INK_COLOR),
+    width: Math.max(1, Math.round((normalized.width || DEFAULT_INK_WIDTH) * 100) / 100),
+    pinned: Boolean(normalized.pinned),
+    createdAt: Math.max(0, Math.trunc(normalized.createdAt || Date.now()))
   };
 }
 
@@ -146,9 +172,31 @@ function loadInkStrokesFromStorage(artist = '', id = '') {
   try {
     const raw = window.localStorage.getItem(getInkStorageKey(artist, id));
     const parsed = JSON.parse(raw || '[]');
-    return Array.isArray(parsed)
-      ? parsed.map(normalizeInkStroke).filter(Boolean)
-      : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    let migrated = false;
+    const strokes = parsed.map((stroke) => {
+      const normalized = normalizeInkStroke(stroke);
+      if (!normalized) {
+        migrated = true;
+        return null;
+      }
+
+      if (normalized.id !== String(stroke?.id || '').trim()) {
+        migrated = true;
+      }
+
+      return normalized;
+    }).filter(Boolean);
+
+    if (migrated) {
+      const payload = strokes.map(serializeInkStroke).filter(Boolean);
+      window.localStorage.setItem(getInkStorageKey(artist, id), JSON.stringify(payload));
+    }
+
+    return strokes;
   } catch (error) {
     console.warn('Failed to load ink strokes:', error);
     return [];
@@ -202,17 +250,7 @@ function saveInkStrokesToStorage() {
   songAnnotationsState.songKey = identity.key;
 
   try {
-    const payload = songAnnotationsState.strokes.map((stroke) => ({
-      points: stroke.points.map((point) => ({
-        x: Math.round(point.x * 100) / 100,
-        y: Math.round(point.y * 100) / 100,
-        ...(typeof point.pressure === 'number' ? { pressure: Math.round(point.pressure * 100) / 100 } : {})
-      })),
-      color: normalizeAnnotationColor(stroke.color),
-      width: Math.max(1, Math.round((stroke.width || DEFAULT_INK_WIDTH) * 100) / 100),
-      pinned: Boolean(stroke.pinned),
-      createdAt: Math.max(0, Math.trunc(stroke.createdAt || Date.now()))
-    }));
+    const payload = songAnnotationsState.strokes.map(serializeInkStroke).filter(Boolean);
     window.localStorage.setItem(getInkStorageKey(identity.artist, identity.id), JSON.stringify(payload));
   } catch (error) {
     console.warn('Failed to save ink strokes:', error);
@@ -347,6 +385,7 @@ function refreshSongAnnotationsAfterRender({ artist, id, reloadFromStorage = fal
     songAnnotationsState.songId = '';
     songAnnotationsState.notes = [];
     songAnnotationsState.strokes = [];
+    songAnnotationsState.selectedStrokeId = '';
     songAnnotationsState.noteDrafts.clear();
     renderStickyNotes();
     renderInkStrokes();
@@ -361,6 +400,7 @@ function refreshSongAnnotationsAfterRender({ artist, id, reloadFromStorage = fal
     songAnnotationsState.songId = identity.id;
     songAnnotationsState.notes = loadStickyNotesFromStorage(identity.artist, identity.id);
     songAnnotationsState.strokes = loadInkStrokesFromStorage(identity.artist, identity.id);
+    songAnnotationsState.selectedStrokeId = '';
     songAnnotationsState.noteDrafts.clear();
   }
 
@@ -376,6 +416,87 @@ function findStickyNoteById(noteId = '') {
 
 function getStickyNoteDraft(noteId = '') {
   return songAnnotationsState.noteDrafts.get(noteId) || null;
+}
+
+function findInkStrokeById(strokeId = '') {
+  return songAnnotationsState.strokes.find((stroke) => stroke.id === strokeId) || null;
+}
+
+function setSelectedInkStroke(strokeId = '') {
+  const nextId = String(strokeId || '').trim();
+  const resolvedId = nextId && songAnnotationsState.strokes.some((stroke) => stroke.id === nextId) ? nextId : '';
+  if (songAnnotationsState.selectedStrokeId === resolvedId) {
+    return;
+  }
+
+  songAnnotationsState.selectedStrokeId = resolvedId;
+  renderInkStrokes();
+  updateInkControlsUi();
+}
+
+function getDistanceFromPointToSegment(point, segmentStart, segmentEnd) {
+  const x1 = sanitizeFiniteNumber(segmentStart?.x, 0);
+  const y1 = sanitizeFiniteNumber(segmentStart?.y, 0);
+  const x2 = sanitizeFiniteNumber(segmentEnd?.x, x1);
+  const y2 = sanitizeFiniteNumber(segmentEnd?.y, y1);
+  const px = sanitizeFiniteNumber(point?.x, 0);
+  const py = sanitizeFiniteNumber(point?.y, 0);
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  if (Math.abs(dx) < 0.001 && Math.abs(dy) < 0.001) {
+    return Math.hypot(px - x1, py - y1);
+  }
+
+  const projection = ((px - x1) * dx + (py - y1) * dy) / ((dx * dx) + (dy * dy));
+  const t = Math.max(0, Math.min(1, projection));
+  const closestX = x1 + (dx * t);
+  const closestY = y1 + (dy * t);
+  return Math.hypot(px - closestX, py - closestY);
+}
+
+function pickInkStrokeAtPoint(point, pinned = false) {
+  const candidates = [];
+
+  for (let index = songAnnotationsState.strokes.length - 1; index >= 0; index -= 1) {
+    const stroke = songAnnotationsState.strokes[index];
+    if (Boolean(stroke?.pinned) !== Boolean(pinned)) {
+      continue;
+    }
+
+    const threshold = Math.max(8, (Number(stroke?.width) || DEFAULT_INK_WIDTH) * 1.4 + 5);
+    let minDistance = Number.POSITIVE_INFINITY;
+    const strokePoints = Array.isArray(stroke?.points) ? stroke.points : [];
+
+    for (let pointIndex = 0; pointIndex < strokePoints.length - 1; pointIndex += 1) {
+      const distance = getDistanceFromPointToSegment(point, strokePoints[pointIndex], strokePoints[pointIndex + 1]);
+      if (distance < minDistance) {
+        minDistance = distance;
+      }
+      if (minDistance <= threshold) {
+        break;
+      }
+    }
+
+    if (!Number.isFinite(minDistance) && strokePoints[0]) {
+      minDistance = Math.hypot(point.x - strokePoints[0].x, point.y - strokePoints[0].y);
+    }
+
+    if (minDistance <= threshold) {
+      candidates.push(stroke);
+    }
+  }
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const selectedIndex = candidates.findIndex((stroke) => stroke.id === songAnnotationsState.selectedStrokeId);
+  if (selectedIndex >= 0 && candidates.length > 1) {
+    return candidates[(selectedIndex + 1) % candidates.length];
+  }
+
+  return candidates[0];
 }
 
 function setStickyNoteDraft(noteId, draft = null) {
@@ -924,6 +1045,12 @@ function buildStrokeSvg(stroke) {
   polyline.setAttribute('stroke-linecap', 'round');
   polyline.setAttribute('stroke-linejoin', 'round');
   polyline.classList.add('annotation-ink-stroke');
+  if (stroke.id) {
+    polyline.dataset.strokeId = stroke.id;
+  }
+  if (stroke.id && stroke.id === songAnnotationsState.selectedStrokeId) {
+    polyline.classList.add('is-selected');
+  }
   return polyline;
 }
 
@@ -931,6 +1058,10 @@ function renderInkStrokes() {
   ensureViewportAnnotationLayer();
   ensureSheetAnnotationRoot();
   syncInkLayerSize();
+
+  if (songAnnotationsState.selectedStrokeId && !findInkStrokeById(songAnnotationsState.selectedStrokeId)) {
+    songAnnotationsState.selectedStrokeId = '';
+  }
 
   const sheetLayer = getSheetInkLayer();
   const viewportLayer = getViewportInkLayer();
@@ -1040,9 +1171,15 @@ function updateInkControlsUi() {
   const colorButton = document.getElementById('ink-color-button');
   const colorInput = document.getElementById('ink-color-input');
   const undoButton = document.getElementById('ink-undo-button');
+  const deleteButton = document.getElementById('ink-delete-button');
   const hint = document.getElementById('ink-mode-hint');
   const sheetInk = getSheetInkLayer();
   const viewportInk = getViewportInkLayer();
+  const hasSelectedStroke = Boolean(songAnnotationsState.selectedStrokeId && findInkStrokeById(songAnnotationsState.selectedStrokeId));
+
+  if (!hasSelectedStroke && songAnnotationsState.selectedStrokeId) {
+    songAnnotationsState.selectedStrokeId = '';
+  }
 
   body?.classList.toggle('ink-mode-enabled', songAnnotationsState.inkModeEnabled);
   floatingUi?.classList.toggle('is-collapsed', Boolean(songAnnotationsState.inkToolbarCollapsed));
@@ -1086,9 +1223,15 @@ function updateInkControlsUi() {
     undoButton.disabled = songAnnotationsState.strokes.length === 0;
   }
 
+  if (deleteButton) {
+    deleteButton.disabled = !hasSelectedStroke;
+    deleteButton.title = hasSelectedStroke ? '選択した手書き線を削除' : '削除する線を選択';
+    deleteButton.setAttribute('aria-label', hasSelectedStroke ? '選択した手書き線を削除' : '削除する線を選択');
+  }
+
   if (hint) {
     hint.textContent = songAnnotationsState.inkModeEnabled
-      ? `手書き中: ${songAnnotationsState.inkPinned ? '譜面に追従' : '画面固定'} / ${songAnnotationsState.inkColor || DEFAULT_INK_COLOR}`
+      ? `手書き中: ${songAnnotationsState.inkPinned ? '譜面に追従' : '画面固定'} / ${songAnnotationsState.inkColor || DEFAULT_INK_COLOR}${hasSelectedStroke ? ' / 1本選択中' : ''}`
       : '手書き OFF';
   }
 
@@ -1182,7 +1325,31 @@ function undoInkStroke() {
     return;
   }
 
-  songAnnotationsState.strokes.pop();
+  const removedStroke = songAnnotationsState.strokes.pop();
+  if (removedStroke?.id === songAnnotationsState.selectedStrokeId) {
+    songAnnotationsState.selectedStrokeId = '';
+  }
+  saveInkStrokesToStorage();
+  renderInkStrokes();
+  updateInkControlsUi();
+}
+
+function deleteSelectedInkStroke() {
+  const selectedId = songAnnotationsState.selectedStrokeId;
+  if (!selectedId) {
+    return;
+  }
+
+  const nextStrokes = songAnnotationsState.strokes.filter((stroke) => stroke.id !== selectedId);
+  if (nextStrokes.length === songAnnotationsState.strokes.length) {
+    songAnnotationsState.selectedStrokeId = '';
+    renderInkStrokes();
+    updateInkControlsUi();
+    return;
+  }
+
+  songAnnotationsState.strokes = nextStrokes;
+  songAnnotationsState.selectedStrokeId = '';
   saveInkStrokesToStorage();
   renderInkStrokes();
   updateInkControlsUi();
@@ -1299,6 +1466,20 @@ function handleInkPointerDown(event) {
     return;
   }
 
+  const selectedStroke = pickInkStrokeAtPoint(point, pinned);
+  if (selectedStroke) {
+    event.preventDefault();
+    event.stopPropagation();
+    setSelectedInkStroke(selectedStroke.id);
+    return;
+  }
+
+  if (songAnnotationsState.selectedStrokeId) {
+    songAnnotationsState.selectedStrokeId = '';
+    renderInkStrokes();
+    updateInkControlsUi();
+  }
+
   event.preventDefault();
   event.stopPropagation();
   const activeWidth = Math.max(MIN_INK_WIDTH, Math.min(MAX_INK_WIDTH, Number(songAnnotationsState.inkWidth) || MIN_INK_WIDTH));
@@ -1316,6 +1497,7 @@ function handleInkPointerDown(event) {
     pinned,
     previewEl,
     stroke: {
+      id: createInkStrokeId(),
       points: [point],
       color: songAnnotationsState.inkColor || DEFAULT_INK_COLOR,
       width: activeWidth,
@@ -1368,6 +1550,7 @@ function finishInkDrawing(event) {
   session.previewEl?.remove();
   if (session.stroke.points.length >= 2) {
     songAnnotationsState.strokes.push(session.stroke);
+    songAnnotationsState.selectedStrokeId = '';
     saveInkStrokesToStorage();
   }
 
@@ -1573,6 +1756,11 @@ function initializeSongAnnotationsUi() {
     event.stopPropagation();
     undoInkStroke();
   });
+  document.getElementById('ink-delete-button')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    deleteSelectedInkStroke();
+  });
   document.getElementById('autoscroll-section-collapse-toggle')?.addEventListener('click', toggleAutoScrollSectionCollapsed);
 
   document.addEventListener('pointerdown', (event) => {
@@ -1582,6 +1770,15 @@ function initializeSongAnnotationsUi() {
   }, true);
 
   document.addEventListener('keydown', (event) => {
+    const eventTarget = event.target instanceof HTMLElement ? event.target : null;
+    const isTypingField = Boolean(eventTarget && (eventTarget.matches('input, textarea, select') || eventTarget.isContentEditable));
+
+    if ((event.key === 'Delete' || event.key === 'Backspace') && songAnnotationsState.selectedStrokeId && !isTypingField) {
+      event.preventDefault();
+      deleteSelectedInkStroke();
+      return;
+    }
+
     if (event.key === 'Escape') {
       if (!document.getElementById('sticky-note-delete-modal')?.hidden) {
         closeStickyNoteDeleteDialog({ confirmed: false });

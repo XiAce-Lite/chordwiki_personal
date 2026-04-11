@@ -1011,6 +1011,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   color: var(--annotation-ink-current-color, #111111);
 }
 
+.annotation-icon-button:disabled {
+  opacity: 0.46;
+  cursor: not-allowed;
+}
+
 .annotation-color-input {
   position: absolute;
   width: 1px;
@@ -1217,6 +1222,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 
 .annotation-ink-stroke {
   opacity: 0.92;
+}
+
+.annotation-ink-stroke.is-selected {
+  opacity: 1;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.98)) drop-shadow(0 0 6px rgba(0, 120, 212, 0.85));
 }
 
 .annotation-ink-stroke.is-preview {
