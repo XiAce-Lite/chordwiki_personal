@@ -420,8 +420,11 @@ function updateAutoScrollSafeTop() {
 
   const adminActionsEl = document.getElementById('song-admin-actions');
   const autoScrollEl = getAutoScrollUiEl();
+  const inkFloatingEl = document.getElementById('ink-floating-ui');
   const youtubeShell = document.getElementById('youtube-player-shell');
+  let baseTop = 64;
   let safeTop = 64;
+  let inkTop = 64;
   let extrasTop = 64;
   let extrasBottomSafe = 18;
 
@@ -430,11 +433,28 @@ function updateAutoScrollSafeTop() {
     if (computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden') {
       const rect = adminActionsEl.getBoundingClientRect();
       if (rect.width > 0 || rect.height > 0) {
-        safeTop = Math.max(safeTop, Math.round(rect.bottom + 8));
-        extrasTop = Math.max(extrasTop, Math.round(rect.bottom + 8));
+        baseTop = Math.max(baseTop, Math.round(rect.bottom + 8));
       }
     }
   }
+
+  inkTop = baseTop;
+  safeTop = baseTop;
+  extrasTop = baseTop;
+  rootStyle.setProperty('--ink-floating-safe-top', `${inkTop}px`);
+
+  if (inkFloatingEl && !inkFloatingEl.hidden) {
+    const computedStyle = window.getComputedStyle(inkFloatingEl);
+    if (computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden') {
+      const rect = inkFloatingEl.getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        safeTop = Math.max(safeTop, Math.round(rect.bottom + 12));
+        extrasTop = Math.max(extrasTop, Math.round(rect.bottom + 12));
+      }
+    }
+  }
+
+  rootStyle.setProperty('--autoscroll-safe-top', `${safeTop}px`);
 
   if (autoScrollEl) {
     const computedStyle = window.getComputedStyle(autoScrollEl);
@@ -456,7 +476,6 @@ function updateAutoScrollSafeTop() {
     }
   }
 
-  rootStyle.setProperty('--autoscroll-safe-top', `${safeTop}px`);
   rootStyle.setProperty('--song-extras-safe-top', `${extrasTop}px`);
   rootStyle.setProperty('--song-extras-safe-bottom', `${extrasBottomSafe}px`);
 }

@@ -3,11 +3,15 @@ const INK_STORAGE_PREFIX = 'annotations-ink:v1';
 const AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY = 'autoscrollSectionCollapsed';
 const TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY = 'transposeNotationCollapsed';
 const ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY = 'annotationSectionCollapsed';
+const INK_TOOLBAR_COLLAPSED_STORAGE_KEY = 'inkToolbarCollapsed';
 const DEFAULT_NOTE_W = 240;
 const DEFAULT_NOTE_H = 180;
 const DEFAULT_NOTE_COLOR = '#fff3a6';
 const DEFAULT_INK_COLOR = '#111111';
 const DEFAULT_INK_WIDTH = 4;
+const MIN_INK_WIDTH = Math.max(1, DEFAULT_INK_WIDTH / 2);
+const MAX_INK_WIDTH = DEFAULT_INK_WIDTH;
+const INK_PRESET_COLORS = ['#111111', '#d32f2f', '#1976d2', '#2e7d32', '#7b1fa2', '#f57c00'];
 const MIN_NOTE_W = 208;
 const MIN_NOTE_H = 108;
 
@@ -19,8 +23,10 @@ const songAnnotationsState = {
   noteDrafts: new Map(),
   strokes: [],
   inkModeEnabled: false,
-  inkPinned: false,
+  inkPinned: true,
+  inkToolbarCollapsed: true,
   inkColor: DEFAULT_INK_COLOR,
+  inkWidth: MIN_INK_WIDTH,
   dragSession: null,
   resizeSession: null,
   drawingSession: null,
@@ -927,10 +933,96 @@ function renderInkStrokes() {
   });
 }
 
+function getInkWidthChoices() {
+  const midpoint = Math.round((((MIN_INK_WIDTH + MAX_INK_WIDTH) / 2) * 10)) / 10;
+  return Array.from(new Set([MIN_INK_WIDTH, midpoint, MAX_INK_WIDTH]));
+}
+
+function closeInkFloatingPopovers() {
+  const widthButton = document.getElementById('ink-width-button');
+  const widthPalette = document.getElementById('ink-width-palette');
+  const colorButton = document.getElementById('ink-color-button');
+  const colorPalette = document.getElementById('ink-color-palette');
+
+  widthPalette?.setAttribute('hidden', '');
+  colorPalette?.setAttribute('hidden', '');
+  widthButton?.setAttribute('aria-expanded', 'false');
+  colorButton?.setAttribute('aria-expanded', 'false');
+}
+
+function renderInkWidthPalette() {
+  const palette = document.getElementById('ink-width-palette');
+  if (!palette) {
+    return;
+  }
+
+  palette.innerHTML = '';
+  getInkWidthChoices().forEach((width) => {
+    const choice = document.createElement('button');
+    choice.type = 'button';
+    choice.className = 'ink-width-choice';
+    choice.classList.toggle('is-active', Math.abs(width - songAnnotationsState.inkWidth) < 0.01);
+    choice.setAttribute('aria-label', `太さ ${width}px`);
+    choice.innerHTML = `
+      <svg width="34" height="14" viewBox="0 0 34 14" aria-hidden="true">
+        <line x1="4" y1="7" x2="30" y2="7" stroke="currentColor" stroke-width="${width}" stroke-linecap="round"></line>
+      </svg>
+      <span>${width}px</span>
+    `;
+    choice.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setInkWidth(width);
+      closeInkFloatingPopovers();
+    });
+    palette.appendChild(choice);
+  });
+}
+
+function renderInkColorPalette() {
+  const palette = document.getElementById('ink-color-palette');
+  const colorInput = document.getElementById('ink-color-input');
+  if (!palette) {
+    return;
+  }
+
+  palette.innerHTML = '';
+  INK_PRESET_COLORS.forEach((color) => {
+    const choice = document.createElement('button');
+    choice.type = 'button';
+    choice.className = 'ink-color-choice';
+    choice.style.background = color;
+    choice.setAttribute('aria-label', `色 ${color}`);
+    choice.title = color;
+    choice.classList.toggle('is-active', normalizeAnnotationColor(color, DEFAULT_INK_COLOR) === songAnnotationsState.inkColor);
+    choice.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setInkColor(color);
+      closeInkFloatingPopovers();
+    });
+    palette.appendChild(choice);
+  });
+
+  const customChoice = document.createElement('button');
+  customChoice.type = 'button';
+  customChoice.className = 'ink-color-choice is-custom';
+  customChoice.setAttribute('aria-label', '別の色を選択');
+  customChoice.appendChild(createMaterialIcon('tune'));
+  customChoice.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    colorInput?.click();
+  });
+  palette.appendChild(customChoice);
+}
+
 function updateInkControlsUi() {
   const body = document.body;
+  const floatingUi = document.getElementById('ink-floating-ui');
   const toggleButton = document.getElementById('ink-mode-toggle');
   const pinButton = document.getElementById('ink-pin-toggle');
+  const widthButton = document.getElementById('ink-width-button');
   const colorButton = document.getElementById('ink-color-button');
   const colorInput = document.getElementById('ink-color-input');
   const undoButton = document.getElementById('ink-undo-button');
@@ -939,10 +1031,16 @@ function updateInkControlsUi() {
   const viewportInk = getViewportInkLayer();
 
   body?.classList.toggle('ink-mode-enabled', songAnnotationsState.inkModeEnabled);
+  floatingUi?.classList.toggle('is-collapsed', Boolean(songAnnotationsState.inkToolbarCollapsed));
+
+  if (songAnnotationsState.inkToolbarCollapsed) {
+    closeInkFloatingPopovers();
+  }
 
   if (toggleButton) {
     toggleButton.classList.toggle('is-active', songAnnotationsState.inkModeEnabled);
     toggleButton.setAttribute('aria-pressed', String(songAnnotationsState.inkModeEnabled));
+    toggleButton.setAttribute('aria-expanded', String(!songAnnotationsState.inkToolbarCollapsed));
     toggleButton.title = songAnnotationsState.inkModeEnabled ? '手書きモードを終了' : '手書きモードを開始';
     toggleButton.setAttribute('aria-label', songAnnotationsState.inkModeEnabled ? '手書きモードを終了' : '手書きモードを開始');
   }
@@ -954,6 +1052,11 @@ function updateInkControlsUi() {
     pinButton.setAttribute('aria-label', songAnnotationsState.inkPinned ? '新しい手書き線は譜面固定' : '新しい手書き線は画面に固定');
   }
 
+  if (widthButton) {
+    widthButton.title = `手書き太さ ${songAnnotationsState.inkWidth}px`;
+    widthButton.setAttribute('aria-label', `手書き太さを変更 (${songAnnotationsState.inkWidth}px)`);
+  }
+
   if (colorButton) {
     colorButton.style.setProperty('--annotation-ink-current-color', songAnnotationsState.inkColor || DEFAULT_INK_COLOR);
   }
@@ -961,6 +1064,9 @@ function updateInkControlsUi() {
   if (colorInput && colorInput.value !== (songAnnotationsState.inkColor || DEFAULT_INK_COLOR)) {
     colorInput.value = songAnnotationsState.inkColor || DEFAULT_INK_COLOR;
   }
+
+  renderInkWidthPalette();
+  renderInkColorPalette();
 
   if (undoButton) {
     undoButton.disabled = songAnnotationsState.strokes.length === 0;
@@ -981,10 +1087,47 @@ function updateInkControlsUi() {
   }
 }
 
-function toggleInkMode(forceState) {
-  const nextState = typeof forceState === 'boolean' ? forceState : !songAnnotationsState.inkModeEnabled;
-  songAnnotationsState.inkModeEnabled = nextState;
+function setInkToolbarCollapsed(collapsed) {
+  const nextCollapsed = Boolean(collapsed);
+
+  if (nextCollapsed && songAnnotationsState.drawingSession) {
+    finishInkDrawing();
+  }
+
+  songAnnotationsState.inkToolbarCollapsed = nextCollapsed;
+  songAnnotationsState.inkModeEnabled = !nextCollapsed;
+  if (nextCollapsed) {
+    closeInkFloatingPopovers();
+  }
   updateInkControlsUi();
+
+  try {
+    window.localStorage.setItem(INK_TOOLBAR_COLLAPSED_STORAGE_KEY, nextCollapsed ? '1' : '0');
+  } catch (error) {
+    console.warn('Failed to store handwriting toolbar state:', error);
+  }
+
+  window.requestAnimationFrame(() => {
+    updateAutoScrollSafeTop?.();
+    refreshSongExtrasLayout?.();
+  });
+}
+
+function restoreInkToolbarCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(INK_TOOLBAR_COLLAPSED_STORAGE_KEY);
+    setInkToolbarCollapsed(raw !== '0');
+  } catch (error) {
+    console.warn('Failed to restore handwriting toolbar state:', error);
+    setInkToolbarCollapsed(true);
+  }
+}
+
+function toggleInkMode(forceState) {
+  const nextState = typeof forceState === 'boolean'
+    ? forceState
+    : Boolean(songAnnotationsState.inkToolbarCollapsed);
+  setInkToolbarCollapsed(!nextState);
 }
 
 function toggleInkPinned() {
@@ -992,9 +1135,32 @@ function toggleInkPinned() {
   updateInkControlsUi();
 }
 
+function setInkWidth(width) {
+  const safeWidth = Math.max(MIN_INK_WIDTH, Math.min(MAX_INK_WIDTH, Number(width) || MIN_INK_WIDTH));
+  songAnnotationsState.inkWidth = Math.round(safeWidth * 10) / 10;
+  updateInkControlsUi();
+}
+
 function setInkColor(color) {
   songAnnotationsState.inkColor = normalizeAnnotationColor(color, DEFAULT_INK_COLOR);
   updateInkControlsUi();
+}
+
+function toggleInkPalette(type = 'color') {
+  const isWidth = type === 'width';
+  const button = document.getElementById(isWidth ? 'ink-width-button' : 'ink-color-button');
+  const palette = document.getElementById(isWidth ? 'ink-width-palette' : 'ink-color-palette');
+  if (!button || !palette || songAnnotationsState.inkToolbarCollapsed) {
+    return;
+  }
+
+  const shouldOpen = palette.hasAttribute('hidden');
+  closeInkFloatingPopovers();
+
+  if (shouldOpen) {
+    palette.removeAttribute('hidden');
+    button.setAttribute('aria-expanded', 'true');
+  }
 }
 
 function undoInkStroke() {
@@ -1063,10 +1229,34 @@ function getInkPassthroughTarget(event) {
 
   return underlying.closest(
     '#autoscroll-ui button, #autoscroll-ui input, #autoscroll-ui label, #autoscroll-ui a,'
+    + ' #ink-floating-ui button, #ink-floating-ui input, #ink-floating-ui label, #ink-floating-ui a,'
     + ' #song-extras-ui button, #song-extras-ui input, #song-extras-ui a,'
     + ' .youtube-player-shell button, .youtube-player-shell a,'
     + ' .song-meta-dialog button, .song-meta-dialog input, .song-meta-dialog textarea, .song-meta-dialog a'
   );
+}
+
+function updateInkHoverCursor(event) {
+  const interactiveTarget = event.target instanceof Element
+    ? event.target.closest(
+      '#autoscroll-ui button, #autoscroll-ui input, #autoscroll-ui label, #autoscroll-ui a,'
+      + ' #ink-floating-ui button, #ink-floating-ui input, #ink-floating-ui label, #ink-floating-ui a,'
+      + ' #song-extras-ui button, #song-extras-ui input, #song-extras-ui a,'
+      + ' .youtube-player-shell button, .youtube-player-shell a,'
+      + ' .song-meta-dialog button, .song-meta-dialog input, .song-meta-dialog textarea, .song-meta-dialog a'
+    )
+    : null;
+
+  const nextCursor = interactiveTarget ? 'pointer' : 'crosshair';
+  const sheetInk = getSheetInkLayer();
+  const viewportInk = getViewportInkLayer();
+
+  if (sheetInk?.classList.contains('is-active')) {
+    sheetInk.style.cursor = nextCursor;
+  }
+  if (viewportInk?.classList.contains('is-active')) {
+    viewportInk.style.cursor = nextCursor;
+  }
 }
 
 function handleInkPointerDown(event) {
@@ -1099,11 +1289,12 @@ function handleInkPointerDown(event) {
 
   event.preventDefault();
   event.stopPropagation();
+  const activeWidth = Math.max(MIN_INK_WIDTH, Math.min(MAX_INK_WIDTH, Number(songAnnotationsState.inkWidth) || MIN_INK_WIDTH));
   const previewEl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
   previewEl.classList.add('annotation-ink-stroke', 'is-preview');
   previewEl.setAttribute('fill', 'none');
   previewEl.setAttribute('stroke', songAnnotationsState.inkColor || DEFAULT_INK_COLOR);
-  previewEl.setAttribute('stroke-width', String(DEFAULT_INK_WIDTH));
+  previewEl.setAttribute('stroke-width', String(activeWidth));
   previewEl.setAttribute('stroke-linecap', 'round');
   previewEl.setAttribute('stroke-linejoin', 'round');
   event.currentTarget.appendChild(previewEl);
@@ -1115,7 +1306,7 @@ function handleInkPointerDown(event) {
     stroke: {
       points: [point],
       color: songAnnotationsState.inkColor || DEFAULT_INK_COLOR,
-      width: DEFAULT_INK_WIDTH,
+      width: activeWidth,
       pinned,
       createdAt: Date.now()
     }
@@ -1334,6 +1525,7 @@ function initializeSongAnnotationsUi() {
   syncInkLayerSize();
   restoreTransposeNotationCollapsedState();
   restoreAnnotationSectionCollapsedState();
+  restoreInkToolbarCollapsedState();
   restoreAutoScrollSectionCollapsedState();
   updateInkControlsUi();
   initializeStickyNoteDeleteDialog();
@@ -1341,21 +1533,51 @@ function initializeSongAnnotationsUi() {
   document.getElementById('sticky-note-add-button')?.addEventListener('click', createStickyNote);
   document.getElementById('transpose-notation-collapse-toggle')?.addEventListener('click', toggleTransposeNotationCollapsed);
   document.getElementById('annotation-section-collapse-toggle')?.addEventListener('click', toggleAnnotationSectionCollapsed);
-  document.getElementById('ink-mode-toggle')?.addEventListener('click', () => toggleInkMode());
-  document.getElementById('ink-pin-toggle')?.addEventListener('click', toggleInkPinned);
-  document.getElementById('ink-color-button')?.addEventListener('click', () => {
-    document.getElementById('ink-color-input')?.click();
+  document.getElementById('ink-mode-toggle')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleInkMode();
+  });
+  document.getElementById('ink-pin-toggle')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleInkPinned();
+  });
+  document.getElementById('ink-width-button')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleInkPalette('width');
+  });
+  document.getElementById('ink-color-button')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleInkPalette('color');
   });
   document.getElementById('ink-color-input')?.addEventListener('input', (event) => {
     setInkColor(event.target?.value);
   });
-  document.getElementById('ink-undo-button')?.addEventListener('click', undoInkStroke);
+  document.getElementById('ink-undo-button')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    undoInkStroke();
+  });
   document.getElementById('autoscroll-section-collapse-toggle')?.addEventListener('click', toggleAutoScrollSectionCollapsed);
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest('#ink-floating-ui')) {
+      closeInkFloatingPopovers();
+    }
+  }, true);
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       if (!document.getElementById('sticky-note-delete-modal')?.hidden) {
         closeStickyNoteDeleteDialog({ confirmed: false });
+        return;
+      }
+
+      if (!document.getElementById('ink-width-palette')?.hidden || !document.getElementById('ink-color-palette')?.hidden) {
+        closeInkFloatingPopovers();
         return;
       }
 
@@ -1376,6 +1598,7 @@ function initializeSongAnnotationsUi() {
     updateStickyNoteDragPosition(event);
     updateStickyNoteResize(event);
     handleInkPointerMove(event);
+    updateInkHoverCursor(event);
   });
   document.addEventListener('pointerup', (event) => {
     finishStickyNoteDrag(event);
@@ -1391,5 +1614,6 @@ function initializeSongAnnotationsUi() {
   window.addEventListener('resize', () => {
     syncInkLayerSize();
     renderInkStrokes();
+    updateAutoScrollSafeTop?.();
   });
 }

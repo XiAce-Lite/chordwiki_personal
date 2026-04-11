@@ -58,7 +58,7 @@
                   <button id="transpose-down" type="button">-</button>
                   <span id="transpose-display">Transpose: 0</span>
                   <button id="transpose-up" type="button">+</button>
-                  <button id="transpose-reset" type="button">Reset</button>
+                  <button id="transpose-reset" type="button">↺ Reset</button>
                 </div>
               </div>
             </div>
@@ -86,27 +86,13 @@
 
         <section id="annotation-section" class="control-section" aria-labelledby="annotation-section-title">
           <div class="control-section-heading">
-            <div id="annotation-section-title" class="control-section-title">メモ / 手書き</div>
-            <button id="annotation-section-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse memo and handwriting tools">▼</button>
+            <div id="annotation-section-title" class="control-section-title">メモ</div>
+            <button id="annotation-section-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse memo tools">▼</button>
           </div>
           <div id="annotation-detail" class="annotation-toolbar">
-            <div class="annotation-controls-row" aria-label="メモと手書き controls">
+            <div class="annotation-controls-row" aria-label="メモ controls">
               <button id="sticky-note-add-button" type="button" class="annotation-primary-button">📝 Memo</button>
-              <button id="ink-mode-toggle" type="button" class="annotation-icon-button" aria-pressed="false" aria-label="手書きモードを開始">
-                <span class="material-symbols-outlined" aria-hidden="true">draw</span>
-              </button>
-              <button id="ink-pin-toggle" type="button" class="annotation-icon-button" aria-pressed="false" aria-label="新しい手書き線を譜面に固定">
-                <span class="material-symbols-outlined" aria-hidden="true">push_pin</span>
-              </button>
-              <button id="ink-color-button" type="button" class="annotation-icon-button is-color-button" aria-label="手書き色を変更">
-                <span class="material-symbols-outlined" aria-hidden="true">palette</span>
-              </button>
-              <input id="ink-color-input" type="color" class="annotation-color-input" value="#111111" aria-label="手書き色" />
-              <button id="ink-undo-button" type="button" class="annotation-icon-button" aria-label="最後の手書き線を元に戻す" disabled>
-                <span class="material-symbols-outlined" aria-hidden="true">undo</span>
-              </button>
             </div>
-            <div id="ink-mode-hint" class="annotation-mode-hint" aria-live="polite">手書き OFF</div>
           </div>
         </section>
 
@@ -131,7 +117,9 @@
             <div class="autoscroll-presets" aria-label="Time presets">
               <button type="button" class="autoscroll-preset" data-minutes="2" data-seconds="30">2:30</button>
               <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="0">3:00</button>
+              <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="30">3:30</button>
               <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
+              <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="30">4:30</button>
               <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
             </div>
 
@@ -210,6 +198,34 @@
             </div>
           </div>
         </section>
+        </div>
+
+        <div id="ink-floating-ui" class="ink-floating-ui is-collapsed" aria-label="手書き controls">
+          <div class="ink-floating-controls-row" aria-label="手書き controls">
+            <button id="ink-mode-toggle" type="button" class="annotation-icon-button" aria-pressed="false" aria-expanded="false" aria-label="手書きモードを開始">
+              <span class="material-symbols-outlined" aria-hidden="true">draw</span>
+            </button>
+            <button id="ink-pin-toggle" type="button" class="annotation-icon-button ink-secondary-control" aria-pressed="true" aria-label="新しい手書き線は譜面固定">
+              <span class="material-symbols-outlined" aria-hidden="true">push_pin</span>
+            </button>
+            <div class="ink-popover-anchor">
+              <button id="ink-width-button" type="button" class="annotation-icon-button ink-secondary-control" aria-expanded="false" aria-label="手書き太さを変更">
+                <span class="material-symbols-outlined" aria-hidden="true">line_weight</span>
+              </button>
+              <div id="ink-width-palette" class="annotation-popover ink-width-palette" hidden></div>
+            </div>
+            <div class="ink-popover-anchor">
+              <button id="ink-color-button" type="button" class="annotation-icon-button ink-secondary-control is-color-button" aria-expanded="false" aria-label="手書き色を変更">
+                <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+              </button>
+              <div id="ink-color-palette" class="annotation-popover ink-color-palette" hidden></div>
+              <input id="ink-color-input" type="color" class="annotation-color-input" value="#111111" aria-label="手書き色" />
+            </div>
+            <button id="ink-undo-button" type="button" class="annotation-icon-button ink-secondary-control" aria-label="最後の手書き線を元に戻す" disabled>
+              <span class="material-symbols-outlined" aria-hidden="true">undo</span>
+            </button>
+          </div>
+          <div id="ink-mode-hint" class="annotation-mode-hint ink-mode-hint" aria-live="polite">手書き OFF</div>
         </div>
 
         <aside id="song-extras-ui" class="song-extras-ui" aria-label="Song extras" hidden>
