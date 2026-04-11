@@ -77,28 +77,60 @@
     return normalizeYoutubeStart(match?.[1]);
   }
 
-  function parseYoutubeLine(line) {
+  function validateYoutubeLine(line) {
     const raw = String(line || '').trim();
     if (!raw) {
-      return null;
+      return { entry: null, error: '' };
     }
 
     const id = extractYoutubeId(raw);
     if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-      return null;
+      return {
+        entry: null,
+        error: 'YouTube のアドレスとして不正です。動画ID（11文字）またはURLを入力してください。'
+      };
     }
 
     return {
-      id,
-      start: extractYoutubeStart(raw)
+      entry: {
+        id,
+        start: extractYoutubeStart(raw)
+      },
+      error: ''
     };
   }
 
-  function parseYoutubeTextarea(text) {
-    return normalizeTextBlock(text)
+  function parseYoutubeLine(line) {
+    return validateYoutubeLine(line).entry;
+  }
+
+  function parseYoutubeTextareaDetailed(text) {
+    const entries = [];
+    const errors = [];
+
+    normalizeTextBlock(text)
       .split('\n')
-      .map((line) => parseYoutubeLine(line))
-      .filter(Boolean);
+      .forEach((line, index) => {
+        const result = validateYoutubeLine(line);
+        if (result.entry) {
+          entries.push(result.entry);
+          return;
+        }
+
+        if (result.error) {
+          errors.push(`YouTube の${index + 1}行目が不正です。${result.error}`);
+        }
+      });
+
+    return { entries, errors };
+  }
+
+  function parseYoutubeTextarea(text) {
+    return parseYoutubeTextareaDetailed(text).entries;
+  }
+
+  function validateYoutubeTextarea(text) {
+    return parseYoutubeTextareaDetailed(text).errors;
   }
 
   function normalizeSongYoutubeEntries(entries) {
@@ -134,8 +166,11 @@
     normalizeYoutubeStart,
     extractYoutubeId,
     extractYoutubeStart,
+    validateYoutubeLine,
     parseYoutubeLine,
+    parseYoutubeTextareaDetailed,
     parseYoutubeTextarea,
+    validateYoutubeTextarea,
     normalizeSongYoutubeEntries,
     formatYoutubeEntriesForEdit,
     formatYoutubeEntries: formatYoutubeEntriesForEdit

@@ -13,31 +13,42 @@ function normalizeTags(tags) {
 }
 
 function normalizeYoutubeEntries(entries) {
-  if (!Array.isArray(entries)) {
-    return [];
+  if (entries === undefined || entries === null || entries === '') {
+    return { value: [] };
   }
 
-  return entries
-    .map((entry) => {
-      const id = String(entry?.id || '').trim();
-      const rawStart = entry?.start;
-      const hasStart = rawStart !== undefined && rawStart !== null && String(rawStart).trim() !== '';
-      const start = Number.parseInt(String(rawStart ?? 0), 10);
+  if (!Array.isArray(entries)) {
+    return { error: 'youtube must be an array.' };
+  }
 
-      if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
-        return null;
-      }
+  const normalized = [];
 
-      if (hasStart && !Number.isFinite(start)) {
-        return null;
-      }
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const id = String(entry?.id || '').trim();
+    const rawStart = entry?.start;
+    const hasStart = rawStart !== undefined && rawStart !== null && String(rawStart).trim() !== '';
+    const start = Number.parseInt(String(rawStart ?? 0), 10);
 
+    if (!/^[A-Za-z0-9_-]{11}$/.test(id)) {
       return {
-        id,
-        start: Math.max(0, Math.trunc(Number.isFinite(start) ? start : 0))
+        error: `YouTube の${index + 1}件目が不正です。YouTube のアドレスとして不正です。動画ID（11文字）またはURLを指定してください。`
       };
-    })
-    .filter(Boolean);
+    }
+
+    if (hasStart && !Number.isFinite(start)) {
+      return {
+        error: `YouTube の${index + 1}件目の開始位置が不正です。秒数で指定してください。`
+      };
+    }
+
+    normalized.push({
+      id,
+      start: Math.max(0, Math.trunc(Number.isFinite(start) ? start : 0))
+    });
+  }
+
+  return { value: normalized };
 }
 
 function normalizeText(value) {
@@ -81,7 +92,13 @@ function normalizeSongBody(rawBody, { fallbackId = '', requireId = true } = {}) 
   const createdAt = String(body.createdAt || '').trim();
   const updatedAt = String(body.updatedAt || '').trim();
   const chordPro = normalizeNewlines(body.chordPro || '').trim();
-  const youtube = normalizeYoutubeEntries(body.youtube);
+  const youtubeResult = normalizeYoutubeEntries(body.youtube);
+
+  if (youtubeResult.error) {
+    return { error: youtubeResult.error };
+  }
+
+  const youtube = youtubeResult.value;
 
   if (requireId && !id) {
     return { error: 'id is required.' };

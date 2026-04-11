@@ -566,6 +566,15 @@ async function saveSongMetaModal() {
     return;
   }
 
+  if (songMetaModalState.mode === 'youtube') {
+    const youtubeErrors = window.ChordWikiSongUtils?.validateYoutubeTextarea?.(inputEl.value) || [];
+    if (youtubeErrors.length) {
+      setSongMetaModalMessage(youtubeErrors[0], 'error');
+      inputEl.focus();
+      return;
+    }
+  }
+
   const nextTags = songMetaModalState.mode === 'tags'
     ? normalizeTextBlock(inputEl.value)
       .split('\n')

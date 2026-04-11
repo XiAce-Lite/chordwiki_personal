@@ -38,6 +38,7 @@ const {
   normalizeTextBlock,
   normalizeTagsInput,
   parseYoutubeTextarea,
+  validateYoutubeTextarea,
   formatYoutubeEntries
 } = window.ChordWikiSongUtils;
 const {
@@ -215,10 +216,17 @@ async function handleSubmit(event) {
   const artist = artistInput.value.trim();
   const chordPro = normalizeTextBlock(chordProInput.value).trim();
   const tags = normalizeTagsInput(tagsInput.value);
+  const youtubeErrors = validateYoutubeTextarea(youtubeInput.value);
   const youtube = parseYoutubeTextarea(youtubeInput.value);
 
   if (!title || !slug || !artist || !chordPro) {
     showMessage('曲名、URL用ID、アーティスト、本文を入力してください。', 'error');
+    return;
+  }
+
+  if (youtubeErrors.length) {
+    showMessage(youtubeErrors[0], 'error');
+    youtubeInput.focus();
     return;
   }
 
