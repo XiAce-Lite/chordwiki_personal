@@ -51,7 +51,7 @@
 - `メモ / 手書き` ブロックも一体で折りたたみ可能とすること
 - メモ / 手書きは歌詞行やコードにアンカーせず、絶対座標のみを保持し、レイアウト変化時に自動補正しないこと
 - メモのピン留め状態は「譜面に固定してスクロールに追従する」意味とし、ピンを外した状態では画面固定で表示すること
-- 手書き線の既定色は黒とし、Song Controls 上で色変更 UI と Undo を提供すること
+- 手書きツールは曲表示時は既定でシュリンク状態・OFF とし、右上フロート UI から ON/OFF、ピン切替、太さ変更、色変更、任意削除、Undo を提供すること
 - YouTube は曲ごとに複数登録でき、右下ミニプレイヤーで同一タブ再生できること
 - 狭い画面では、譜面の長い行は **横スクロール fallback** を用いてコードと歌詞の重なりを避けること
 
@@ -225,6 +225,8 @@
 - 個人用のメモ / 手書きはサーバー保存せず、以下の localStorage キーを用いる
   - Sticky notes: `annotations:v1:{artist}:{id}`
   - 手書き: `annotations-ink:v1:{artist}:{id}`
+  - 手書き色設定: `inkColorPreference`
+  - 手書き太さ設定: `inkWidthPreference`
 
 ### 5.3 サンプル
 
@@ -406,9 +408,10 @@
 - `Song Controls` では以下を扱う
 
   - `移調 / 表記` ブロック（`- / + / Reset`、♯ / 指定なし / ♭）
-  - `メモ / 手書き` ブロック（`📝 Memo`、手書き ON/OFF、ピン切替、色変更、Undo）
+  - `メモ` ブロック（`📝 Memo`）
+  - 右上の手書きフロート UI（既定で縮小表示、`draw`、ピン切替、太さ変更、色変更、任意削除、Undo）
   - オートスクロール時間入力（分・秒）
-  - 時間プリセット（2:30 / 3:00 / 4:00 / 5:00）
+  - 時間プリセット（2:30 / 3:00 / 3:30 / 4:00 / 4:30 / 5:00）
   - 表示カスタマイズ
   - Start / Stop / Marker Reset
 
@@ -475,6 +478,8 @@
 | `autoscroll:v1:{artist}:{id}` | マーカー位置・オートスクロール時間・速度倍率 |
 | `annotations:v1:{artist}:{id}` | 個人用付箋メモ |
 | `annotations-ink:v1:{artist}:{id}` | 個人用手書き |
+| `inkColorPreference` | 手書き色の既定値 |
+| `inkWidthPreference` | 手書き太さの既定値 |
 | `autoscrollCollapsed` | Song Controls 全体の折りたたみ状態 |
 | `transposeNotationCollapsed` | `移調 / 表記` ブロックの折りたたみ状態 |
 | `annotationSectionCollapsed` | `メモ / 手書き` ブロックの折りたたみ状態 |
