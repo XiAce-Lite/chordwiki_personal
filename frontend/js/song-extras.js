@@ -323,6 +323,8 @@ function setAutoScrollCollapsed(collapsed) {
   window.requestAnimationFrame(() => {
     updateAutoScrollSafeTop();
     renderMarkerPositions();
+    refreshSongExtrasLayout();
+    refreshSongExtrasLayout();
   });
 
   try {
@@ -369,6 +371,7 @@ function setSongExtrasCollapsed(collapsed) {
   window.requestAnimationFrame(() => {
     updateAutoScrollSafeTop();
     renderMarkerPositions();
+    refreshSongExtrasLayout();
   });
 
   try {
@@ -394,6 +397,21 @@ function toggleSongExtrasCollapsed() {
   window.requestAnimationFrame(updateAutoScrollSafeTop);
 }
 
+function refreshSongExtrasLayout() {
+  const extrasUi = getSongExtrasUiEl();
+  if (!extrasUi || extrasUi.hidden) {
+    return;
+  }
+
+  if (currentSongData) {
+    const displayTitle = String(document.getElementById('title')?.textContent || '').trim();
+    const displayArtist = String(document.getElementById('artist')?.textContent || '').trim();
+    renderSongSideRail(currentSongData, displayTitle, displayArtist);
+  }
+
+  window.requestAnimationFrame(updateAutoScrollSafeTop);
+}
+
 function updateAutoScrollSafeTop() {
   const rootStyle = document.documentElement?.style;
   if (!rootStyle) {
@@ -402,8 +420,10 @@ function updateAutoScrollSafeTop() {
 
   const adminActionsEl = document.getElementById('song-admin-actions');
   const autoScrollEl = getAutoScrollUiEl();
+  const youtubeShell = document.getElementById('youtube-player-shell');
   let safeTop = 64;
   let extrasTop = 64;
+  let extrasBottomSafe = 18;
 
   if (adminActionsEl && !adminActionsEl.hidden) {
     const computedStyle = window.getComputedStyle(adminActionsEl);
@@ -426,8 +446,19 @@ function updateAutoScrollSafeTop() {
     }
   }
 
+  if (youtubeShell && !youtubeShell.hidden) {
+    const computedStyle = window.getComputedStyle(youtubeShell);
+    if (computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden') {
+      const rect = youtubeShell.getBoundingClientRect();
+      if (rect.width > 0 || rect.height > 0) {
+        extrasBottomSafe = Math.max(extrasBottomSafe, Math.round(Math.max(0, window.innerHeight - rect.top) + 12));
+      }
+    }
+  }
+
   rootStyle.setProperty('--autoscroll-safe-top', `${safeTop}px`);
   rootStyle.setProperty('--song-extras-safe-top', `${extrasTop}px`);
+  rootStyle.setProperty('--song-extras-safe-bottom', `${extrasBottomSafe}px`);
 }
 
 function updateEditorActions(artist, id) {

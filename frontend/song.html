@@ -7,7 +7,8 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: light)" />
   <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)" />
-  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260410-floatalign1" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1" />
+  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260411-annotations1" />
 </head>
 <body>
   <div class="container">
@@ -44,68 +45,108 @@
             <button id="autoscroll-collapse-toggle" class="autoscroll-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song controls">≫</button>
           </div>
 
-        <section class="control-section" aria-labelledby="transpose-section-title">
-          <div id="transpose-section-title" class="control-section-title">移調</div>
-          <div id="transpose-ui" class="transpose-ui">
-            <div class="transpose-buttons">
-              <button id="transpose-down" type="button">-</button>
-              <span id="transpose-display">Transpose: 0</span>
-              <button id="transpose-up" type="button">+</button>
-              <button id="transpose-reset" type="button">Reset</button>
+        <section id="transpose-notation-section" class="control-section" aria-labelledby="transpose-notation-section-title">
+          <div class="control-section-heading">
+            <div id="transpose-notation-section-title" class="control-section-title">移調</div>
+            <button id="transpose-notation-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse transpose and notation">▼</button>
+          </div>
+
+          <div id="transpose-notation-detail" class="transpose-notation-detail">
+            <div class="subcontrol-block" aria-label="移調">
+              <div id="transpose-ui" class="transpose-ui">
+                <div class="transpose-buttons">
+                  <button id="transpose-down" type="button">-</button>
+                  <span id="transpose-display">Transpose: 0</span>
+                  <button id="transpose-up" type="button">+</button>
+                  <button id="transpose-reset" type="button">Reset</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="subcontrol-block" aria-labelledby="notation-section-title">
+              <div id="notation-section-title" class="control-section-title">表記</div>
+              <fieldset class="transpose-mode" aria-label="Accidental display mode">
+                <legend class="sr-only">Accidental display mode</legend>
+                <label class="transpose-mode-option">
+                  <input type="radio" name="accidental-mode" value="sharp" />
+                  <span>♯</span>
+                </label>
+                <label class="transpose-mode-option">
+                  <input type="radio" name="accidental-mode" value="none" checked />
+                  <span>指定なし</span>
+                </label>
+                <label class="transpose-mode-option">
+                  <input type="radio" name="accidental-mode" value="flat" />
+                  <span>♭</span>
+                </label>
+              </fieldset>
             </div>
           </div>
         </section>
 
-        <section class="control-section" aria-labelledby="notation-section-title">
-          <div id="notation-section-title" class="control-section-title">表記</div>
-          <fieldset class="transpose-mode" aria-label="Accidental display mode">
-            <legend class="sr-only">Accidental display mode</legend>
-            <label class="transpose-mode-option">
-              <input type="radio" name="accidental-mode" value="sharp" />
-              <span>♯</span>
-            </label>
-            <label class="transpose-mode-option">
-              <input type="radio" name="accidental-mode" value="none" checked />
-              <span>指定なし</span>
-            </label>
-            <label class="transpose-mode-option">
-              <input type="radio" name="accidental-mode" value="flat" />
-              <span>♭</span>
-            </label>
-          </fieldset>
+        <section id="annotation-section" class="control-section" aria-labelledby="annotation-section-title">
+          <div class="control-section-heading">
+            <div id="annotation-section-title" class="control-section-title">メモ / 手書き</div>
+            <button id="annotation-section-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse memo and handwriting tools">▼</button>
+          </div>
+          <div id="annotation-detail" class="annotation-toolbar">
+            <div class="annotation-controls-row" aria-label="メモと手書き controls">
+              <button id="sticky-note-add-button" type="button" class="annotation-primary-button">📝 Memo</button>
+              <button id="ink-mode-toggle" type="button" class="annotation-icon-button" aria-pressed="false" aria-label="手書きモードを開始">
+                <span class="material-symbols-outlined" aria-hidden="true">draw</span>
+              </button>
+              <button id="ink-pin-toggle" type="button" class="annotation-icon-button" aria-pressed="false" aria-label="新しい手書き線を譜面に固定">
+                <span class="material-symbols-outlined" aria-hidden="true">push_pin</span>
+              </button>
+              <button id="ink-color-button" type="button" class="annotation-icon-button is-color-button" aria-label="手書き色を変更">
+                <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+              </button>
+              <input id="ink-color-input" type="color" class="annotation-color-input" value="#111111" aria-label="手書き色" />
+              <button id="ink-undo-button" type="button" class="annotation-icon-button" aria-label="最後の手書き線を元に戻す" disabled>
+                <span class="material-symbols-outlined" aria-hidden="true">undo</span>
+              </button>
+            </div>
+            <div id="ink-mode-hint" class="annotation-mode-hint" aria-live="polite">手書き OFF</div>
+          </div>
         </section>
 
-        <section class="control-section" aria-labelledby="autoscroll-section-title">
-          <div id="autoscroll-section-title" class="control-section-title">オートスクロール</div>
-          <div class="autoscroll-duration">
-            <label for="autoscroll-minutes">
-              <input id="autoscroll-minutes" type="number" min="0" max="99" step="1" value="4" inputmode="numeric" />
-            </label>
-            <span class="autoscroll-separator">:</span>
-            <label for="autoscroll-seconds" aria-label="Seconds">
-              <input id="autoscroll-seconds" type="number" min="-1" max="60" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
-            </label>
-            <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
+        <section id="autoscroll-section" class="control-section" aria-labelledby="autoscroll-section-title">
+          <div class="control-section-heading">
+            <div id="autoscroll-section-title" class="control-section-title">オートスクロール</div>
+            <button id="autoscroll-section-collapse-toggle" class="section-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse auto-scroll settings">▼</button>
           </div>
 
-          <div class="autoscroll-presets" aria-label="Time presets">
-            <button type="button" class="autoscroll-preset" data-minutes="2" data-seconds="30">2:30</button>
-            <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="0">3:00</button>
-            <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
-            <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
-          </div>
+          <div id="autoscroll-detail" class="autoscroll-detail">
+            <div class="autoscroll-duration">
+              <label for="autoscroll-minutes">
+                <input id="autoscroll-minutes" type="number" min="0" max="99" step="1" value="4" inputmode="numeric" />
+              </label>
+              <span class="autoscroll-separator">:</span>
+              <label for="autoscroll-seconds" aria-label="Seconds">
+                <input id="autoscroll-seconds" type="number" min="-1" max="60" step="1" value="0" inputmode="numeric" aria-label="Seconds" />
+              </label>
+              <button id="autoscroll-duration-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll time">↺ Time</button>
+            </div>
 
-          <div class="autoscroll-speed-row" aria-label="Speed controls">
-            <button id="autoscroll-speed-down" type="button" aria-label="Slow down auto-scroll">－</button>
-            <span id="autoscroll-speed-display" class="autoscroll-speed-display" aria-live="polite">1.00x</span>
-            <button id="autoscroll-speed-up" type="button" aria-label="Speed up auto-scroll">＋</button>
-            <button id="autoscroll-speed-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll speed">↺ Speed</button>
-          </div>
-          <div class="autoscroll-speed-hint">再生中はホイール ↑ で遅く / ↓ で速く</div>
+            <div class="autoscroll-presets" aria-label="Time presets">
+              <button type="button" class="autoscroll-preset" data-minutes="2" data-seconds="30">2:30</button>
+              <button type="button" class="autoscroll-preset" data-minutes="3" data-seconds="0">3:00</button>
+              <button type="button" class="autoscroll-preset" data-minutes="4" data-seconds="0">4:00</button>
+              <button type="button" class="autoscroll-preset" data-minutes="5" data-seconds="0">5:00</button>
+            </div>
 
-          <div class="autoscroll-buttons">
-            <button id="autoscroll-toggle" type="button">Start</button>
-            <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
+            <div class="autoscroll-speed-row" aria-label="Speed controls">
+              <button id="autoscroll-speed-down" type="button" aria-label="Slow down auto-scroll">－</button>
+              <span id="autoscroll-speed-display" class="autoscroll-speed-display" aria-live="polite">1.00x</span>
+              <button id="autoscroll-speed-up" type="button" aria-label="Speed up auto-scroll">＋</button>
+              <button id="autoscroll-speed-reset" type="button" class="autoscroll-inline-reset" aria-label="Reset auto-scroll speed">↺ Speed</button>
+            </div>
+            <div class="autoscroll-speed-hint">再生中はホイール ↑ で遅く / ↓ で速く</div>
+
+            <div class="autoscroll-buttons">
+              <button id="autoscroll-toggle" type="button">Start</button>
+              <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
+            </div>
           </div>
         </section>
 
@@ -216,6 +257,16 @@
     </div>
   </div>
 
+  <div id="sticky-note-delete-modal" class="sticky-note-delete-modal" hidden>
+    <div class="sticky-note-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="sticky-note-delete-title">
+      <h2 id="sticky-note-delete-title" class="sticky-note-delete-title">このメモを削除しますか？</h2>
+      <div class="sticky-note-delete-actions">
+        <button id="sticky-note-delete-cancel" type="button" class="sticky-note-delete-cancel">キャンセル</button>
+        <button id="sticky-note-delete-confirm" type="button" class="sticky-note-delete-confirm">削除</button>
+      </div>
+    </div>
+  </div>
+
   <div id="youtube-player-shell" class="youtube-player-shell" hidden>
     <div class="youtube-player-header">
       <div id="youtube-player-title" class="youtube-player-title">Now Playing</div>
@@ -232,9 +283,10 @@
   <script src="js/shared/song-utils.js?v=20260410-refactor1"></script>
   <script src="js/chordwiki-render.js?v=20260410-refactor1"></script>
   <script src="js/auth.js?v=20260410-refactor1"></script>
-  <script src="js/song-core.js?v=20260410-endmarker1"></script>
+  <script src="js/song-core.js?v=20260411-annotations1"></script>
   <script src="js/song-extras.js?v=20260410-refactor1"></script>
   <script src="js/song-autoscroll.js?v=20260410-endmarker1"></script>
-  <script src="js/song.js?v=20260410-refactor1"></script>
+  <script src="js/song-annotations.js?v=20260411-annotations1"></script>
+  <script src="js/song.js?v=20260411-annotations1"></script>
 </body>
 </html>

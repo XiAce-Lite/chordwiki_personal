@@ -1,0 +1,1395 @@
+const STICKY_NOTES_STORAGE_PREFIX = 'annotations:v1';
+const INK_STORAGE_PREFIX = 'annotations-ink:v1';
+const AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY = 'autoscrollSectionCollapsed';
+const TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY = 'transposeNotationCollapsed';
+const ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY = 'annotationSectionCollapsed';
+const DEFAULT_NOTE_W = 240;
+const DEFAULT_NOTE_H = 180;
+const DEFAULT_NOTE_COLOR = '#fff3a6';
+const DEFAULT_INK_COLOR = '#111111';
+const DEFAULT_INK_WIDTH = 4;
+const MIN_NOTE_W = 208;
+const MIN_NOTE_H = 108;
+
+const songAnnotationsState = {
+  songKey: '',
+  artist: '',
+  songId: '',
+  notes: [],
+  noteDrafts: new Map(),
+  strokes: [],
+  inkModeEnabled: false,
+  inkPinned: false,
+  inkColor: DEFAULT_INK_COLOR,
+  dragSession: null,
+  resizeSession: null,
+  drawingSession: null,
+  pendingDeleteNoteId: ''
+};
+
+function buildSongAnnotationKey(artist = '', id = '') {
+  return `${String(artist || '').trim()}::${String(id || '').trim()}`;
+}
+
+function getSongAnnotationIdentity({ artist, id } = {}) {
+  const resolvedArtist = String(artist || currentSongData?.artist || getQueryParam('artist') || '').trim();
+  const resolvedId = String(id || currentSongData?.id || getQueryParam('id') || '').trim();
+  return {
+    artist: resolvedArtist,
+    id: resolvedId,
+    key: buildSongAnnotationKey(resolvedArtist, resolvedId)
+  };
+}
+
+function getStickyNotesStorageKey(artist = '', id = '') {
+  return `${STICKY_NOTES_STORAGE_PREFIX}:${artist}:${id}`;
+}
+
+function getInkStorageKey(artist = '', id = '') {
+  return `${INK_STORAGE_PREFIX}:${artist}:${id}`;
+}
+
+function sanitizeFiniteNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeAnnotationColor(value, fallback = DEFAULT_NOTE_COLOR) {
+  const text = String(value || '').trim();
+  return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : fallback;
+}
+
+function createStickyNoteId() {
+  return `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeStickyNote(note = {}) {
+  const noteId = String(note?.id || '').trim() || createStickyNoteId();
+  return {
+    id: noteId,
+    x: sanitizeFiniteNumber(note?.x, 0),
+    y: sanitizeFiniteNumber(note?.y, 0),
+    width: Math.max(MIN_NOTE_W, sanitizeFiniteNumber(note?.width, DEFAULT_NOTE_W)),
+    height: Math.max(MIN_NOTE_H, sanitizeFiniteNumber(note?.height, DEFAULT_NOTE_H)),
+    title: String(note?.title || '').slice(0, 200),
+    text: String(note?.text || '').slice(0, 5000),
+    color: normalizeAnnotationColor(note?.color),
+    pinned: Boolean(note?.pinned),
+    minimized: Boolean(note?.minimized),
+    updatedAt: Math.max(0, Math.trunc(sanitizeFiniteNumber(note?.updatedAt, Date.now())))
+  };
+}
+
+function normalizeInkPoint(point = {}) {
+  return {
+    x: sanitizeFiniteNumber(point?.x, 0),
+    y: sanitizeFiniteNumber(point?.y, 0),
+    pressure: Number.isFinite(Number(point?.pressure)) ? Number(point.pressure) : undefined
+  };
+}
+
+function normalizeInkStroke(stroke = {}) {
+  const points = Array.isArray(stroke?.points)
+    ? stroke.points.map(normalizeInkPoint).filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
+    : [];
+
+  if (!points.length) {
+    return null;
+  }
+
+  return {
+    points,
+    color: normalizeAnnotationColor(stroke?.color, DEFAULT_INK_COLOR),
+    width: Math.max(1, sanitizeFiniteNumber(stroke?.width, DEFAULT_INK_WIDTH)),
+    pinned: Boolean(stroke?.pinned),
+    createdAt: Math.max(0, Math.trunc(sanitizeFiniteNumber(stroke?.createdAt, Date.now())))
+  };
+}
+
+function loadStickyNotesFromStorage(artist = '', id = '') {
+  if (!artist || !id) {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getStickyNotesStorageKey(artist, id));
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed) ? parsed.map(normalizeStickyNote) : [];
+  } catch (error) {
+    console.warn('Failed to load sticky notes:', error);
+    return [];
+  }
+}
+
+function loadInkStrokesFromStorage(artist = '', id = '') {
+  if (!artist || !id) {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getInkStorageKey(artist, id));
+    const parsed = JSON.parse(raw || '[]');
+    return Array.isArray(parsed)
+      ? parsed.map(normalizeInkStroke).filter(Boolean)
+      : [];
+  } catch (error) {
+    console.warn('Failed to load ink strokes:', error);
+    return [];
+  }
+}
+
+function saveStickyNotesToStorage() {
+  const identity = getSongAnnotationIdentity({
+    artist: songAnnotationsState.artist,
+    id: songAnnotationsState.songId
+  });
+  if (!identity.artist || !identity.id) {
+    return;
+  }
+
+  songAnnotationsState.artist = identity.artist;
+  songAnnotationsState.songId = identity.id;
+  songAnnotationsState.songKey = identity.key;
+
+  try {
+    const payload = songAnnotationsState.notes.map((note) => ({
+      id: note.id,
+      x: Math.round(note.x),
+      y: Math.round(note.y),
+      width: Math.round(note.width),
+      height: Math.round(note.height),
+      title: String(note.title || ''),
+      text: String(note.text || ''),
+      color: normalizeAnnotationColor(note.color),
+      pinned: Boolean(note.pinned),
+      minimized: Boolean(note.minimized),
+      updatedAt: Math.max(0, Math.trunc(note.updatedAt || Date.now()))
+    }));
+    window.localStorage.setItem(getStickyNotesStorageKey(identity.artist, identity.id), JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Failed to save sticky notes:', error);
+  }
+}
+
+function saveInkStrokesToStorage() {
+  const identity = getSongAnnotationIdentity({
+    artist: songAnnotationsState.artist,
+    id: songAnnotationsState.songId
+  });
+  if (!identity.artist || !identity.id) {
+    return;
+  }
+
+  songAnnotationsState.artist = identity.artist;
+  songAnnotationsState.songId = identity.id;
+  songAnnotationsState.songKey = identity.key;
+
+  try {
+    const payload = songAnnotationsState.strokes.map((stroke) => ({
+      points: stroke.points.map((point) => ({
+        x: Math.round(point.x * 100) / 100,
+        y: Math.round(point.y * 100) / 100,
+        ...(typeof point.pressure === 'number' ? { pressure: Math.round(point.pressure * 100) / 100 } : {})
+      })),
+      color: normalizeAnnotationColor(stroke.color),
+      width: Math.max(1, Math.round((stroke.width || DEFAULT_INK_WIDTH) * 100) / 100),
+      pinned: Boolean(stroke.pinned),
+      createdAt: Math.max(0, Math.trunc(stroke.createdAt || Date.now()))
+    }));
+    window.localStorage.setItem(getInkStorageKey(identity.artist, identity.id), JSON.stringify(payload));
+  } catch (error) {
+    console.warn('Failed to save ink strokes:', error);
+  }
+}
+
+function getViewportAnnotationLayer() {
+  return document.getElementById('annotation-viewport-layer');
+}
+
+function getViewportStickyNotesLayer() {
+  return document.getElementById('sticky-note-viewport-layer');
+}
+
+function getViewportInkLayer() {
+  return document.getElementById('annotation-ink-viewport');
+}
+
+function ensureViewportAnnotationLayer() {
+  let root = getViewportAnnotationLayer();
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'annotation-viewport-layer';
+    root.className = 'annotation-viewport-layer';
+
+    const inkLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    inkLayer.id = 'annotation-ink-viewport';
+    inkLayer.classList.add('annotation-ink-layer', 'annotation-ink-viewport');
+    inkLayer.dataset.pinned = '1';
+    inkLayer.setAttribute('aria-hidden', 'true');
+    inkLayer.addEventListener('pointerdown', handleInkPointerDown);
+
+    const notesLayer = document.createElement('div');
+    notesLayer.id = 'sticky-note-viewport-layer';
+    notesLayer.className = 'sticky-note-viewport-layer';
+
+    root.appendChild(inkLayer);
+    root.appendChild(notesLayer);
+    document.body.appendChild(root);
+  }
+
+  return root;
+}
+
+function getSheetAnnotationRoot() {
+  return document.getElementById('sheet-annotation-root');
+}
+
+function getSheetStickyNotesLayer() {
+  return document.getElementById('sticky-note-sheet-layer');
+}
+
+function getSheetInkLayer() {
+  return document.getElementById('annotation-ink-sheet');
+}
+
+function ensureSheetAnnotationRoot() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return null;
+  }
+
+  let root = getSheetAnnotationRoot();
+  if (!root || root.parentElement !== sheetEl) {
+    root = document.createElement('div');
+    root.id = 'sheet-annotation-root';
+    root.className = 'sheet-annotation-root';
+
+    const inkLayer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    inkLayer.id = 'annotation-ink-sheet';
+    inkLayer.classList.add('annotation-ink-layer', 'annotation-ink-sheet');
+    inkLayer.dataset.pinned = '0';
+    inkLayer.setAttribute('aria-hidden', 'true');
+    inkLayer.addEventListener('pointerdown', handleInkPointerDown);
+
+    const notesLayer = document.createElement('div');
+    notesLayer.id = 'sticky-note-sheet-layer';
+    notesLayer.className = 'sticky-note-sheet-layer';
+
+    root.appendChild(inkLayer);
+    root.appendChild(notesLayer);
+    sheetEl.appendChild(root);
+  }
+
+  syncInkLayerSize();
+  return root;
+}
+
+function syncInkLayerSize() {
+  const sheetEl = getSheetEl();
+  const sheetInk = getSheetInkLayer();
+  const viewportInk = getViewportInkLayer();
+
+  if (sheetEl && sheetInk) {
+    const width = Math.max(sheetEl.scrollWidth, sheetEl.clientWidth, 1);
+    const height = Math.max(sheetEl.scrollHeight, sheetEl.clientHeight, 1);
+    sheetInk.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    sheetInk.setAttribute('width', String(width));
+    sheetInk.setAttribute('height', String(height));
+  }
+
+  if (viewportInk) {
+    const width = Math.max(window.innerWidth || 1, document.documentElement?.clientWidth || 1);
+    const height = Math.max(window.innerHeight || 1, document.documentElement?.clientHeight || 1);
+    viewportInk.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    viewportInk.setAttribute('width', String(width));
+    viewportInk.setAttribute('height', String(height));
+  }
+}
+
+function clearSongAnnotationsFromUi() {
+  const sheetRoot = getSheetAnnotationRoot();
+  const viewportLayer = getViewportAnnotationLayer();
+
+  if (sheetRoot) {
+    sheetRoot.remove();
+  }
+
+  if (viewportLayer) {
+    viewportLayer.remove();
+  }
+}
+
+function refreshSongAnnotationsAfterRender({ artist, id, reloadFromStorage = false } = {}) {
+  const identity = getSongAnnotationIdentity({ artist, id });
+  ensureViewportAnnotationLayer();
+  ensureSheetAnnotationRoot();
+
+  if (!identity.artist || !identity.id) {
+    songAnnotationsState.songKey = '';
+    songAnnotationsState.artist = '';
+    songAnnotationsState.songId = '';
+    songAnnotationsState.notes = [];
+    songAnnotationsState.strokes = [];
+    songAnnotationsState.noteDrafts.clear();
+    renderStickyNotes();
+    renderInkStrokes();
+    updateInkControlsUi();
+    return;
+  }
+
+  const changed = songAnnotationsState.songKey !== identity.key;
+  if (reloadFromStorage || changed) {
+    songAnnotationsState.songKey = identity.key;
+    songAnnotationsState.artist = identity.artist;
+    songAnnotationsState.songId = identity.id;
+    songAnnotationsState.notes = loadStickyNotesFromStorage(identity.artist, identity.id);
+    songAnnotationsState.strokes = loadInkStrokesFromStorage(identity.artist, identity.id);
+    songAnnotationsState.noteDrafts.clear();
+  }
+
+  syncInkLayerSize();
+  renderStickyNotes();
+  renderInkStrokes();
+  updateInkControlsUi();
+}
+
+function findStickyNoteById(noteId = '') {
+  return songAnnotationsState.notes.find((note) => note.id === noteId) || null;
+}
+
+function getStickyNoteDraft(noteId = '') {
+  return songAnnotationsState.noteDrafts.get(noteId) || null;
+}
+
+function setStickyNoteDraft(noteId, draft = null) {
+  if (!noteId) {
+    return;
+  }
+
+  if (!draft) {
+    songAnnotationsState.noteDrafts.delete(noteId);
+    return;
+  }
+
+  songAnnotationsState.noteDrafts.set(noteId, {
+    title: String(draft.title || ''),
+    text: String(draft.text || '')
+  });
+}
+
+function enterStickyNoteEditMode(noteId, { focusBody = false } = {}) {
+  const note = findStickyNoteById(noteId);
+  if (!note) {
+    return;
+  }
+
+  setStickyNoteDraft(noteId, {
+    title: note.title,
+    text: note.text
+  });
+  renderStickyNotes();
+
+  if (focusBody) {
+    window.requestAnimationFrame(() => {
+      const textarea = document.querySelector(`.sticky-note[data-note-id="${CSS.escape(noteId)}"] .sticky-note-textarea`);
+      textarea?.focus();
+      textarea?.setSelectionRange(textarea.value.length, textarea.value.length);
+    });
+  }
+}
+
+function cancelStickyNoteEdit(noteId) {
+  setStickyNoteDraft(noteId, null);
+  renderStickyNotes();
+}
+
+function saveStickyNoteEdit(noteId) {
+  const note = findStickyNoteById(noteId);
+  const draft = getStickyNoteDraft(noteId);
+  if (!note || !draft) {
+    return;
+  }
+
+  note.title = draft.title.trim();
+  note.text = draft.text;
+  note.updatedAt = Date.now();
+  setStickyNoteDraft(noteId, null);
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function copyStickyNoteText(noteId) {
+  const note = findStickyNoteById(noteId);
+  if (!note) {
+    return;
+  }
+
+  const payload = String(note.text || '').trim();
+  if (!payload) {
+    return;
+  }
+
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(payload).catch((error) => {
+      console.warn('Failed to copy note text:', error);
+    });
+    return;
+  }
+
+  const temp = document.createElement('textarea');
+  temp.value = payload;
+  temp.setAttribute('readonly', 'readonly');
+  temp.style.position = 'fixed';
+  temp.style.opacity = '0';
+  document.body.appendChild(temp);
+  temp.select();
+  try {
+    document.execCommand('copy');
+  } catch (error) {
+    console.warn('Failed to copy note text:', error);
+  }
+  temp.remove();
+}
+
+function openStickyNoteDeleteDialog(noteId) {
+  const modal = document.getElementById('sticky-note-delete-modal');
+  const cancelButton = document.getElementById('sticky-note-delete-cancel');
+  if (!modal) {
+    const confirmed = window.confirm('このメモを削除しますか？');
+    if (confirmed) {
+      deleteStickyNote(noteId);
+    }
+    return;
+  }
+
+  songAnnotationsState.pendingDeleteNoteId = noteId;
+  modal.hidden = false;
+  window.requestAnimationFrame(() => cancelButton?.focus());
+}
+
+function closeStickyNoteDeleteDialog({ confirmed = false } = {}) {
+  const modal = document.getElementById('sticky-note-delete-modal');
+  const pendingId = songAnnotationsState.pendingDeleteNoteId;
+  songAnnotationsState.pendingDeleteNoteId = '';
+
+  if (modal) {
+    modal.hidden = true;
+  }
+
+  if (confirmed && pendingId) {
+    deleteStickyNote(pendingId);
+  }
+}
+
+function deleteStickyNote(noteId) {
+  const nextNotes = songAnnotationsState.notes.filter((note) => note.id !== noteId);
+  if (nextNotes.length === songAnnotationsState.notes.length) {
+    return;
+  }
+
+  songAnnotationsState.notes = nextNotes;
+  setStickyNoteDraft(noteId, null);
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function getStickyNoteInitialPosition() {
+  const viewportCenterX = Math.max(0, window.innerWidth / 2);
+  const viewportCenterY = Math.max(0, window.innerHeight / 2);
+  return {
+    x: Math.round(viewportCenterX - (DEFAULT_NOTE_W / 2)),
+    y: Math.round(viewportCenterY - (DEFAULT_NOTE_H / 2))
+  };
+}
+
+function createStickyNote() {
+  const identity = getSongAnnotationIdentity();
+  if (!identity.artist || !identity.id) {
+    return;
+  }
+
+  songAnnotationsState.artist = identity.artist;
+  songAnnotationsState.songId = identity.id;
+  songAnnotationsState.songKey = identity.key;
+
+  const initialPos = getStickyNoteInitialPosition();
+  const note = normalizeStickyNote({
+    id: createStickyNoteId(),
+    x: initialPos.x,
+    y: initialPos.y,
+    width: DEFAULT_NOTE_W,
+    height: DEFAULT_NOTE_H,
+    title: '',
+    text: '',
+    color: DEFAULT_NOTE_COLOR,
+    pinned: false,
+    minimized: false,
+    updatedAt: Date.now()
+  });
+
+  songAnnotationsState.notes.push(note);
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function setStickyNoteColor(noteId, color) {
+  const note = findStickyNoteById(noteId);
+  if (!note) {
+    return;
+  }
+
+  note.color = normalizeAnnotationColor(color, DEFAULT_NOTE_COLOR);
+  note.updatedAt = Date.now();
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function toggleStickyNotePinned(noteId) {
+  const note = findStickyNoteById(noteId);
+  const sheetEl = getSheetEl();
+  if (!note || !sheetEl) {
+    return;
+  }
+
+  const sheetRect = sheetEl.getBoundingClientRect();
+  if (note.pinned) {
+    note.x = Math.round(sheetRect.left + note.x);
+    note.y = Math.round(sheetRect.top + note.y);
+    note.pinned = false;
+  } else {
+    note.x = Math.round(note.x - sheetRect.left);
+    note.y = Math.round(note.y - sheetRect.top);
+    note.pinned = true;
+  }
+
+  note.updatedAt = Date.now();
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function toggleStickyNoteMinimized(noteId) {
+  const note = findStickyNoteById(noteId);
+  if (!note) {
+    return;
+  }
+
+  note.minimized = !note.minimized;
+  note.updatedAt = Date.now();
+  if (note.minimized) {
+    setStickyNoteDraft(noteId, null);
+  }
+  saveStickyNotesToStorage();
+  renderStickyNotes();
+}
+
+function createMaterialIcon(name = '') {
+  const icon = document.createElement('span');
+  icon.className = 'material-symbols-outlined';
+  icon.setAttribute('aria-hidden', 'true');
+  icon.textContent = name;
+  return icon;
+}
+
+function createStickyNoteIconButton(iconName, label, className = '') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `sticky-note-icon-button${className ? ` ${className}` : ''}`;
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  button.appendChild(createMaterialIcon(iconName));
+  return button;
+}
+
+function formatStickyNoteTitle(note) {
+  const title = String(note?.title || '').trim();
+  return title || 'Memo';
+}
+
+function buildStickyNoteElement(note) {
+  const noteEl = document.createElement('article');
+  const draft = getStickyNoteDraft(note.id);
+  noteEl.className = 'sticky-note';
+  noteEl.dataset.noteId = note.id;
+  noteEl.style.left = `${Math.round(note.x)}px`;
+  noteEl.style.top = `${Math.round(note.y)}px`;
+  noteEl.style.width = `${Math.round(note.width)}px`;
+  noteEl.style.height = `${Math.round(note.height)}px`;
+  noteEl.style.setProperty('--sticky-note-color', note.color);
+  noteEl.classList.toggle('is-pinned', note.pinned);
+  noteEl.classList.toggle('is-minimized', note.minimized);
+  noteEl.classList.toggle('is-editing', Boolean(draft));
+  noteEl.addEventListener('click', (event) => event.stopPropagation());
+
+  if (note.minimized && !draft) {
+    const restoreButton = document.createElement('button');
+    restoreButton.type = 'button';
+    restoreButton.className = 'sticky-note-minimized-button';
+    restoreButton.setAttribute('aria-label', 'メモを開く');
+    restoreButton.title = 'メモを開く';
+    restoreButton.appendChild(createMaterialIcon('sticky_note_2'));
+    restoreButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleStickyNoteMinimized(note.id);
+    });
+    noteEl.appendChild(restoreButton);
+    return noteEl;
+  }
+
+  const headerEl = document.createElement('div');
+  headerEl.className = 'sticky-note-header';
+
+  if (draft) {
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'sticky-note-title-input';
+    titleInput.placeholder = 'タイトル';
+    titleInput.value = draft.title;
+    titleInput.addEventListener('input', () => {
+      setStickyNoteDraft(note.id, {
+        ...getStickyNoteDraft(note.id),
+        title: titleInput.value,
+        text: getStickyNoteDraft(note.id)?.text || ''
+      });
+    });
+    titleInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelStickyNoteEdit(note.id);
+      }
+    });
+    headerEl.appendChild(titleInput);
+  } else {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'sticky-note-title';
+    titleEl.textContent = formatStickyNoteTitle(note);
+    headerEl.dataset.noteDragHandle = 'true';
+    headerEl.appendChild(titleEl);
+  }
+
+  noteEl.appendChild(headerEl);
+
+  if (draft) {
+    const textarea = document.createElement('textarea');
+    textarea.className = 'sticky-note-textarea';
+    textarea.placeholder = 'ダブルクリックで編集';
+    textarea.value = draft.text;
+    textarea.addEventListener('input', () => {
+      setStickyNoteDraft(note.id, {
+        ...getStickyNoteDraft(note.id),
+        title: getStickyNoteDraft(note.id)?.title || '',
+        text: textarea.value
+      });
+    });
+    textarea.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelStickyNoteEdit(note.id);
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveStickyNoteEdit(note.id);
+      }
+    });
+    noteEl.appendChild(textarea);
+  } else {
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'sticky-note-body';
+    bodyEl.dataset.noteDragHandle = 'true';
+    bodyEl.textContent = note.text || 'ダブルクリックで編集';
+    if (!String(note.text || '').trim()) {
+      bodyEl.classList.add('is-placeholder');
+    }
+    bodyEl.addEventListener('dblclick', () => enterStickyNoteEditMode(note.id, { focusBody: true }));
+    noteEl.appendChild(bodyEl);
+  }
+
+  const controlsEl = document.createElement('div');
+  controlsEl.className = 'sticky-note-controls';
+
+  if (draft) {
+    const saveButton = createStickyNoteIconButton('save', '保存');
+    saveButton.addEventListener('click', () => saveStickyNoteEdit(note.id));
+
+    const cancelButton = createStickyNoteIconButton('close', 'キャンセル');
+    cancelButton.addEventListener('click', () => cancelStickyNoteEdit(note.id));
+
+    controlsEl.append(saveButton, cancelButton);
+  } else {
+    const pinButton = createStickyNoteIconButton('push_pin', note.pinned ? '譜面固定を解除' : '譜面に固定');
+    pinButton.classList.toggle('is-active', note.pinned);
+    pinButton.addEventListener('click', () => toggleStickyNotePinned(note.id));
+
+    const editButton = createStickyNoteIconButton('edit', '編集');
+    editButton.addEventListener('click', () => enterStickyNoteEditMode(note.id, { focusBody: true }));
+
+    const copyButton = createStickyNoteIconButton('content_copy', '本文をコピー');
+    copyButton.addEventListener('click', () => copyStickyNoteText(note.id));
+
+    const colorInput = document.createElement('input');
+    colorInput.type = 'color';
+    colorInput.className = 'sticky-note-color-input';
+    colorInput.value = normalizeAnnotationColor(note.color, DEFAULT_NOTE_COLOR);
+    colorInput.addEventListener('input', () => setStickyNoteColor(note.id, colorInput.value));
+
+    const colorButton = createStickyNoteIconButton('palette', '背景色を変更');
+    colorButton.addEventListener('click', () => colorInput.click());
+
+    const deleteButton = createStickyNoteIconButton('delete', '削除');
+    deleteButton.addEventListener('click', () => openStickyNoteDeleteDialog(note.id));
+
+    controlsEl.append(pinButton, editButton, copyButton, colorButton, deleteButton, colorInput);
+  }
+
+  noteEl.appendChild(controlsEl);
+
+  if (!draft) {
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'sticky-note-resize-handle';
+    resizeHandle.title = 'サイズ変更';
+    resizeHandle.setAttribute('aria-hidden', 'true');
+    noteEl.appendChild(resizeHandle);
+  }
+
+  return noteEl;
+}
+
+function renderStickyNotes() {
+  ensureViewportAnnotationLayer();
+  ensureSheetAnnotationRoot();
+
+  const sheetLayer = getSheetStickyNotesLayer();
+  const viewportLayer = getViewportStickyNotesLayer();
+  if (!sheetLayer || !viewportLayer) {
+    return;
+  }
+
+  sheetLayer.innerHTML = '';
+  viewportLayer.innerHTML = '';
+
+  songAnnotationsState.notes.forEach((note) => {
+    const noteEl = buildStickyNoteElement(note);
+    if (note.pinned) {
+      sheetLayer.appendChild(noteEl);
+    } else {
+      viewportLayer.appendChild(noteEl);
+    }
+  });
+}
+
+function startStickyNoteDrag(event, noteEl, note) {
+  if (!noteEl || !note) {
+    return;
+  }
+
+  const rect = noteEl.getBoundingClientRect();
+  songAnnotationsState.dragSession = {
+    noteId: note.id,
+    noteEl,
+    pointerId: event.pointerId,
+    offsetX: event.clientX - rect.left,
+    offsetY: event.clientY - rect.top
+  };
+  noteEl.classList.add('is-dragging');
+}
+
+function updateStickyNoteDragPosition(event) {
+  const session = songAnnotationsState.dragSession;
+  if (!session || session.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const note = findStickyNoteById(session.noteId);
+  if (!note) {
+    return;
+  }
+
+  if (note.pinned) {
+    const sheetEl = getSheetEl();
+    const sheetRect = sheetEl?.getBoundingClientRect();
+    if (!sheetRect) {
+      return;
+    }
+    note.x = event.clientX - sheetRect.left - session.offsetX;
+    note.y = event.clientY - sheetRect.top - session.offsetY;
+  } else {
+    note.x = event.clientX - session.offsetX;
+    note.y = event.clientY - session.offsetY;
+  }
+
+  session.noteEl.style.left = `${Math.round(note.x)}px`;
+  session.noteEl.style.top = `${Math.round(note.y)}px`;
+}
+
+function finishStickyNoteDrag() {
+  const session = songAnnotationsState.dragSession;
+  if (!session) {
+    return;
+  }
+
+  session.noteEl?.classList.remove('is-dragging');
+  const note = findStickyNoteById(session.noteId);
+  if (note) {
+    note.updatedAt = Date.now();
+    saveStickyNotesToStorage();
+  }
+  songAnnotationsState.dragSession = null;
+}
+
+function startStickyNoteResize(event, noteEl, note) {
+  if (!noteEl || !note) {
+    return;
+  }
+
+  const rect = noteEl.getBoundingClientRect();
+  songAnnotationsState.resizeSession = {
+    noteId: note.id,
+    noteEl,
+    pointerId: event.pointerId,
+    startClientX: event.clientX,
+    startClientY: event.clientY,
+    startWidth: rect.width,
+    startHeight: rect.height
+  };
+  noteEl.classList.add('is-resizing');
+}
+
+function updateStickyNoteResize(event) {
+  const session = songAnnotationsState.resizeSession;
+  if (!session || session.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const note = findStickyNoteById(session.noteId);
+  if (!note) {
+    return;
+  }
+
+  const nextWidth = Math.max(MIN_NOTE_W, session.startWidth + (event.clientX - session.startClientX));
+  const nextHeight = Math.max(MIN_NOTE_H, session.startHeight + (event.clientY - session.startClientY));
+  note.width = nextWidth;
+  note.height = nextHeight;
+  session.noteEl.style.width = `${Math.round(nextWidth)}px`;
+  session.noteEl.style.height = `${Math.round(nextHeight)}px`;
+}
+
+function finishStickyNoteResize() {
+  const session = songAnnotationsState.resizeSession;
+  if (!session) {
+    return;
+  }
+
+  session.noteEl?.classList.remove('is-resizing');
+  const note = findStickyNoteById(session.noteId);
+  if (note) {
+    note.updatedAt = Date.now();
+    saveStickyNotesToStorage();
+  }
+  songAnnotationsState.resizeSession = null;
+}
+
+function buildStrokeSvg(stroke) {
+  const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  const points = stroke.points.length === 1
+    ? [stroke.points[0], stroke.points[0]]
+    : stroke.points;
+
+  polyline.setAttribute(
+    'points',
+    points.map((point) => `${Math.round(point.x * 10) / 10},${Math.round(point.y * 10) / 10}`).join(' ')
+  );
+  polyline.setAttribute('fill', 'none');
+  polyline.setAttribute('stroke', normalizeAnnotationColor(stroke.color, DEFAULT_INK_COLOR));
+  polyline.setAttribute('stroke-width', String(Math.max(1, stroke.width || DEFAULT_INK_WIDTH)));
+  polyline.setAttribute('stroke-linecap', 'round');
+  polyline.setAttribute('stroke-linejoin', 'round');
+  polyline.classList.add('annotation-ink-stroke');
+  return polyline;
+}
+
+function renderInkStrokes() {
+  ensureViewportAnnotationLayer();
+  ensureSheetAnnotationRoot();
+  syncInkLayerSize();
+
+  const sheetLayer = getSheetInkLayer();
+  const viewportLayer = getViewportInkLayer();
+  if (!sheetLayer || !viewportLayer) {
+    return;
+  }
+
+  Array.from(sheetLayer.querySelectorAll('.annotation-ink-stroke')).forEach((strokeEl) => strokeEl.remove());
+  Array.from(viewportLayer.querySelectorAll('.annotation-ink-stroke')).forEach((strokeEl) => strokeEl.remove());
+
+  songAnnotationsState.strokes.forEach((stroke) => {
+    const targetLayer = stroke.pinned ? sheetLayer : viewportLayer;
+    targetLayer.appendChild(buildStrokeSvg(stroke));
+  });
+}
+
+function updateInkControlsUi() {
+  const body = document.body;
+  const toggleButton = document.getElementById('ink-mode-toggle');
+  const pinButton = document.getElementById('ink-pin-toggle');
+  const colorButton = document.getElementById('ink-color-button');
+  const colorInput = document.getElementById('ink-color-input');
+  const undoButton = document.getElementById('ink-undo-button');
+  const hint = document.getElementById('ink-mode-hint');
+  const sheetInk = getSheetInkLayer();
+  const viewportInk = getViewportInkLayer();
+
+  body?.classList.toggle('ink-mode-enabled', songAnnotationsState.inkModeEnabled);
+
+  if (toggleButton) {
+    toggleButton.classList.toggle('is-active', songAnnotationsState.inkModeEnabled);
+    toggleButton.setAttribute('aria-pressed', String(songAnnotationsState.inkModeEnabled));
+    toggleButton.title = songAnnotationsState.inkModeEnabled ? '手書きモードを終了' : '手書きモードを開始';
+    toggleButton.setAttribute('aria-label', songAnnotationsState.inkModeEnabled ? '手書きモードを終了' : '手書きモードを開始');
+  }
+
+  if (pinButton) {
+    pinButton.classList.toggle('is-active', songAnnotationsState.inkPinned);
+    pinButton.setAttribute('aria-pressed', String(songAnnotationsState.inkPinned));
+    pinButton.title = songAnnotationsState.inkPinned ? '新しい手書き線は譜面固定' : '新しい手書き線は画面に固定';
+    pinButton.setAttribute('aria-label', songAnnotationsState.inkPinned ? '新しい手書き線は譜面固定' : '新しい手書き線は画面に固定');
+  }
+
+  if (colorButton) {
+    colorButton.style.setProperty('--annotation-ink-current-color', songAnnotationsState.inkColor || DEFAULT_INK_COLOR);
+  }
+
+  if (colorInput && colorInput.value !== (songAnnotationsState.inkColor || DEFAULT_INK_COLOR)) {
+    colorInput.value = songAnnotationsState.inkColor || DEFAULT_INK_COLOR;
+  }
+
+  if (undoButton) {
+    undoButton.disabled = songAnnotationsState.strokes.length === 0;
+  }
+
+  if (hint) {
+    hint.textContent = songAnnotationsState.inkModeEnabled
+      ? `手書き中: ${songAnnotationsState.inkPinned ? '譜面に追従' : '画面固定'} / ${songAnnotationsState.inkColor || DEFAULT_INK_COLOR}`
+      : '手書き OFF';
+  }
+
+  if (sheetInk) {
+    sheetInk.classList.toggle('is-active', songAnnotationsState.inkModeEnabled && songAnnotationsState.inkPinned);
+  }
+
+  if (viewportInk) {
+    viewportInk.classList.toggle('is-active', songAnnotationsState.inkModeEnabled && !songAnnotationsState.inkPinned);
+  }
+}
+
+function toggleInkMode(forceState) {
+  const nextState = typeof forceState === 'boolean' ? forceState : !songAnnotationsState.inkModeEnabled;
+  songAnnotationsState.inkModeEnabled = nextState;
+  updateInkControlsUi();
+}
+
+function toggleInkPinned() {
+  songAnnotationsState.inkPinned = !songAnnotationsState.inkPinned;
+  updateInkControlsUi();
+}
+
+function setInkColor(color) {
+  songAnnotationsState.inkColor = normalizeAnnotationColor(color, DEFAULT_INK_COLOR);
+  updateInkControlsUi();
+}
+
+function undoInkStroke() {
+  if (!songAnnotationsState.strokes.length) {
+    return;
+  }
+
+  songAnnotationsState.strokes.pop();
+  saveInkStrokesToStorage();
+  renderInkStrokes();
+  updateInkControlsUi();
+}
+
+function getInkPointFromEvent(event, pinned = false) {
+  if (!pinned) {
+    return {
+      x: sanitizeFiniteNumber(event.clientX, 0),
+      y: sanitizeFiniteNumber(event.clientY, 0),
+      pressure: Number.isFinite(Number(event.pressure)) ? Number(event.pressure) : undefined
+    };
+  }
+
+  const sheetEl = getSheetEl();
+  const rect = sheetEl?.getBoundingClientRect();
+  if (!rect) {
+    return null;
+  }
+
+  return {
+    x: sanitizeFiniteNumber(event.clientX - rect.left, 0),
+    y: sanitizeFiniteNumber(event.clientY - rect.top, 0),
+    pressure: Number.isFinite(Number(event.pressure)) ? Number(event.pressure) : undefined
+  };
+}
+
+function updateDrawingPreview() {
+  const session = songAnnotationsState.drawingSession;
+  if (!session?.previewEl) {
+    return;
+  }
+
+  const points = session.stroke.points.length === 1
+    ? [session.stroke.points[0], session.stroke.points[0]]
+    : session.stroke.points;
+
+  session.previewEl.setAttribute(
+    'points',
+    points.map((point) => `${Math.round(point.x * 10) / 10},${Math.round(point.y * 10) / 10}`).join(' ')
+  );
+}
+
+function getInkPassthroughTarget(event) {
+  const layer = event.currentTarget;
+  if (!(layer instanceof Element)) {
+    return null;
+  }
+
+  const previousPointerEvents = layer.style.pointerEvents;
+  layer.style.pointerEvents = 'none';
+  const underlying = document.elementFromPoint(event.clientX, event.clientY);
+  layer.style.pointerEvents = previousPointerEvents;
+
+  if (!(underlying instanceof Element)) {
+    return null;
+  }
+
+  return underlying.closest(
+    '#autoscroll-ui button, #autoscroll-ui input, #autoscroll-ui label, #autoscroll-ui a,'
+    + ' #song-extras-ui button, #song-extras-ui input, #song-extras-ui a,'
+    + ' .youtube-player-shell button, .youtube-player-shell a,'
+    + ' .song-meta-dialog button, .song-meta-dialog input, .song-meta-dialog textarea, .song-meta-dialog a'
+  );
+}
+
+function handleInkPointerDown(event) {
+  if (!songAnnotationsState.inkModeEnabled || event.button !== 0) {
+    return;
+  }
+
+  const passthroughTarget = getInkPassthroughTarget(event);
+  if (passthroughTarget) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof passthroughTarget.focus === 'function') {
+      passthroughTarget.focus();
+    }
+    if (typeof passthroughTarget.click === 'function') {
+      passthroughTarget.click();
+    }
+    return;
+  }
+
+  const pinned = event.currentTarget?.dataset?.pinned !== '1';
+  if (pinned !== Boolean(songAnnotationsState.inkPinned)) {
+    return;
+  }
+
+  const point = getInkPointFromEvent(event, pinned);
+  if (!point) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const previewEl = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+  previewEl.classList.add('annotation-ink-stroke', 'is-preview');
+  previewEl.setAttribute('fill', 'none');
+  previewEl.setAttribute('stroke', songAnnotationsState.inkColor || DEFAULT_INK_COLOR);
+  previewEl.setAttribute('stroke-width', String(DEFAULT_INK_WIDTH));
+  previewEl.setAttribute('stroke-linecap', 'round');
+  previewEl.setAttribute('stroke-linejoin', 'round');
+  event.currentTarget.appendChild(previewEl);
+
+  songAnnotationsState.drawingSession = {
+    pointerId: event.pointerId,
+    pinned,
+    previewEl,
+    stroke: {
+      points: [point],
+      color: songAnnotationsState.inkColor || DEFAULT_INK_COLOR,
+      width: DEFAULT_INK_WIDTH,
+      pinned,
+      createdAt: Date.now()
+    }
+  };
+  updateDrawingPreview();
+
+  if (typeof event.currentTarget?.setPointerCapture === 'function') {
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch (error) {
+      // Synthetic pointer events in tests may not have an active capture target.
+    }
+  }
+}
+
+function handleInkPointerMove(event) {
+  const session = songAnnotationsState.drawingSession;
+  if (!session || session.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const point = getInkPointFromEvent(event, session.pinned);
+  if (!point) {
+    return;
+  }
+
+  const lastPoint = session.stroke.points[session.stroke.points.length - 1];
+  if (lastPoint && Math.abs(lastPoint.x - point.x) < 0.8 && Math.abs(lastPoint.y - point.y) < 0.8) {
+    return;
+  }
+
+  session.stroke.points.push(point);
+  updateDrawingPreview();
+}
+
+function finishInkDrawing(event) {
+  const session = songAnnotationsState.drawingSession;
+  if (!session || (event && session.pointerId !== event.pointerId)) {
+    return;
+  }
+
+  if (session.stroke.points.length === 1) {
+    const point = session.stroke.points[0];
+    session.stroke.points.push({ ...point });
+  }
+
+  session.previewEl?.remove();
+  if (session.stroke.points.length >= 2) {
+    songAnnotationsState.strokes.push(session.stroke);
+    saveInkStrokesToStorage();
+  }
+
+  songAnnotationsState.drawingSession = null;
+  renderInkStrokes();
+  updateInkControlsUi();
+}
+
+function applySectionCollapseUi({ sectionId, detailId, toggleId, titleId, collapsedLabel = '', expandedLabel = '', storageKey, collapsed = false }) {
+  const section = document.getElementById(sectionId);
+  const detail = document.getElementById(detailId);
+  const toggle = document.getElementById(toggleId);
+  const title = titleId ? document.getElementById(titleId) : null;
+  const isCollapsed = Boolean(collapsed);
+
+  section?.classList.toggle('is-collapsed', isCollapsed);
+  detail?.toggleAttribute('hidden', isCollapsed);
+
+  if (title && collapsedLabel && expandedLabel) {
+    title.textContent = isCollapsed ? collapsedLabel : expandedLabel;
+  }
+
+  if (toggle) {
+    toggle.textContent = isCollapsed ? '▶' : '▼';
+    toggle.setAttribute('aria-expanded', String(!isCollapsed));
+  }
+
+  if (storageKey) {
+    try {
+      window.localStorage.setItem(storageKey, isCollapsed ? '1' : '0');
+    } catch (error) {
+      console.warn(`Failed to save section collapse state: ${storageKey}`, error);
+    }
+  }
+
+  window.requestAnimationFrame(() => {
+    updateAutoScrollSafeTop?.();
+    renderMarkerPositions?.();
+    refreshSongExtrasLayout?.();
+  });
+}
+
+function setTransposeNotationCollapsed(collapsed) {
+  applySectionCollapseUi({
+    sectionId: 'transpose-notation-section',
+    detailId: 'transpose-notation-detail',
+    toggleId: 'transpose-notation-collapse-toggle',
+    titleId: 'transpose-notation-section-title',
+    expandedLabel: '移調',
+    collapsedLabel: '移調/表記',
+    storageKey: TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY,
+    collapsed
+  });
+}
+
+function restoreTransposeNotationCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY);
+    setTransposeNotationCollapsed(raw === '1');
+  } catch (error) {
+    console.warn('Failed to restore transpose/notation section state:', error);
+    setTransposeNotationCollapsed(false);
+  }
+}
+
+function toggleTransposeNotationCollapsed() {
+  const section = document.getElementById('transpose-notation-section');
+  setTransposeNotationCollapsed(!section?.classList.contains('is-collapsed'));
+}
+
+function setAnnotationSectionCollapsed(collapsed) {
+  applySectionCollapseUi({
+    sectionId: 'annotation-section',
+    detailId: 'annotation-detail',
+    toggleId: 'annotation-section-collapse-toggle',
+    storageKey: ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY,
+    collapsed
+  });
+}
+
+function restoreAnnotationSectionCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY);
+    setAnnotationSectionCollapsed(raw === '1');
+  } catch (error) {
+    console.warn('Failed to restore annotation section state:', error);
+    setAnnotationSectionCollapsed(false);
+  }
+}
+
+function toggleAnnotationSectionCollapsed() {
+  const section = document.getElementById('annotation-section');
+  setAnnotationSectionCollapsed(!section?.classList.contains('is-collapsed'));
+}
+
+function setAutoScrollSectionCollapsed(collapsed) {
+  applySectionCollapseUi({
+    sectionId: 'autoscroll-section',
+    detailId: 'autoscroll-detail',
+    toggleId: 'autoscroll-section-collapse-toggle',
+    storageKey: AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY,
+    collapsed
+  });
+}
+
+function restoreAutoScrollSectionCollapsedState() {
+  try {
+    const raw = window.localStorage.getItem(AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY);
+    setAutoScrollSectionCollapsed(raw === '1');
+  } catch (error) {
+    console.warn('Failed to restore auto-scroll section state:', error);
+    setAutoScrollSectionCollapsed(false);
+  }
+}
+
+function toggleAutoScrollSectionCollapsed() {
+  const section = document.getElementById('autoscroll-section');
+  setAutoScrollSectionCollapsed(!section?.classList.contains('is-collapsed'));
+}
+
+function handleStickyNoteLayerPointerDown(event) {
+  const resizeHandle = event.target.closest('.sticky-note-resize-handle');
+  const dragHandle = event.target.closest('[data-note-drag-handle="true"]');
+  const noteEl = event.target.closest('.sticky-note');
+  if (!noteEl) {
+    return;
+  }
+
+  const note = findStickyNoteById(noteEl.dataset.noteId || '');
+  if (!note) {
+    return;
+  }
+
+  if (resizeHandle && event.button === 0) {
+    event.preventDefault();
+    startStickyNoteResize(event, noteEl, note);
+    return;
+  }
+
+  if (!dragHandle || event.button !== 0 || getStickyNoteDraft(note.id)) {
+    return;
+  }
+
+  event.preventDefault();
+  startStickyNoteDrag(event, noteEl, note);
+}
+
+function initializeStickyNoteDeleteDialog() {
+  document.getElementById('sticky-note-delete-cancel')?.addEventListener('click', () => {
+    closeStickyNoteDeleteDialog({ confirmed: false });
+  });
+
+  document.getElementById('sticky-note-delete-confirm')?.addEventListener('click', () => {
+    closeStickyNoteDeleteDialog({ confirmed: true });
+  });
+
+  document.getElementById('sticky-note-delete-modal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'sticky-note-delete-modal') {
+      closeStickyNoteDeleteDialog({ confirmed: false });
+    }
+  });
+}
+
+function initializeSongAnnotationsUi() {
+  ensureViewportAnnotationLayer();
+  ensureSheetAnnotationRoot();
+  syncInkLayerSize();
+  restoreTransposeNotationCollapsedState();
+  restoreAnnotationSectionCollapsedState();
+  restoreAutoScrollSectionCollapsedState();
+  updateInkControlsUi();
+  initializeStickyNoteDeleteDialog();
+
+  document.getElementById('sticky-note-add-button')?.addEventListener('click', createStickyNote);
+  document.getElementById('transpose-notation-collapse-toggle')?.addEventListener('click', toggleTransposeNotationCollapsed);
+  document.getElementById('annotation-section-collapse-toggle')?.addEventListener('click', toggleAnnotationSectionCollapsed);
+  document.getElementById('ink-mode-toggle')?.addEventListener('click', () => toggleInkMode());
+  document.getElementById('ink-pin-toggle')?.addEventListener('click', toggleInkPinned);
+  document.getElementById('ink-color-button')?.addEventListener('click', () => {
+    document.getElementById('ink-color-input')?.click();
+  });
+  document.getElementById('ink-color-input')?.addEventListener('input', (event) => {
+    setInkColor(event.target?.value);
+  });
+  document.getElementById('ink-undo-button')?.addEventListener('click', undoInkStroke);
+  document.getElementById('autoscroll-section-collapse-toggle')?.addEventListener('click', toggleAutoScrollSectionCollapsed);
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      if (!document.getElementById('sticky-note-delete-modal')?.hidden) {
+        closeStickyNoteDeleteDialog({ confirmed: false });
+        return;
+      }
+
+      if (songAnnotationsState.drawingSession) {
+        finishInkDrawing();
+        return;
+      }
+
+      const [editingNoteId] = Array.from(songAnnotationsState.noteDrafts.keys());
+      if (editingNoteId) {
+        cancelStickyNoteEdit(editingNoteId);
+      }
+    }
+  });
+
+  document.addEventListener('pointerdown', handleStickyNoteLayerPointerDown);
+  document.addEventListener('pointermove', (event) => {
+    updateStickyNoteDragPosition(event);
+    updateStickyNoteResize(event);
+    handleInkPointerMove(event);
+  });
+  document.addEventListener('pointerup', (event) => {
+    finishStickyNoteDrag(event);
+    finishStickyNoteResize(event);
+    finishInkDrawing(event);
+  });
+  document.addEventListener('pointercancel', (event) => {
+    finishStickyNoteDrag(event);
+    finishStickyNoteResize(event);
+    finishInkDrawing(event);
+  });
+
+  window.addEventListener('resize', () => {
+    syncInkLayerSize();
+    renderInkStrokes();
+  });
+}

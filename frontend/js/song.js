@@ -126,6 +126,7 @@ function reRender() {
   saveSongPreferences();
   applyChordLayoutAdjustments();
   refreshAutoScrollAfterRender({ restoreSavedState: false });
+  refreshSongAnnotationsAfterRender({ reloadFromStorage: false });
 }
 
 function initializeAutoScrollUi() {
@@ -322,6 +323,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   window.ChordWikiAuth?.applyRoleVisibility();
+  initializeSongAnnotationsUi();
   initializeAutoScrollUi();
   initializeSongExtrasUi();
   initializeDisplayPreferencesUi();

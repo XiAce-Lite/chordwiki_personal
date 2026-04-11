@@ -987,7 +987,13 @@ function handleSheetPrimaryClick(event) {
     return;
   }
 
-  if (autoScrollState.dragging || event.target.closest('.autoscroll-marker')) {
+  const annotationTarget = event.target instanceof Element
+    ? event.target.closest('.autoscroll-marker, .sticky-note, .sheet-annotation-root, .annotation-ink-layer')
+    : null;
+  const inkInteractionActive = typeof songAnnotationsState !== 'undefined'
+    && Boolean(songAnnotationsState.inkModeEnabled || songAnnotationsState.drawingSession);
+
+  if (autoScrollState.dragging || annotationTarget || inkInteractionActive) {
     return;
   }
 

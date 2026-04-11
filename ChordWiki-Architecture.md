@@ -42,9 +42,16 @@
   - 移調（-6 ～ +6）
   - 表記モード切替（♯ / 指定なし / ♭）
   - 表示カスタマイズ（コードサイズ / オフセット / 行間 / フォント系設定）
-  - オートスクロール（Start / End マーカー、時間指定、プリセット、Start/Stop/Reset）
+  - オートスクロール（Start / End マーカー、時間指定、プリセット、Start/Stop/Reset、速度最大 `3.0x`）
+  - 個人用メモ / 手書き（localStorage 保存、複数メモ / 複数ストローク対応）
 - 曲詳細ページ表示時に、閲覧スコアを非同期で更新すること
 - 曲詳細ページでは `Song Controls` と `Tags / YouTube` の補助パネルを提供し、必要に応じて折りたたみ可能であること
+- `Song Controls` 内の各ブロック（移調/表記、メモ / 手書き、オートスクロール、表示カスタマイズ）は個別に縦折りたたみでき、余白変化に応じて `Tags / YouTube` パネルの表示高さも再計算されること
+- `移調 / 表記` ブロックは一体で折りたたみ可能とし、折りたたみ時のラベルは `移調/表記` とすること
+- `メモ / 手書き` ブロックも一体で折りたたみ可能とすること
+- メモ / 手書きは歌詞行やコードにアンカーせず、絶対座標のみを保持し、レイアウト変化時に自動補正しないこと
+- メモのピン留め状態は「譜面に固定してスクロールに追従する」意味とし、ピンを外した状態では画面固定で表示すること
+- 手書き線の既定色は黒とし、Song Controls 上で色変更 UI と Undo を提供すること
 - YouTube は曲ごとに複数登録でき、右下ミニプレイヤーで同一タブ再生できること
 - 狭い画面では、譜面の長い行は **横スクロール fallback** を用いてコードと歌詞の重なりを避けること
 
@@ -215,6 +222,9 @@
   `{title:}` / `{subtitle:}` / `{key:}` からも取得できる
 - 外部検索や参考時間推定に使う正データは
   Cosmos DB の `title` / `artist` とする
+- 個人用のメモ / 手書きはサーバー保存せず、以下の localStorage キーを用いる
+  - Sticky notes: `annotations:v1:{artist}:{id}`
+  - 手書き: `annotations-ink:v1:{artist}:{id}`
 
 ### 5.3 サンプル
 
@@ -395,22 +405,24 @@
 - 狭い画面では本文下へ折り返し、縦積みに戻す
 - `Song Controls` では以下を扱う
 
-  - 移調ボタン（`- / + / Reset`）
-  - 表記モード（♯ / 指定なし / ♭）
+  - `移調 / 表記` ブロック（`- / + / Reset`、♯ / 指定なし / ♭）
+  - `メモ / 手書き` ブロック（`📝 Memo`、手書き ON/OFF、ピン切替、色変更、Undo）
   - オートスクロール時間入力（分・秒）
   - 時間プリセット（2:30 / 3:00 / 4:00 / 5:00）
   - 表示カスタマイズ
-  - Start / Stop / Reset
+  - Start / Stop / Marker Reset
 
-- 折りたたみ状態を localStorage に保存する
+- 各ブロックの折りたたみ状態を localStorage に保存する
 
 #### オートスクロール
 
 - `Start` / `End` マーカーを譜面左側に表示する
 - マーカーはドラッグ可能
-- `End` が画面の 2/3 ラインに達したら自動停止する
+- `End` マーカーが画面内に入ったら自動停止する
 - `End` 到達後は、次の左クリックだけ `Start` 位置へ戻す one-shot 挙動とし、そのクリックで到達フラグをクリアする
 - その後の再スタートは、現在スクロール位置から再開する（`Start` マーカーを再調整した場合を除く）
+- メモ / 手書き の操作中や注釈 UI のクリックでは、オートスクロール開始/停止を発火させない
+- 速度倍率は `0.50x` ～ `3.00x` の範囲で調整できる
 - 狭い画面では **2 段階 compact mode** を使う
 
   - `compact`：ラベル非表示、ピンを小型化、左余白を縮小
@@ -429,6 +441,7 @@
 - `Tags` と `YouTube` を縦に並べる
 - `editor` の場合、ヘッダークリックで簡易編集モーダルを開く
 - `Tags` はクリックで `/?q=...&target=tag` へ遷移する
+- `Song Controls` 側の折りたたみ状態に応じて利用可能な縦余白を再計算し、不要なスクロールバーを避ける
 
 #### YouTube 再生 / 検索
 
@@ -459,8 +472,15 @@
 | キー | 用途 |
 | --- | --- |
 | `prefs:v1:{artist}:{id}` | 移調量・表記モード |
-| `autoscroll:v1:{artist}:{id}` | マーカー位置・オートスクロール時間 |
-| `autoscrollCollapsed` | Song Controls の折りたたみ状態 |
+| `autoscroll:v1:{artist}:{id}` | マーカー位置・オートスクロール時間・速度倍率 |
+| `annotations:v1:{artist}:{id}` | 個人用付箋メモ |
+| `annotations-ink:v1:{artist}:{id}` | 個人用手書き |
+| `autoscrollCollapsed` | Song Controls 全体の折りたたみ状態 |
+| `transposeNotationCollapsed` | `移調 / 表記` ブロックの折りたたみ状態 |
+| `annotationSectionCollapsed` | `メモ / 手書き` ブロックの折りたたみ状態 |
+| `autoscrollSectionCollapsed` | `オートスクロール` ブロックの折りたたみ状態 |
+| `displayPrefsCollapsed` | `表示カスタマイズ` ブロックの折りたたみ状態 |
+| `songExtrasCollapsed` | `Tags / YouTube` パネルの折りたたみ状態 |
 | `songExtrasCollapsed` | Tags / YouTube パネルの折りたたみ状態 |
 | `displayPrefs:v1` | 表示カスタマイズ設定 |
 | `displayPrefsCollapsed` | 表示カスタマイズパネルの折りたたみ状態 |

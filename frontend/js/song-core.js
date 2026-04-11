@@ -45,7 +45,7 @@ const AUTO_SCROLL_STOP_VIEWPORT_RATIO = 1;
 const AUTO_SCROLL_FOCUS_VIEWPORT_RATIO = 0.54;
 const AUTO_SCROLL_SPEED_STEP = 0.05;
 const AUTO_SCROLL_SPEED_MIN_MULTIPLIER = 0.5;
-const AUTO_SCROLL_SPEED_MAX_MULTIPLIER = 2;
+const AUTO_SCROLL_SPEED_MAX_MULTIPLIER = 3;
 const AUTO_SCROLL_WHEEL_STEP_PX = 72;
 const AUTO_SCROLL_SPEED_SMOOTHING = 0.18;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
@@ -1137,6 +1137,7 @@ function setDisplayPreferencesCollapsed(collapsed) {
   window.requestAnimationFrame(() => {
     updateAutoScrollSafeTop();
     renderMarkerPositions();
+    refreshSongExtrasLayout?.();
   });
 
   try {
@@ -1279,6 +1280,11 @@ function renderLoadedSong(song = {}, fallbackArtist = '', fallbackId = '') {
   renderSongSideRail(currentSongData, displayTitle, displayArtist);
   applyChordLayoutAdjustments();
   refreshAutoScrollAfterRender({ restoreSavedState: true });
+  refreshSongAnnotationsAfterRender({
+    artist: currentSongData.artist,
+    id: currentSongData.id,
+    reloadFromStorage: true
+  });
   void maybeEstimateAutoScrollDuration(currentSongData, displayTitle, displayArtist);
   return true;
 }
