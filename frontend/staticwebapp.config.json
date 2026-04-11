@@ -1,7 +1,4 @@
 {
-  "auth": {
-    "rolesSource": "/api/getRoles"
-  },
   "responseOverrides": {
     "401": {
       "redirect": "/login",
@@ -20,16 +17,6 @@
       "route": "/logout",
       "redirect": "/.auth/logout"
     },
-
-    {
-      "route": "/admin.html",
-      "allowedRoles": ["admin"]
-    },
-    {
-      "route": "/admin/*",
-      "allowedRoles": ["admin"]
-    },
-
     {
       "route": "/add.html",
       "redirect": "/edit.html?mode=add",
@@ -37,17 +24,16 @@
     },
     {
       "route": "/edit.html",
-      "allowedRoles": ["editor", "admin"]
+      "allowedRoles": ["editor"]
     },
     {
       "route": "/edit/*",
-      "allowedRoles": ["editor", "admin"]
+      "allowedRoles": ["editor"]
     },
     {
       "route": "/api/edit/*",
-      "allowedRoles": ["editor", "admin"]
+      "allowedRoles": ["editor"]
     },
-
     {
       "route": "/song.html",
       "allowedRoles": ["authenticated"]
