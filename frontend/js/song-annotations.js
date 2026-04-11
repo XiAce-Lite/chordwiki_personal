@@ -65,6 +65,17 @@ function normalizeAnnotationColor(value, fallback = DEFAULT_NOTE_COLOR) {
   return /^#[0-9a-fA-F]{6}$/.test(text) ? text.toLowerCase() : fallback;
 }
 
+function darkenAnnotationColor(value, amount = 0.18) {
+  const safe = normalizeAnnotationColor(value, DEFAULT_NOTE_COLOR);
+  const ratio = Math.min(0.85, Math.max(0, Number(amount) || 0));
+  const channels = [1, 3, 5].map((startIndex) => {
+    const base = Number.parseInt(safe.slice(startIndex, startIndex + 2), 16);
+    return Math.max(0, Math.min(255, Math.round(base * (1 - ratio))));
+  });
+
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
 function createStickyNoteId() {
   return `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -621,6 +632,8 @@ function buildStickyNoteElement(note) {
   noteEl.style.width = `${Math.round(note.width)}px`;
   noteEl.style.height = `${Math.round(note.height)}px`;
   noteEl.style.setProperty('--sticky-note-color', note.color);
+  noteEl.style.setProperty('--sticky-note-active-bg', darkenAnnotationColor(note.color, 0.18));
+  noteEl.style.setProperty('--sticky-note-active-border', darkenAnnotationColor(note.color, 0.32));
   noteEl.classList.toggle('is-pinned', note.pinned);
   noteEl.classList.toggle('is-minimized', note.minimized);
   noteEl.classList.toggle('is-editing', Boolean(draft));
@@ -722,8 +735,9 @@ function buildStickyNoteElement(note) {
 
     controlsEl.append(saveButton, cancelButton);
   } else {
-    const pinButton = createStickyNoteIconButton('push_pin', note.pinned ? '譜面固定を解除' : '譜面に固定');
+    const pinButton = createStickyNoteIconButton('push_pin', note.pinned ? '譜面固定を解除' : '譜面に固定', 'sticky-note-pin-button');
     pinButton.classList.toggle('is-active', note.pinned);
+    pinButton.setAttribute('aria-pressed', String(note.pinned));
     pinButton.addEventListener('click', () => toggleStickyNotePinned(note.id));
 
     const editButton = createStickyNoteIconButton('edit', '編集');
@@ -1212,16 +1226,16 @@ function updateDrawingPreview() {
   );
 }
 
-function getInkPassthroughTarget(event) {
-  const layer = event.currentTarget;
-  if (!(layer instanceof Element)) {
-    return null;
+function findInteractiveTargetAtPoint(clientX, clientY, layer = null) {
+  const targetLayer = layer instanceof Element ? layer : null;
+  const previousPointerEvents = targetLayer?.style.pointerEvents;
+  if (targetLayer) {
+    targetLayer.style.pointerEvents = 'none';
   }
-
-  const previousPointerEvents = layer.style.pointerEvents;
-  layer.style.pointerEvents = 'none';
-  const underlying = document.elementFromPoint(event.clientX, event.clientY);
-  layer.style.pointerEvents = previousPointerEvents;
+  const underlying = document.elementFromPoint(clientX, clientY);
+  if (targetLayer) {
+    targetLayer.style.pointerEvents = previousPointerEvents;
+  }
 
   if (!(underlying instanceof Element)) {
     return null;
@@ -1236,26 +1250,24 @@ function getInkPassthroughTarget(event) {
   );
 }
 
-function updateInkHoverCursor(event) {
-  const interactiveTarget = event.target instanceof Element
-    ? event.target.closest(
-      '#autoscroll-ui button, #autoscroll-ui input, #autoscroll-ui label, #autoscroll-ui a,'
-      + ' #ink-floating-ui button, #ink-floating-ui input, #ink-floating-ui label, #ink-floating-ui a,'
-      + ' #song-extras-ui button, #song-extras-ui input, #song-extras-ui a,'
-      + ' .youtube-player-shell button, .youtube-player-shell a,'
-      + ' .song-meta-dialog button, .song-meta-dialog input, .song-meta-dialog textarea, .song-meta-dialog a'
-    )
-    : null;
+function getInkPassthroughTarget(event) {
+  return findInteractiveTargetAtPoint(event.clientX, event.clientY, event.currentTarget);
+}
 
+function updateInkHoverCursor(event) {
+  const interactiveTarget = findInteractiveTargetAtPoint(event.clientX, event.clientY);
   const nextCursor = interactiveTarget ? 'pointer' : 'crosshair';
+  const nextPointerEvents = interactiveTarget ? 'none' : '';
   const sheetInk = getSheetInkLayer();
   const viewportInk = getViewportInkLayer();
 
   if (sheetInk?.classList.contains('is-active')) {
     sheetInk.style.cursor = nextCursor;
+    sheetInk.style.pointerEvents = nextPointerEvents;
   }
   if (viewportInk?.classList.contains('is-active')) {
     viewportInk.style.cursor = nextCursor;
+    viewportInk.style.pointerEvents = nextPointerEvents;
   }
 }
 
