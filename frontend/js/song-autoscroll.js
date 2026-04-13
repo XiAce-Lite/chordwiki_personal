@@ -186,11 +186,12 @@ function getDefaultMarkerPositions() {
   }
 
   const lines = sheetEl.querySelectorAll('p.line, p.comment');
+  const endMarkerOffset = Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0);
   const defaults = !lines.length
-    ? { startY: bounds.top, endY: bounds.bottom }
+    ? { startY: bounds.top, endY: bounds.bottom + endMarkerOffset }
     : {
         startY: lines[0].getBoundingClientRect().top + window.scrollY,
-        endY: lines[lines.length - 1].getBoundingClientRect().bottom + window.scrollY
+        endY: lines[lines.length - 1].getBoundingClientRect().bottom + window.scrollY + endMarkerOffset
       };
 
   autoScrollState.defaultStartY = defaults.startY;
@@ -198,14 +199,17 @@ function getDefaultMarkerPositions() {
   return defaults;
 }
 
-function clampMarkerToSheet(y, fallbackY = 0) {
+function clampMarkerToSheet(y, fallbackY = 0, markerName = 'start') {
   const bounds = getSheetBoundsDoc();
   if (!bounds) {
     return fallbackY;
   }
 
   const candidate = Number.isFinite(y) ? y : fallbackY;
-  return clamp(candidate, bounds.top, bounds.bottom);
+  const extraBottom = markerName === 'end'
+    ? Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0)
+    : 0;
+  return clamp(candidate, bounds.top, bounds.bottom + extraBottom);
 }
 
 function getRangeDistancePx() {
@@ -497,8 +501,8 @@ function renderMarkerPositions() {
 function applyMarkerStateToRenderedSheet({ resetInvalidRange = false } = {}) {
   const defaults = getDefaultMarkerPositions();
 
-  autoScrollState.startY = clampMarkerToSheet(autoScrollState.startY, defaults.startY);
-  autoScrollState.endY = clampMarkerToSheet(autoScrollState.endY, defaults.endY);
+  autoScrollState.startY = clampMarkerToSheet(autoScrollState.startY, defaults.startY, 'start');
+  autoScrollState.endY = clampMarkerToSheet(autoScrollState.endY, defaults.endY, 'end');
 
   if (resetInvalidRange && autoScrollState.endY <= autoScrollState.startY) {
     autoScrollState.startY = defaults.startY;
@@ -573,19 +577,21 @@ function restoreAutoScrollState() {
 function setMarkerY(markerName, docY, { persist = true, notify = true } = {}) {
   const defaults = getDefaultMarkerPositions();
   const fallbackY = markerName === 'start' ? defaults.startY : defaults.endY;
-  const nextY = clampMarkerToSheet(docY, fallbackY);
+  const nextY = clampMarkerToSheet(docY, fallbackY, markerName);
 
   if (markerName === 'start') {
     const maxStartY = clampMarkerToSheet(
       Number.isFinite(autoScrollState.endY) ? autoScrollState.endY : defaults.endY,
-      defaults.endY
+      defaults.endY,
+      'start'
     );
     autoScrollState.startY = Math.min(nextY, maxStartY);
     autoScrollState.startFromMarkerPending = true;
   } else {
     const minEndY = clampMarkerToSheet(
       Number.isFinite(autoScrollState.startY) ? autoScrollState.startY : defaults.startY,
-      defaults.startY
+      defaults.startY,
+      'end'
     );
     autoScrollState.endY = Math.max(nextY, minEndY);
   }
