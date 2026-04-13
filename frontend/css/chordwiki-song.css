@@ -1885,7 +1885,7 @@ body.is-dragging-marker * {
     overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
-    padding-bottom: 6px;
+    padding-bottom: 106px;
   }
 
   p.line {
