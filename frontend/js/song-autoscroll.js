@@ -508,7 +508,17 @@ function renderMarkerPositions() {
 }
 
 function applyMarkerStateToRenderedSheet({ resetInvalidRange = false } = {}) {
+  const previousDefaultStartY = autoScrollState.defaultStartY;
+  const previousDefaultEndY = autoScrollState.defaultEndY;
   const defaults = getDefaultMarkerPositions();
+
+  if (Number.isFinite(previousDefaultStartY) && Number.isFinite(autoScrollState.startY)) {
+    autoScrollState.startY += (defaults.startY - previousDefaultStartY);
+  }
+
+  if (Number.isFinite(previousDefaultEndY) && Number.isFinite(autoScrollState.endY)) {
+    autoScrollState.endY += (defaults.endY - previousDefaultEndY);
+  }
 
   autoScrollState.startY = clampMarkerToSheet(autoScrollState.startY, defaults.startY, 'start');
   autoScrollState.endY = clampMarkerToSheet(autoScrollState.endY, defaults.endY, 'end');
@@ -821,7 +831,7 @@ function getAutoScrollStopScrollY() {
     return 0;
   }
 
-  const stopViewportY = window.innerHeight * AUTO_SCROLL_STOP_VIEWPORT_RATIO;
+  const stopViewportY = (window.innerHeight * AUTO_SCROLL_STOP_VIEWPORT_RATIO) - AUTO_SCROLL_END_STOP_BUFFER_PX;
   return clamp(autoScrollState.endY - stopViewportY, 0, getMaxWindowScrollY());
 }
 
@@ -832,8 +842,8 @@ function isEndMarkerVisibleInViewport() {
   }
 
   const rect = endMarkerEl.getBoundingClientRect();
-  // 100px先まで表示されたら true を返す
-  return rect.top <= window.innerHeight + 100;
+  // End がビューポート内へ100px入ったら true を返す
+  return rect.top <= window.innerHeight - AUTO_SCROLL_END_STOP_BUFFER_PX;
 }
 
 function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false } = {}) {
