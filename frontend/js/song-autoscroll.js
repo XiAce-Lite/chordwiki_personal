@@ -813,7 +813,8 @@ function isEndMarkerVisibleInViewport() {
   }
 
   const rect = endMarkerEl.getBoundingClientRect();
-  return rect.bottom >= 0 && rect.top <= window.innerHeight;
+  // 100px先まで表示されたら true を返す
+  return rect.top <= window.innerHeight + 100;
 }
 
 function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false } = {}) {
