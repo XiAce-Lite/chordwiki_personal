@@ -1888,6 +1888,10 @@ body.is-dragging-marker * {
     padding-bottom: 106px !important;
   }
 
+  #sheet.cw-sheet, .cw-sheet {
+    padding-bottom: 100px !important;
+  }
+
   p.line {
     display: block;
     width: max-content;
