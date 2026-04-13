@@ -364,9 +364,18 @@ function saveAutoScrollState({ notify = true } = {}) {
   }
 
   try {
+    const defaultStartY = Number.isFinite(autoScrollState.defaultStartY)
+      ? autoScrollState.defaultStartY
+      : autoScrollState.startY;
+    const defaultEndY = Number.isFinite(autoScrollState.defaultEndY)
+      ? autoScrollState.defaultEndY
+      : autoScrollState.endY;
+
     const payload = {
       startY: Math.round(autoScrollState.startY),
       endY: Math.round(autoScrollState.endY),
+      startOffsetPx: Math.round(autoScrollState.startY - defaultStartY),
+      endOffsetPx: Math.round(autoScrollState.endY - defaultEndY),
       durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
       speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100
     };
@@ -537,11 +546,15 @@ function restoreAutoScrollState() {
   }
 
   if (savedState) {
-    if (Number.isFinite(savedState.startY)) {
+    if (Number.isFinite(savedState.startOffsetPx)) {
+      autoScrollState.startY = defaults.startY + savedState.startOffsetPx;
+    } else if (Number.isFinite(savedState.startY)) {
       autoScrollState.startY = savedState.startY;
     }
 
-    if (Number.isFinite(savedState.endY)) {
+    if (Number.isFinite(savedState.endOffsetPx)) {
+      autoScrollState.endY = defaults.endY + savedState.endOffsetPx;
+    } else if (Number.isFinite(savedState.endY)) {
       autoScrollState.endY = savedState.endY;
     }
 
