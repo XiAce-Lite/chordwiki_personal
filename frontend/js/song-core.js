@@ -1275,7 +1275,7 @@ function renderLoadedSong(song = {}, fallbackArtist = '', fallbackId = '') {
   const displayArtist = renderResult.subtitle || currentSongData.artist || '';
 
   titleEl.textContent = displayTitle;
-  document.title = 'ChordWiki Personal - ' + displayTitle;
+  document.title = displayTitle;
   artistEl.textContent = displayArtist;
   updateSongKeyDisplay(renderResult, currentSongKey, currentSongEstimatedKey, currentSongEstimatedKeyMode);
   renderSongSideRail(currentSongData, displayTitle, displayArtist);
