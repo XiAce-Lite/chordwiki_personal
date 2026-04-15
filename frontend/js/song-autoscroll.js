@@ -265,8 +265,11 @@ function setAutoScrollSpeedMultiplier(value, { persist = true, notify = true } =
   }
 
   if (notify) {
-    const prefix = autoScrollState.isPlaying ? 'Playing' : 'Stopped';
-    setStatus(`${prefix} · ${formatDuration(autoScrollState.durationSec)} · Speed ${formatSpeedMultiplier(nextMultiplier)}`, 'info');
+    if (autoScrollState.isPlaying) {
+      updatePlayingStatus({ force: true });
+    } else {
+      setStatus(`Stopped · ${formatDuration(autoScrollState.durationSec)} · Speed ${formatSpeedMultiplier(nextMultiplier)}`, 'info');
+    }
   }
 }
 
@@ -290,6 +293,61 @@ function setStatus(message, tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
+function getAutoScrollRemainingSec() {
+  const durationSec = Math.max(0, Number(autoScrollState.durationSec) || 0);
+  const elapsedSec = Math.max(0, Number(autoScrollState.playbackElapsedSec) || 0);
+  return Math.max(0, durationSec - elapsedSec);
+}
+
+function getAutoScrollRemainingDisplaySec() {
+  const remainingSec = getAutoScrollRemainingSec();
+  if (remainingSec <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, Math.ceil(remainingSec - 0.001));
+}
+
+function getPlayingStatusPayload() {
+  const remainingDisplaySec = getAutoScrollRemainingDisplaySec();
+  const baseMessage = `${formatDuration(remainingDisplaySec)} · ${formatSpeedMultiplier()}`;
+  if (!autoScrollState.hasScrollStarted) {
+    return {
+      message: `Playing · 遅延開始中 · ${baseMessage}`,
+      tone: 'lead-in',
+      remainingDisplaySec
+    };
+  }
+
+  return {
+    message: `Playing · ${baseMessage}`,
+    tone: 'info',
+    remainingDisplaySec
+  };
+}
+
+function updatePlayingStatus({ force = false } = {}) {
+  if (!autoScrollState.isPlaying) {
+    return;
+  }
+
+  const payload = getPlayingStatusPayload();
+  const currentSpeed = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+  const shouldSkip = !force
+    && autoScrollState.lastStatusRemainingSec === payload.remainingDisplaySec
+    && autoScrollState.lastStatusTone === payload.tone
+    && Math.abs((autoScrollState.lastStatusSpeed ?? currentSpeed) - currentSpeed) < 0.0001;
+
+  if (shouldSkip) {
+    return;
+  }
+
+  autoScrollState.lastStatusRemainingSec = payload.remainingDisplaySec;
+  autoScrollState.lastStatusTone = payload.tone;
+  autoScrollState.lastStatusSpeed = currentSpeed;
+  setStatus(payload.message, payload.tone);
+}
+
 function updateAutoScrollControls() {
   const toggleButton = document.getElementById('autoscroll-toggle');
   if (!toggleButton) {
@@ -298,7 +356,37 @@ function updateAutoScrollControls() {
 
   toggleButton.textContent = autoScrollState.isPlaying ? 'Stop' : 'Start';
   toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
+  syncVariableScrollToggleUi();
   updateAutoScrollSpeedUi();
+}
+
+function syncVariableScrollToggleUi() {
+  const toggleInput = document.getElementById('autoscroll-variable-toggle');
+  if (!toggleInput) {
+    return;
+  }
+
+  toggleInput.checked = autoScrollState.variableScrollEnabled !== false;
+}
+
+function setAutoScrollVariableScrollEnabled(enabled, { persist = true, notify = true } = {}) {
+  const nextEnabled = enabled !== false;
+  const changed = autoScrollState.variableScrollEnabled !== nextEnabled;
+  autoScrollState.variableScrollEnabled = nextEnabled;
+  syncVariableScrollToggleUi();
+
+  if (autoScrollState.isPlaying && changed) {
+    stopAutoScroll('Stopped · スクロールモードを切り替えました', 'info');
+  }
+
+  if (persist) {
+    saveAutoScrollState({ notify: false });
+  }
+
+  if (notify) {
+    const modeLabel = nextEnabled ? '可変スクロール ON' : '等速モード ON';
+    setStatus(`Stopped · ${modeLabel}`, 'info');
+  }
 }
 
 function updateStoppedStatus(saved = false) {
@@ -377,7 +465,8 @@ function saveAutoScrollState({ notify = true } = {}) {
       startOffsetPx: Math.round(autoScrollState.startY - defaultStartY),
       endOffsetPx: Math.round(autoScrollState.endY - defaultEndY),
       durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
-      speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100
+      speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100,
+      variableScrollEnabled: autoScrollState.variableScrollEnabled !== false
     };
 
     window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
@@ -415,6 +504,7 @@ function syncDurationFromInputs({ notify = true } = {}) {
   }
 
   autoScrollState.durationSec = normalized.durationSec;
+  refreshAutoScrollTimelineFromCurrentSettings();
 
   if (autoScrollState.isPlaying) {
     if (!recalculateAutoScrollSpeed()) {
@@ -529,6 +619,7 @@ function applyMarkerStateToRenderedSheet({ resetInvalidRange = false } = {}) {
   }
 
   renderMarkerPositions();
+  refreshAutoScrollTimelineFromCurrentSettings();
 
   if (autoScrollState.isPlaying) {
     recalculateAutoScrollSpeed();
@@ -545,6 +636,7 @@ function restoreAutoScrollState() {
   autoScrollState.endY = defaults.endY;
   autoScrollState.durationSec = DEFAULT_DURATION_SEC;
   autoScrollState.speedMultiplier = 1;
+  autoScrollState.variableScrollEnabled = true;
 
   if (autoScrollState.storageKey) {
     try {
@@ -579,9 +671,14 @@ function restoreAutoScrollState() {
         AUTO_SCROLL_SPEED_MAX_MULTIPLIER
       );
     }
+
+    if (typeof savedState.variableScrollEnabled === 'boolean') {
+      autoScrollState.variableScrollEnabled = savedState.variableScrollEnabled;
+    }
   }
 
   setDurationInputs(autoScrollState.durationSec);
+  syncVariableScrollToggleUi();
   updateAutoScrollSpeedUi();
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
@@ -621,6 +718,7 @@ function setMarkerY(markerName, docY, { persist = true, notify = true } = {}) {
 
   autoScrollState.rewindToStartPending = false;
   renderMarkerPositions();
+  refreshAutoScrollTimelineFromCurrentSettings();
 
   if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
     return;
@@ -817,6 +915,265 @@ function onMarkerPointerUp(event) {
   saveAutoScrollState({ notify: true });
 }
 
+function easeInOutCubic(t) {
+  const safeT = clamp(Number(t) || 0, 0, 1);
+  return safeT < 0.5
+    ? 4 * safeT * safeT * safeT
+    : 1 - (Math.pow(-2 * safeT + 2, 3) / 2);
+}
+
+function setAutoScrollScrollY(targetY) {
+  const safeY = getReachableScrollY(targetY);
+  autoScrollState.isProgrammaticScroll = true;
+  window.scrollTo(0, safeY);
+  autoScrollState.virtualScrollY = safeY;
+  window.requestAnimationFrame(() => {
+    autoScrollState.isProgrammaticScroll = false;
+  });
+}
+
+function getAutoScrollLeadInStartScrollY() {
+  if (!Number.isFinite(autoScrollState.startY)) {
+    return 0;
+  }
+
+  return clamp(
+    autoScrollState.startY - (window.innerHeight * AUTO_SCROLL_FOCUS_RATIO_START),
+    0,
+    getMaxWindowScrollY()
+  );
+}
+
+function getLineLyricLength(lineEl) {
+  if (!(lineEl instanceof Element) || !lineEl.matches('p.line')) {
+    return 0;
+  }
+
+  let totalLength = 0;
+  const textNodes = lineEl.querySelectorAll('span:not(.chord)');
+  textNodes.forEach((node) => {
+    const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+    totalLength += text.length;
+  });
+
+  return totalLength;
+}
+
+function normalizeWeights(rawWeights, { floor = AUTO_SCROLL_WEIGHT_FLOOR } = {}) {
+  if (!Array.isArray(rawWeights) || rawWeights.length === 0) {
+    return [];
+  }
+
+  const safeFloor = clamp(Number(floor) || 0, 0, 0.9);
+  const minValue = Math.min(...rawWeights);
+  const maxValue = Math.max(...rawWeights);
+
+  if (!Number.isFinite(minValue) || !Number.isFinite(maxValue) || Math.abs(maxValue - minValue) < 0.0001) {
+    return rawWeights.map(() => Math.max(safeFloor, 1));
+  }
+
+  return rawWeights.map((value) => {
+    const normalized = clamp((value - minValue) / (maxValue - minValue), 0, 1);
+    return safeFloor + (normalized * (1 - safeFloor));
+  });
+}
+
+function collectAutoScrollLineEntries() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl || !Number.isFinite(autoScrollState.startY) || !Number.isFinite(autoScrollState.endY)) {
+    return [];
+  }
+
+  const lines = Array.from(sheetEl.querySelectorAll('p.line, p.comment'));
+  const entries = [];
+
+  lines.forEach((lineEl) => {
+    const rect = lineEl.getBoundingClientRect();
+    const topY = rect.top + window.scrollY;
+    const bottomY = rect.bottom + window.scrollY;
+
+    if (bottomY < autoScrollState.startY || topY > autoScrollState.endY) {
+      return;
+    }
+
+    entries.push({
+      el: lineEl,
+      type: lineEl.matches('p.comment') ? 'comment' : 'line',
+      topY,
+      bottomY,
+      centerY: (topY + bottomY) / 2,
+      heightPx: Math.max(1, rect.height),
+      lyricLength: lineEl.matches('p.comment') ? 0 : getLineLyricLength(lineEl)
+    });
+  });
+
+  return entries;
+}
+
+function buildAutoScrollTimeline() {
+  const entries = collectAutoScrollLineEntries();
+  if (!entries.length) {
+    autoScrollState.timeline = null;
+    autoScrollState.timelineReady = false;
+    return false;
+  }
+
+  const lyricValues = entries.map((entry) => entry.lyricLength);
+  const heightValues = entries.map((entry) => entry.heightPx);
+  const lyricNormalized = normalizeWeights(lyricValues, { floor: 0 });
+  const heightNormalized = normalizeWeights(heightValues, { floor: 0 });
+
+  entries.forEach((entry, index) => {
+    if (entry.type === 'comment') {
+      entry.weight = AUTO_SCROLL_COMMENT_WEIGHT;
+      return;
+    }
+
+    const rawWeight = (lyricNormalized[index] * 0.65) + (heightNormalized[index] * 0.35);
+    entry.weight = rawWeight;
+  });
+
+  const finalizedWeights = normalizeWeights(entries.map((entry) => entry.weight), {
+    floor: AUTO_SCROLL_WEIGHT_FLOOR
+  });
+
+  entries.forEach((entry, index) => {
+    entry.weight = finalizedWeights[index];
+  });
+
+  const segmentCount = Math.max(1, entries.length - 1);
+  const segments = [];
+
+  if (entries.length === 1) {
+    segments.push({
+      startY: entries[0].centerY,
+      endY: entries[0].centerY,
+      startSec: 0,
+      durationSec: Math.max(1, autoScrollState.mainDurationSec || 0),
+      endSec: Math.max(1, autoScrollState.mainDurationSec || 0),
+      index: 0
+    });
+  } else {
+    const segmentWeights = entries.slice(0, -1).map((entry) => entry.weight);
+    const totalWeight = Math.max(0.0001, segmentWeights.reduce((sum, value) => sum + value, 0));
+    const totalDurationSec = Math.max(1, autoScrollState.mainDurationSec || 0);
+    let elapsedSec = 0;
+
+    for (let i = 0; i < segmentCount; i += 1) {
+      const ratio = segmentWeights[i] / totalWeight;
+      const durationSec = i === segmentCount - 1
+        ? Math.max(0.0001, totalDurationSec - elapsedSec)
+        : Math.max(0.0001, totalDurationSec * ratio);
+      const startSec = elapsedSec;
+      const endSec = startSec + durationSec;
+      elapsedSec = endSec;
+
+      segments.push({
+        startY: entries[i].centerY,
+        endY: entries[i + 1].centerY,
+        startSec,
+        durationSec,
+        endSec,
+        index: i
+      });
+    }
+  }
+
+  autoScrollState.timeline = {
+    entries,
+    segments,
+    durationSec: Math.max(1, autoScrollState.mainDurationSec || 0),
+    startFocusY: entries[0].centerY,
+    endFocusY: entries[entries.length - 1].centerY
+  };
+  autoScrollState.timelineReady = true;
+  return true;
+}
+
+function refreshAutoScrollTimelineFromCurrentSettings() {
+  if (autoScrollState.variableScrollEnabled === false) {
+    autoScrollState.leadInSec = 0;
+    autoScrollState.mainDurationSec = Math.max(1, autoScrollState.durationSec);
+    autoScrollState.timeline = null;
+    autoScrollState.timelineReady = false;
+    return true;
+  }
+
+  autoScrollState.leadInSec = Math.max(0, Math.min(AUTO_SCROLL_LEAD_IN_SEC, autoScrollState.durationSec - 1));
+  autoScrollState.mainDurationSec = Math.max(1, autoScrollState.durationSec - autoScrollState.leadInSec);
+  return buildAutoScrollTimeline();
+}
+
+function getTimelineFocusYAtProgress(progressSec) {
+  const timeline = autoScrollState.timeline;
+  if (!timeline || !timeline.segments?.length) {
+    return Number.isFinite(autoScrollState.startY) ? autoScrollState.startY : 0;
+  }
+
+  const safeProgress = clamp(Number(progressSec) || 0, 0, timeline.durationSec);
+  const segment = timeline.segments.find((item) => safeProgress <= item.endSec + 0.0001)
+    || timeline.segments[timeline.segments.length - 1];
+
+  const localRatio = segment.durationSec > 0.0001
+    ? clamp((safeProgress - segment.startSec) / segment.durationSec, 0, 1)
+    : 1;
+  return segment.startY + ((segment.endY - segment.startY) * localRatio);
+}
+
+function estimateProgressSecFromFocusY(focusY) {
+  const timeline = autoScrollState.timeline;
+  if (!timeline || !timeline.segments?.length) {
+    return 0;
+  }
+
+  let bestProgressSec = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  timeline.segments.forEach((segment) => {
+    const deltaY = segment.endY - segment.startY;
+    let ratio = 0;
+
+    if (Math.abs(deltaY) > 0.0001) {
+      ratio = (focusY - segment.startY) / deltaY;
+      ratio = clamp(ratio, 0, 1);
+    }
+
+    const projectedY = segment.startY + (deltaY * ratio);
+    const distance = Math.abs(projectedY - focusY);
+    const progressSec = segment.startSec + (segment.durationSec * ratio);
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestProgressSec = progressSec;
+    }
+  });
+
+  return clamp(bestProgressSec, 0, timeline.durationSec);
+}
+
+function syncAutoScrollProgressFromScrollY(scrollY) {
+  if (!autoScrollState.isPlaying || !autoScrollState.timelineReady || !autoScrollState.timeline) {
+    return;
+  }
+
+  const effectiveScrollY = Number.isFinite(scrollY) ? scrollY : window.scrollY;
+  const focusRatio = Number.isFinite(autoScrollState.focusRatioCurrent)
+    ? autoScrollState.focusRatioCurrent
+    : AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  const focusY = effectiveScrollY + (window.innerHeight * focusRatio);
+
+  autoScrollState.progressSec = estimateProgressSecFromFocusY(focusY);
+  autoScrollState.phase = 'main';
+  autoScrollState.hasScrollStarted = true;
+  autoScrollState.phaseElapsedSec = autoScrollState.leadInSec;
+  autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  autoScrollState.lastFrameMs = performance.now();
+
+  if (autoScrollState.isPlaying) {
+    updatePlayingStatus({ force: true });
+  }
+}
+
 function getAutoScrollStartScrollY() {
   if (!Number.isFinite(autoScrollState.startY)) {
     return 0;
@@ -854,6 +1211,18 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
 
   autoScrollState.isPlaying = false;
   autoScrollState.speedPxPerSec = 0;
+  autoScrollState.playbackElapsedSec = 0;
+  autoScrollState.playStartScrollY = 0;
+  autoScrollState.phase = 'main';
+  autoScrollState.hasScrollStarted = false;
+  autoScrollState.phaseElapsedSec = 0;
+  autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  autoScrollState.lastStatusRemainingSec = null;
+  autoScrollState.lastStatusTone = '';
+  autoScrollState.lastStatusSpeed = null;
+  autoScrollState.mainDurationSec = 0;
+  autoScrollState.leadInSec = 0;
+  autoScrollState.timelineReady = false;
 
   if (reachedEnd) {
     autoScrollState.rewindToStartPending = true;
@@ -865,18 +1234,8 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
   setStatus(message, tone);
 }
 
-function recalculateAutoScrollSpeed() {
-  if (!autoScrollState.isPlaying) {
-    return true;
-  }
-
-  if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
-    return false;
-  }
-
-  const elapsedSec = Math.max(0, (performance.now() - autoScrollState.startedAtMs) / 1000);
-  const remainingTimeSec = autoScrollState.durationSec - elapsedSec;
+function recalculateLegacyAutoScrollSpeed() {
+  const remainingTimeSec = getAutoScrollRemainingSec();
   const remainingDistancePx = getAutoScrollStopScrollY() - window.scrollY;
 
   if (remainingDistancePx <= 0.5) {
@@ -901,6 +1260,43 @@ function recalculateAutoScrollSpeed() {
   return true;
 }
 
+function recalculateAutoScrollSpeed() {
+  if (!autoScrollState.isPlaying) {
+    return true;
+  }
+
+  if (isEndMarkerVisibleInViewport()) {
+    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
+    return false;
+  }
+
+  if (autoScrollState.variableScrollEnabled === false) {
+    return recalculateLegacyAutoScrollSpeed();
+  }
+
+  if (!Number.isFinite(autoScrollState.mainDurationSec) || autoScrollState.mainDurationSec <= 0) {
+    stopAutoScroll('Stopped · 本編時間が 1 秒未満です', 'warn');
+    return false;
+  }
+
+  const currentFocusRatio = Number.isFinite(autoScrollState.focusRatioCurrent)
+    ? autoScrollState.focusRatioCurrent
+    : AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  const currentFocusY = window.scrollY + (window.innerHeight * currentFocusRatio);
+  const currentProgressSec = autoScrollState.timelineReady
+    ? estimateProgressSecFromFocusY(currentFocusY)
+    : clamp(Number(autoScrollState.progressSec) || 0, 0, autoScrollState.mainDurationSec);
+
+  if (!refreshAutoScrollTimelineFromCurrentSettings()) {
+    stopAutoScroll('Stopped · 行タイムラインを作成できません', 'warn');
+    return false;
+  }
+
+  autoScrollState.progressSec = clamp(currentProgressSec, 0, autoScrollState.timeline.durationSec);
+
+  return true;
+}
+
 function runAutoScrollFrame(nowMs) {
   if (!autoScrollState.isPlaying) {
     return;
@@ -909,12 +1305,81 @@ function runAutoScrollFrame(nowMs) {
   const deltaSec = Math.max(0, (nowMs - autoScrollState.lastFrameMs) / 1000);
   autoScrollState.lastFrameMs = nowMs;
 
-  if (!recalculateAutoScrollSpeed()) {
+  if (isEndMarkerVisibleInViewport()) {
+    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
     return;
   }
 
-  autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
-  window.scrollTo(0, autoScrollState.virtualScrollY);
+  const multiplier = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+  const effectiveDeltaSec = deltaSec * multiplier;
+  let focusRatioCurrent = Number.isFinite(autoScrollState.focusRatioCurrent)
+    ? autoScrollState.focusRatioCurrent
+    : AUTO_SCROLL_FOCUS_RATIO_FINAL;
+
+  autoScrollState.playbackElapsedSec = Math.min(
+    Math.max(0, Number(autoScrollState.durationSec) || 0),
+    autoScrollState.playbackElapsedSec + effectiveDeltaSec
+  );
+
+  if (autoScrollState.variableScrollEnabled === false) {
+    autoScrollState.phase = 'main';
+    autoScrollState.hasScrollStarted = true;
+
+    if (!recalculateAutoScrollSpeed()) {
+      return;
+    }
+
+    autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
+    setAutoScrollScrollY(autoScrollState.virtualScrollY);
+    updatePlayingStatus();
+
+    if (isEndMarkerVisibleInViewport()) {
+      stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
+      return;
+    }
+
+    autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
+    return;
+  }
+
+  if (autoScrollState.phase === 'lead-in') {
+    autoScrollState.phaseElapsedSec += effectiveDeltaSec;
+
+    const leadRatio = autoScrollState.leadInSec > 0
+      ? clamp(autoScrollState.phaseElapsedSec / autoScrollState.leadInSec, 0, 1)
+      : 1;
+    const eased = easeInOutCubic(leadRatio);
+    focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_START
+      + ((AUTO_SCROLL_FOCUS_RATIO_FINAL - AUTO_SCROLL_FOCUS_RATIO_START) * eased);
+
+    if (leadRatio >= 1) {
+      autoScrollState.phase = 'main';
+      focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+    }
+  } else {
+    autoScrollState.progressSec = clamp(
+      autoScrollState.progressSec + effectiveDeltaSec,
+      0,
+      autoScrollState.timeline?.durationSec || autoScrollState.mainDurationSec
+    );
+    focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  }
+
+  autoScrollState.focusRatioCurrent = focusRatioCurrent;
+
+  const focusY = autoScrollState.phase === 'lead-in'
+    ? (Number.isFinite(autoScrollState.timeline?.startFocusY) ? autoScrollState.timeline.startFocusY : autoScrollState.startY)
+    : getTimelineFocusYAtProgress(autoScrollState.progressSec);
+  const targetScrollY = focusY - (window.innerHeight * focusRatioCurrent);
+  const reachableTargetScrollY = getReachableScrollY(targetScrollY);
+
+  setAutoScrollScrollY(reachableTargetScrollY);
+
+  if (!autoScrollState.hasScrollStarted && Math.abs(window.scrollY - autoScrollState.playStartScrollY) > 0.6) {
+    autoScrollState.hasScrollStarted = true;
+  }
+
+  updatePlayingStatus();
 
   if (isEndMarkerVisibleInViewport()) {
     stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
@@ -945,8 +1410,7 @@ function handleAutoScrollWheelAdjust(event) {
 
 function scrollBackToAutoScrollStart({ notify = true } = {}) {
   const targetScrollY = getAutoScrollStartScrollY();
-  window.scrollTo(0, targetScrollY);
-  autoScrollState.virtualScrollY = targetScrollY;
+  setAutoScrollScrollY(targetScrollY);
   autoScrollState.rewindToStartPending = false;
   autoScrollState.startFromMarkerPending = true;
 
@@ -978,8 +1442,21 @@ function startAutoScroll() {
     return;
   }
 
-  if (shouldScrollToStart()) {
-    window.scrollTo(0, getAutoScrollStartScrollY());
+  if (autoScrollState.variableScrollEnabled !== false) {
+    if (!refreshAutoScrollTimelineFromCurrentSettings()) {
+      setStatus('Stopped · 行タイムラインを作成できません', 'warn');
+      return;
+    }
+
+    const leadInStartScrollY = getAutoScrollLeadInStartScrollY();
+
+    if (shouldScrollToStart()) {
+      setAutoScrollScrollY(leadInStartScrollY);
+    } else if (Math.abs(window.scrollY - leadInStartScrollY) > START_SCROLL_TOLERANCE_PX) {
+      setAutoScrollScrollY(leadInStartScrollY);
+    }
+  } else if (shouldScrollToStart()) {
+    setAutoScrollScrollY(getAutoScrollStartScrollY());
   }
 
   autoScrollState.rewindToStartPending = false;
@@ -988,6 +1465,18 @@ function startAutoScroll() {
   autoScrollState.startedAtMs = performance.now();
   autoScrollState.lastFrameMs = autoScrollState.startedAtMs;
   autoScrollState.virtualScrollY = window.scrollY;
+  autoScrollState.playStartScrollY = window.scrollY;
+  autoScrollState.progressSec = 0;
+  autoScrollState.playbackElapsedSec = 0;
+  autoScrollState.phase = (autoScrollState.variableScrollEnabled !== false && autoScrollState.leadInSec > 0) ? 'lead-in' : 'main';
+  autoScrollState.hasScrollStarted = autoScrollState.variableScrollEnabled === false;
+  autoScrollState.phaseElapsedSec = 0;
+  autoScrollState.focusRatioCurrent = autoScrollState.phase === 'lead-in'
+    ? AUTO_SCROLL_FOCUS_RATIO_START
+    : AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  autoScrollState.lastStatusRemainingSec = null;
+  autoScrollState.lastStatusTone = '';
+  autoScrollState.lastStatusSpeed = null;
 
   if (!recalculateAutoScrollSpeed()) {
     autoScrollState.isPlaying = false;
@@ -1001,7 +1490,7 @@ function startAutoScroll() {
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
   updateAutoScrollControls();
-  setStatus(`Playing · ${formatDuration(autoScrollState.durationSec)} · ${formatSpeedMultiplier()}`, 'info');
+  updatePlayingStatus({ force: true });
 }
 
 function toggleAutoScroll() {
@@ -1097,6 +1586,7 @@ function resetAutoScrollMarkers() {
   autoScrollState.startFromMarkerPending = true;
 
   renderMarkerPositions();
+  refreshAutoScrollTimelineFromCurrentSettings();
 
   if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
     return;

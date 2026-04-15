@@ -173,7 +173,7 @@ func start
 ### 2.8 API なしで UI だけ試す場合
 
 Azure Functions や Cosmos DB をまだ起動していない場合でも、
-トップページは `frontend/.local/local-test-songs.js` の
+トップページは `frontend/.local/local-test-song.js` の
 テストデータへ自動フォールバックします。
 
 ローカル配信だけで、以下を確認できます。
@@ -181,6 +181,8 @@ Azure Functions や Cosmos DB をまだ起動していない場合でも、
 - ランキング表示
 - 曲名 / アーティスト検索
 - タグ検索とサジェスト
+- 曲ページのオートスクロール（可変スクロール / 等速モード）
+- 曲ページの表示カスタマイズ（コード行縦位置調整を含む）
 
 > `/.auth/me` はローカル HTTP 配信では使えないため、editor 権限表示は未ログイン扱いです。
 

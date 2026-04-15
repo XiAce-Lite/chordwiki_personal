@@ -136,6 +136,9 @@ function initializeAutoScrollUi() {
   document.getElementById('autoscroll-speed-up')?.addEventListener('click', () => nudgeAutoScrollSpeed(1, { notify: true }));
   document.getElementById('autoscroll-speed-reset')?.addEventListener('click', resetAutoScrollSpeed);
   document.getElementById('autoscroll-markers-reset')?.addEventListener('click', resetAutoScrollMarkers);
+  document.getElementById('autoscroll-variable-toggle')?.addEventListener('change', (event) => {
+    setAutoScrollVariableScrollEnabled(event.target.checked, { persist: true, notify: true });
+  });
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
   document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
   document.getElementById('youtube-player-close')?.addEventListener('click', closeYouTubePlayer);
@@ -163,8 +166,15 @@ function initializeAutoScrollUi() {
   window.addEventListener('scroll', () => {
     renderMarkerPositions();
 
-    if (autoScrollState.isPlaying && Math.abs(window.scrollY - autoScrollState.virtualScrollY) > 3) {
+    if (
+      autoScrollState.isPlaying
+      && !autoScrollState.isProgrammaticScroll
+      && Math.abs(window.scrollY - autoScrollState.virtualScrollY) > 3
+    ) {
       autoScrollState.virtualScrollY = window.scrollY;
+      if (autoScrollState.variableScrollEnabled !== false) {
+        syncAutoScrollProgressFromScrollY(window.scrollY);
+      }
     }
   }, { passive: true });
 
@@ -172,6 +182,7 @@ function initializeAutoScrollUi() {
     updateAutoScrollSafeTop();
     syncCompactMarkerMode();
     renderMarkerPositions();
+    refreshAutoScrollTimelineFromCurrentSettings();
 
     if (autoScrollState.isPlaying) {
       recalculateAutoScrollSpeed();
@@ -233,6 +244,7 @@ function initializeDisplayPreferencesUi() {
   const mnotoInput = document.getElementById('display-mnoto-enabled');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
+  const lineOffsetInput = document.getElementById('display-chord-line-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
   const commentGapInput = document.getElementById('display-comment-gap');
   const lyricWeightInput = document.getElementById('display-lyric-weight');
@@ -253,6 +265,12 @@ function initializeDisplayPreferencesUi() {
       -3,
       10,
       DEFAULT_DISPLAY_PREFS.chordOffsetPx
+    );
+    displayPrefsState.chordLineOffsetPx = clampDisplayPreferenceNumber(
+      lineOffsetInput?.value,
+      -16,
+      16,
+      DEFAULT_DISPLAY_PREFS.chordLineOffsetPx
     );
     displayPrefsState.lyricLineGapPx = clampDisplayPreferenceNumber(
       lyricGapInput?.value,
@@ -293,6 +311,7 @@ function initializeDisplayPreferencesUi() {
 
   fontSizeInput?.addEventListener('change', commitDisplayPreferences);
   offsetInput?.addEventListener('change', commitDisplayPreferences);
+  lineOffsetInput?.addEventListener('change', commitDisplayPreferences);
   lyricGapInput?.addEventListener('change', commitDisplayPreferences);
   commentGapInput?.addEventListener('change', commitDisplayPreferences);
   lyricWeightInput?.addEventListener('change', commitDisplayPreferences);

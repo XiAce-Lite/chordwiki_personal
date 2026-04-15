@@ -43,12 +43,17 @@ const AUTO_SCROLL_ESTIMATE_RATIO = 0.97;
 const START_SCROLL_TOLERANCE_PX = 10;
 const AUTO_SCROLL_STOP_VIEWPORT_RATIO = 1;
 const AUTO_SCROLL_FOCUS_VIEWPORT_RATIO = 0.54;
+const AUTO_SCROLL_FOCUS_RATIO_START = 0.2;
+const AUTO_SCROLL_FOCUS_RATIO_FINAL = 0.4;
+const AUTO_SCROLL_LEAD_IN_SEC = 1;
+const AUTO_SCROLL_COMMENT_WEIGHT = 0.22;
+const AUTO_SCROLL_WEIGHT_FLOOR = 0.12;
 const AUTO_SCROLL_SPEED_STEP = 0.05;
 const AUTO_SCROLL_SPEED_MIN_MULTIPLIER = 0.5;
 const AUTO_SCROLL_SPEED_MAX_MULTIPLIER = 3;
 const AUTO_SCROLL_WHEEL_STEP_PX = 72;
 const AUTO_SCROLL_SPEED_SMOOTHING = 0.18;
-const AUTO_SCROLL_END_MARKER_EXTRA_PX = 100;
+const AUTO_SCROLL_END_MARKER_EXTRA_PX = 0;
 const AUTO_SCROLL_END_STOP_BUFFER_PX = 100;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
 const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
@@ -91,6 +96,7 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   mnotoEnabled: false,
   chordFontSize: 14,
   chordOffsetPx: 7,
+  chordLineOffsetPx: 0,
   lyricLineGapPx: 15,
   commentLineGapPx: 16,
   lyricFontWeight: 'normal',
@@ -118,13 +124,29 @@ const autoScrollState = {
   startY: null,
   endY: null,
   durationSec: DEFAULT_DURATION_SEC,
+  variableScrollEnabled: true,
   isPlaying: false,
   frameId: null,
   startedAtMs: 0,
   lastFrameMs: 0,
+  playStartScrollY: 0,
   speedPxPerSec: 0,
   speedMultiplier: 1,
   virtualScrollY: 0,
+  progressSec: 0,
+  mainDurationSec: 0,
+  leadInSec: 0,
+  playbackElapsedSec: 0,
+  phase: 'main',
+  hasScrollStarted: false,
+  phaseElapsedSec: 0,
+  focusRatioCurrent: AUTO_SCROLL_FOCUS_RATIO_FINAL,
+  lastStatusRemainingSec: null,
+  lastStatusTone: '',
+  lastStatusSpeed: null,
+  timeline: null,
+  timelineReady: false,
+  isProgrammaticScroll: false,
   dragging: null,
   hasLoadedSavedState: false,
   rewindToStartPending: false,
@@ -530,6 +552,12 @@ function loadDisplayPreferences() {
       10,
       DEFAULT_DISPLAY_PREFS.chordOffsetPx
     );
+    displayPrefsState.chordLineOffsetPx = clampDisplayPreferenceNumber(
+      storedPrefs.chordLineOffsetPx,
+      -16,
+      16,
+      DEFAULT_DISPLAY_PREFS.chordLineOffsetPx
+    );
     displayPrefsState.lyricLineGapPx = clampDisplayPreferenceNumber(
       storedPrefs.lyricLineGapPx,
       8,
@@ -618,6 +646,7 @@ function syncDisplayPreferenceUi() {
   const mnotoStatusEl = document.getElementById('display-mnoto-status');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
+  const lineOffsetInput = document.getElementById('display-chord-line-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
   const commentGapInput = document.getElementById('display-comment-gap');
   const lyricWeightInput = document.getElementById('display-lyric-weight');
@@ -658,6 +687,11 @@ function syncDisplayPreferenceUi() {
   if (offsetInput) {
     offsetInput.value = String(displayPrefsState.chordOffsetPx);
     offsetInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (lineOffsetInput) {
+    lineOffsetInput.value = String(displayPrefsState.chordLineOffsetPx);
+    lineOffsetInput.disabled = !displayPrefsState.enabled;
   }
 
   if (lyricGapInput) {
@@ -1181,6 +1215,7 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
     : '"Noto Sans JP", "Segoe UI", sans-serif');
   rootEl.style.setProperty('--user-chord-size', `${displayPrefsState.chordFontSize}px`);
   rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
+  rootEl.style.setProperty('--user-chord-line-offset', `${displayPrefsState.chordLineOffsetPx}px`);
   rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
   rootEl.style.setProperty('--user-comment-gap', `${displayPrefsState.commentLineGapPx}px`);
   rootEl.dataset.lyricWeight = displayPrefsState.lyricFontWeight;

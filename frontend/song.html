@@ -134,6 +134,10 @@
             <div class="autoscroll-buttons">
               <button id="autoscroll-toggle" type="button">Start</button>
               <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
+              <label class="autoscroll-variable-toggle" for="autoscroll-variable-toggle">
+                <input id="autoscroll-variable-toggle" type="checkbox" checked />
+                <span>可変スクロール</span>
+              </label>
             </div>
           </div>
         </section>
@@ -189,6 +193,9 @@
 
               <label for="display-chord-offset">記号縦位置(px)</label>
               <input id="display-chord-offset" type="number" min="-3" max="10" step="1" value="7" inputmode="numeric" />
+
+              <label for="display-chord-line-offset">コード行縦位置(px)</label>
+              <input id="display-chord-line-offset" type="number" min="-16" max="16" step="1" value="0" inputmode="numeric" />
 
               <label for="display-lyric-gap">歌詞行の間隔(px)</label>
               <input id="display-lyric-gap" type="number" min="8" max="32" step="1" value="15" inputmode="numeric" />
