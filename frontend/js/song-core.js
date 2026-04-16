@@ -63,6 +63,7 @@ const AUTO_SCROLL_WHEEL_STEP_PX = 72;
 const AUTO_SCROLL_SPEED_SMOOTHING = 0.18;
 const AUTO_SCROLL_END_MARKER_EXTRA_PX = 0;
 const AUTO_SCROLL_END_STOP_BUFFER_PX = 100;
+const AUTO_SCROLL_USER_SCROLL_OVERRIDE_MS = 260;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
 const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
 const MARKER_EDGE_SCROLL_MAX_SPEED = 1600;
@@ -149,6 +150,7 @@ const autoScrollState = {
   timeline: null,
   timelineReady: false,
   isProgrammaticScroll: false,
+  userScrollOverrideUntilMs: 0,
   dragging: null,
   hasLoadedSavedState: false,
   rewindToStartPending: false,

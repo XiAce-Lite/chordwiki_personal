@@ -1174,6 +1174,46 @@ function syncAutoScrollProgressFromScrollY(scrollY) {
   }
 }
 
+function syncAutoScrollPlaybackFromScrollY(scrollY, { fromUserScroll = false } = {}) {
+  if (!autoScrollState.isPlaying) {
+    return;
+  }
+
+  const effectiveScrollY = Number.isFinite(scrollY) ? scrollY : window.scrollY;
+  autoScrollState.virtualScrollY = effectiveScrollY;
+
+  if (fromUserScroll) {
+    autoScrollState.userScrollOverrideUntilMs = performance.now() + AUTO_SCROLL_USER_SCROLL_OVERRIDE_MS;
+  }
+
+  if (autoScrollState.variableScrollEnabled === false) {
+    const startScrollY = getAutoScrollStartScrollY();
+    const stopScrollY = getAutoScrollStopScrollY();
+    const range = Math.max(1, stopScrollY - startScrollY);
+    const ratio = clamp((effectiveScrollY - startScrollY) / range, 0, 1);
+    const duration = Math.max(0, Number(autoScrollState.durationSec) || 0);
+    autoScrollState.playbackElapsedSec = clamp(duration * ratio, 0, duration);
+    autoScrollState.phase = 'main';
+    autoScrollState.hasScrollStarted = ratio > 0.001;
+    autoScrollState.phaseElapsedSec = autoScrollState.playbackElapsedSec;
+    autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+    autoScrollState.lastFrameMs = performance.now();
+    updatePlayingStatus({ force: true });
+    return;
+  }
+
+  if (!autoScrollState.timelineReady || !autoScrollState.timeline) {
+    return;
+  }
+
+  syncAutoScrollProgressFromScrollY(effectiveScrollY);
+  autoScrollState.playbackElapsedSec = clamp(
+    autoScrollState.leadInSec + autoScrollState.progressSec,
+    0,
+    Math.max(0, Number(autoScrollState.durationSec) || 0)
+  );
+}
+
 function getAutoScrollStartScrollY() {
   if (!Number.isFinite(autoScrollState.startY)) {
     return 0;
@@ -1223,6 +1263,7 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
   autoScrollState.mainDurationSec = 0;
   autoScrollState.leadInSec = 0;
   autoScrollState.timelineReady = false;
+  autoScrollState.userScrollOverrideUntilMs = 0;
 
   if (reachedEnd) {
     autoScrollState.rewindToStartPending = true;
@@ -1304,6 +1345,12 @@ function runAutoScrollFrame(nowMs) {
 
   const deltaSec = Math.max(0, (nowMs - autoScrollState.lastFrameMs) / 1000);
   autoScrollState.lastFrameMs = nowMs;
+
+  if (autoScrollState.userScrollOverrideUntilMs > nowMs) {
+    autoScrollState.virtualScrollY = window.scrollY;
+    autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
+    return;
+  }
 
   if (isEndMarkerVisibleInViewport()) {
     stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
@@ -1442,6 +1489,11 @@ function startAutoScroll() {
     return;
   }
 
+  const startScrollY = getAutoScrollStartScrollY();
+  const shouldStartAtMarker = shouldScrollToStart();
+  const shouldResumeFromCurrent = !shouldStartAtMarker
+    && Math.abs(window.scrollY - startScrollY) > START_SCROLL_TOLERANCE_PX;
+
   if (autoScrollState.variableScrollEnabled !== false) {
     if (!refreshAutoScrollTimelineFromCurrentSettings()) {
       setStatus('Stopped · 行タイムラインを作成できません', 'warn');
@@ -1450,13 +1502,13 @@ function startAutoScroll() {
 
     const leadInStartScrollY = getAutoScrollLeadInStartScrollY();
 
-    if (shouldScrollToStart()) {
+    if (shouldStartAtMarker) {
       setAutoScrollScrollY(leadInStartScrollY);
-    } else if (Math.abs(window.scrollY - leadInStartScrollY) > START_SCROLL_TOLERANCE_PX) {
+    } else if (!shouldResumeFromCurrent && Math.abs(window.scrollY - leadInStartScrollY) > START_SCROLL_TOLERANCE_PX) {
       setAutoScrollScrollY(leadInStartScrollY);
     }
-  } else if (shouldScrollToStart()) {
-    setAutoScrollScrollY(getAutoScrollStartScrollY());
+  } else if (shouldStartAtMarker) {
+    setAutoScrollScrollY(startScrollY);
   }
 
   autoScrollState.rewindToStartPending = false;
@@ -1466,6 +1518,7 @@ function startAutoScroll() {
   autoScrollState.lastFrameMs = autoScrollState.startedAtMs;
   autoScrollState.virtualScrollY = window.scrollY;
   autoScrollState.playStartScrollY = window.scrollY;
+  autoScrollState.userScrollOverrideUntilMs = 0;
   autoScrollState.progressSec = 0;
   autoScrollState.playbackElapsedSec = 0;
   autoScrollState.phase = (autoScrollState.variableScrollEnabled !== false && autoScrollState.leadInSec > 0) ? 'lead-in' : 'main';
@@ -1477,6 +1530,14 @@ function startAutoScroll() {
   autoScrollState.lastStatusRemainingSec = null;
   autoScrollState.lastStatusTone = '';
   autoScrollState.lastStatusSpeed = null;
+
+  if (shouldResumeFromCurrent) {
+    autoScrollState.phase = 'main';
+    autoScrollState.hasScrollStarted = true;
+    autoScrollState.phaseElapsedSec = autoScrollState.leadInSec;
+    autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+    syncAutoScrollPlaybackFromScrollY(window.scrollY, { fromUserScroll: false });
+  }
 
   if (!recalculateAutoScrollSpeed()) {
     autoScrollState.isPlaying = false;
