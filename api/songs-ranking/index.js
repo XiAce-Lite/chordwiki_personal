@@ -1,9 +1,4 @@
 const {
-  normalizeScore,
-  attachDisplayScore,
-  compareSongsForRanking
-} = require('../shared/ranking-score');
-const {
   MAX_PAGES,
   normalizePage,
   normalizePageSize,
@@ -11,21 +6,12 @@ const {
 } = require('../shared/pagination');
 const { getContainer } = require('../shared/cosmos');
 const { jsonResponse, serverConfigError } = require('../shared/http');
-const { normalizeTags } = require('../shared/validation');
+const {
+  rankAndLimitSongs,
+  getPageWindow
+} = require('../shared/song-catalog');
 
 const container = getContainer();
-
-function mapSongSummary(song, now = Date.now()) {
-  return attachDisplayScore({
-    id: song.id,
-    artist: song.artist,
-    title: song.title,
-    slug: song.slug,
-    tags: normalizeTags(song.tags),
-    score: normalizeScore(song.score),
-    last_viewed_at: song.last_viewed_at || null
-  }, now);
-}
 
 module.exports = async function (context, req) {
   if (!container) {
@@ -36,7 +22,6 @@ module.exports = async function (context, req) {
   const pageSize = normalizePageSize(req.query.pageSize);
   const totalLimit = calculateTotalLimit(pageSize);
   const page = normalizePage(req.query.page, MAX_PAGES);
-  const offset = (page - 1) * pageSize;
   const now = Date.now();
 
   try {
@@ -49,12 +34,9 @@ module.exports = async function (context, req) {
       maxItemCount: totalLimit
     }).fetchAll();
 
-    const limitedRankedSongs = (resources || [])
-      .map((song) => mapSongSummary(song, now))
-      .sort((a, b) => compareSongsForRanking(a, b, now))
-      .slice(0, totalLimit);
+    const limitedRankedSongs = rankAndLimitSongs(resources, totalLimit, now);
 
-    const songs = limitedRankedSongs.slice(offset, offset + pageSize);
+    const songs = getPageWindow(limitedRankedSongs, page, pageSize);
     const totalSongs = limitedRankedSongs.length; // ranking対象総数（最大300件）
 
     context.res = jsonResponse(200, {

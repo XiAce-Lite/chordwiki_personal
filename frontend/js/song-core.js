@@ -22,6 +22,14 @@ const {
   parseYoutubeTextarea,
   formatYoutubeEntriesForEdit
 } = window.ChordWikiSongUtils;
+const {
+  AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1',
+  SONG_PREFS_STORAGE_PREFIX = 'prefs:v1',
+  AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed',
+  SONG_EXTRAS_COLLAPSED_STORAGE_KEY = 'songExtrasCollapsed',
+  DISPLAY_PREFS_STORAGE_KEY = 'displayPrefs:v1',
+  DISPLAY_PREFS_COLLAPSED_STORAGE_KEY = 'displayPrefsCollapsed'
+} = window.ChordWikiStorageKeys || {};
 
 let originalChordPro = '';
 let transposeSemitones = 0;
@@ -59,12 +67,6 @@ const MARKER_EDGE_SCROLL_ZONE_PX = 64;
 const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
 const MARKER_EDGE_SCROLL_MAX_SPEED = 1600;
 const MARKER_EDGE_SCROLL_POINTER_SPEED_FACTOR = 0.35;
-const AUTO_SCROLL_STORAGE_PREFIX = 'autoscroll:v1';
-const SONG_PREFS_STORAGE_PREFIX = 'prefs:v1';
-const AUTO_SCROLL_COLLAPSED_STORAGE_KEY = 'autoscrollCollapsed';
-const SONG_EXTRAS_COLLAPSED_STORAGE_KEY = 'songExtrasCollapsed';
-const DISPLAY_PREFS_STORAGE_KEY = 'displayPrefs:v1';
-const DISPLAY_PREFS_COLLAPSED_STORAGE_KEY = 'displayPrefsCollapsed';
 const CHORD_ALLOWED_PATTERN = /^[A-G](#|b)?((?:m|M|maj|min|sus[0-9]*|add[0-9]*|dim|aug)*[0-9]*(?:-[0-9]+)?)(?:\([^)]+\)|\{[^}]+\})*(?:\/[A-G](#|b)?(?:\([^)]+\)|\{[^}]+\})*)?$/i;
 const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
 const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';

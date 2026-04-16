@@ -1,11 +1,14 @@
-const STICKY_NOTES_STORAGE_PREFIX = 'annotations:v1';
-const INK_STORAGE_PREFIX = 'annotations-ink:v1';
-const AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY = 'autoscrollSectionCollapsed';
-const TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY = 'transposeNotationCollapsed';
-const ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY = 'annotationSectionCollapsed';
-const INK_TOOLBAR_COLLAPSED_STORAGE_KEY = 'inkToolbarCollapsed';
-const INK_COLOR_STORAGE_KEY = 'inkColorPreference';
-const INK_WIDTH_STORAGE_KEY = 'inkWidthPreference';
+const {
+  STICKY_NOTES_STORAGE_PREFIX = 'annotations:v1',
+  INK_STORAGE_PREFIX = 'annotations-ink:v1',
+  AUTOSCROLL_SECTION_COLLAPSED_STORAGE_KEY = 'autoscrollSectionCollapsed',
+  TRANSPOSE_NOTATION_COLLAPSED_STORAGE_KEY = 'transposeNotationCollapsed',
+  ANNOTATION_SECTION_COLLAPSED_STORAGE_KEY = 'annotationSectionCollapsed',
+  INK_TOOLBAR_COLLAPSED_STORAGE_KEY = 'inkToolbarCollapsed',
+  INK_COLOR_STORAGE_KEY = 'inkColorPreference',
+  INK_WIDTH_STORAGE_KEY = 'inkWidthPreference',
+  buildSongScopedKey = (prefix, artist, id) => `${prefix}:${artist}:${id}`
+} = window.ChordWikiStorageKeys || {};
 const DEFAULT_NOTE_W = 240;
 const DEFAULT_NOTE_H = 180;
 const DEFAULT_NOTE_COLOR = '#fff3a6';
@@ -51,11 +54,11 @@ function getSongAnnotationIdentity({ artist, id } = {}) {
 }
 
 function getStickyNotesStorageKey(artist = '', id = '') {
-  return `${STICKY_NOTES_STORAGE_PREFIX}:${artist}:${id}`;
+  return buildSongScopedKey(STICKY_NOTES_STORAGE_PREFIX, artist, id);
 }
 
 function getInkStorageKey(artist = '', id = '') {
-  return `${INK_STORAGE_PREFIX}:${artist}:${id}`;
+  return buildSongScopedKey(INK_STORAGE_PREFIX, artist, id);
 }
 
 function persistInkToolPreferences() {

@@ -34,13 +34,69 @@ const DEFAULT_PAGE_SIZE = 30;
     const localSamplePanel = document.getElementById('local-sample-panel');
     const localSampleLinks = document.getElementById('local-sample-links');
     let currentPageSize = DEFAULT_PAGE_SIZE;
-    let suggestRequestSerial = 0;
-    let suggestHideTimer = 0;
     let resizeDebounceTimer = 0;
     const localTestSongsState = {
       scriptPromise: null,
       fallbackLogged: false
     };
+
+    const localFallbackService = window.ChordWikiIndexLocalFallback?.createIndexLocalFallbackService({
+      scriptPath: LOCAL_TEST_SONGS_SCRIPT_PATH,
+      globalKey: LOCAL_TEST_SONGS_GLOBAL_KEY,
+      state: localTestSongsState,
+      isLocalPreview,
+      normalizeLocalSongSummary,
+      compareSongsForRanking,
+      normalizeSearchQuery,
+      matchesSearch,
+      normalizeSearchTarget,
+      isRankingMode,
+      clampPageSize,
+      clampPage,
+      getCurrentPageSize: () => currentPageSize,
+      rankingPageSize: RANKING_PAGE_SIZE,
+      rankingMaxPages: RANKING_MAX_PAGES,
+      searchMaxPages: SEARCH_MAX_PAGES,
+      rankingMaxSongs: RANKING_MAX_SONGS,
+      buildSongHref,
+      localSamplePanel,
+      localSampleLinks
+    });
+
+    const searchUiService = window.ChordWikiIndexSearchUi?.createIndexSearchUiService({
+      searchInput,
+      searchForm,
+      searchTarget,
+      searchHelp,
+      searchSuggest,
+      searchState,
+      searchStateText,
+      searchClear,
+      homeLink,
+      SONG_SEARCH_TARGET,
+      TAG_SEARCH_TARGET,
+      TAG_SUGGEST_LIMIT,
+      normalizeSearchTarget,
+      collectTagSuggestions,
+      buildApiUrl,
+      loadSongs,
+      loadLocalTestSongsData,
+      updatePageUrl,
+      localTestSongsState
+    });
+
+    const paginationService = window.ChordWikiIndexPagination?.createIndexPaginationService({
+      getPaginationElement: () => document.getElementById('pagination'),
+      normalizeSearchTarget,
+      isRankingMode,
+      clampPage,
+      clampPageSize,
+      rankingPageSize: RANKING_PAGE_SIZE,
+      rankingMaxPages: RANKING_MAX_PAGES,
+      searchMaxPages: SEARCH_MAX_PAGES,
+      updatePaginationSafeSpace,
+      loadSongs
+    });
 
 function isLocalPreview() {
       return Boolean(window.ChordWikiRuntime?.isLocalPreview?.(window.location))
@@ -165,92 +221,24 @@ function isLocalPreview() {
     }
 
     async function loadLocalTestSongsData() {
-      if (!isLocalPreview()) {
-        return [];
-      }
-
-      const readSongs = (source) => {
-        const rawSongs = Array.isArray(source)
-          ? source
-          : (Array.isArray(source?.songs) ? source.songs : []);
-
-        return rawSongs
-          .map((song, index) => normalizeLocalSongSummary(song, index))
-          .sort(compareSongsForRanking);
-      };
-
-      const existingSongs = readSongs(window[LOCAL_TEST_SONGS_GLOBAL_KEY]);
-      if (existingSongs.length > 0) {
-        return existingSongs;
-      }
-
-      if (!localTestSongsState.scriptPromise) {
-        localTestSongsState.scriptPromise = new Promise((resolve) => {
-          const scriptEl = document.createElement('script');
-          scriptEl.src = LOCAL_TEST_SONGS_SCRIPT_PATH;
-          scriptEl.async = true;
-          scriptEl.dataset.localTestSongs = 'true';
-          scriptEl.onload = () => resolve(window[LOCAL_TEST_SONGS_GLOBAL_KEY] || null);
-          scriptEl.onerror = () => resolve(null);
-          document.head.appendChild(scriptEl);
-        });
-      }
-
-      return readSongs(await localTestSongsState.scriptPromise);
+      return localFallbackService
+        ? localFallbackService.loadLocalTestSongsData()
+        : [];
     }
 
     async function buildLocalSongsPayload(page = 1, query = '', target = SONG_SEARCH_TARGET, pageSize = currentPageSize) {
-      const localSongs = await loadLocalTestSongsData();
-      if (!Array.isArray(localSongs) || localSongs.length === 0) {
-        return null;
-      }
-
-      const appliedQuery = String(query || '').trim();
-      const safeTarget = normalizeSearchTarget(target);
-      const rankingMode = isRankingMode(appliedQuery, safeTarget);
-      const safePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(pageSize);
-      const safePage = clampPage(page, rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES);
-      const search = normalizeSearchQuery(appliedQuery);
-      const filteredSongs = search.term
-        ? localSongs.filter((song) => matchesSearch(song, search, safeTarget))
-        : localSongs.slice();
-      const limitedSongs = rankingMode
-        ? filteredSongs.slice(0, RANKING_MAX_SONGS)
-        : filteredSongs;
-      const offset = (safePage - 1) * safePageSize;
-
-      return {
-        page: safePage,
-        pageSize: safePageSize,
-        totalSongs: limitedSongs.length,
-        songs: limitedSongs.slice(offset, offset + safePageSize),
-        isLocalFallback: true
-      };
+      void pageSize;
+      return localFallbackService
+        ? localFallbackService.buildLocalSongsPayload(page, query, target)
+        : null;
     }
 
     async function renderLocalSamplePanel() {
-      if (!localSamplePanel || !localSampleLinks || !isLocalPreview()) {
+      if (!localFallbackService) {
         return;
       }
 
-      const localSongs = await loadLocalTestSongsData();
-      if (!Array.isArray(localSongs) || localSongs.length === 0) {
-        localSamplePanel.hidden = true;
-        localSampleLinks.innerHTML = '';
-        return;
-      }
-
-      localSampleLinks.innerHTML = '';
-      localSongs.slice(0, 4).forEach((song) => {
-        const linkEl = document.createElement('a');
-        linkEl.className = 'local-sample-link';
-        linkEl.href = buildSongHref(song);
-        linkEl.textContent = song.title || song.id || 'Local Sample';
-        linkEl.title = song.artist ? `${song.title} / ${song.artist}` : (song.title || song.id || 'Local Sample');
-        localSampleLinks.appendChild(linkEl);
-      });
-
-      localSamplePanel.hidden = false;
+      await localFallbackService.renderLocalSamplePanel();
     }
 
     function normalizeSearchTarget(value) {
@@ -371,223 +359,43 @@ function isLocalPreview() {
     }
 
     function hideTagSuggestions() {
-      if (suggestHideTimer) {
-        window.clearTimeout(suggestHideTimer);
-        suggestHideTimer = 0;
-      }
-
-      if (!searchSuggest) {
-        return;
-      }
-
-      searchSuggest.hidden = true;
-      searchSuggest.innerHTML = '';
+      searchUiService?.hideTagSuggestions();
     }
 
     function renderTagSuggestions(suggestions, query = '') {
-      if (!searchSuggest) {
-        return;
-      }
-
-      const safeQuery = String(query || '').trim();
-      const safeTarget = normalizeSearchTarget(searchTarget?.value);
-      if (safeTarget !== TAG_SEARCH_TARGET || !safeQuery) {
-        hideTagSuggestions();
-        return;
-      }
-
-      searchSuggest.innerHTML = '';
-
-      if (!Array.isArray(suggestions) || suggestions.length === 0) {
-        const emptyEl = document.createElement('div');
-        emptyEl.className = 'search-suggest-empty';
-        emptyEl.textContent = '一致するタグがありません';
-        searchSuggest.appendChild(emptyEl);
-        searchSuggest.hidden = false;
-        return;
-      }
-
-      suggestions.slice(0, TAG_SUGGEST_LIMIT).forEach((tag) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'search-suggest-item';
-        button.textContent = tag;
-        button.addEventListener('click', () => {
-          searchInput.value = tag;
-          hideTagSuggestions();
-          loadSongs(1, tag, TAG_SEARCH_TARGET);
-        });
-        searchSuggest.appendChild(button);
-      });
-
-      searchSuggest.hidden = false;
+      searchUiService?.renderTagSuggestions(suggestions, query);
     }
 
     async function updateTagSuggestions(query = searchInput?.value || '') {
-      const safeTarget = normalizeSearchTarget(searchTarget?.value);
-      const safeQuery = String(query || '').trim();
-      if (safeTarget !== TAG_SEARCH_TARGET || !safeQuery) {
-        hideTagSuggestions();
+      if (!searchUiService) {
         return;
       }
 
-      const requestId = ++suggestRequestSerial;
-
-      try {
-        const response = await fetch(
-          buildApiUrl(`/api/songs/search?target=${encodeURIComponent(TAG_SEARCH_TARGET)}&suggest=1&q=${encodeURIComponent(safeQuery)}`),
-          { credentials: 'include' }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const payload = await response.json();
-        if (requestId !== suggestRequestSerial) {
-          return;
-        }
-
-        renderTagSuggestions(Array.isArray(payload.suggestions) ? payload.suggestions : [], safeQuery);
-      } catch (error) {
-        console.error('Error loading tag suggestions:', error);
-        if (requestId !== suggestRequestSerial) {
-          return;
-        }
-
-        const localSongs = await loadLocalTestSongsData();
-        if (localSongs.length > 0) {
-          if (!localTestSongsState.fallbackLogged) {
-            console.info('Using local test data for top-page preview because the API is unavailable.');
-            localTestSongsState.fallbackLogged = true;
-          }
-          renderTagSuggestions(collectTagSuggestions(localSongs, safeQuery), safeQuery);
-          return;
-        }
-
-        renderTagSuggestions([], safeQuery);
-      }
-    }
-
-    function getSearchModeLabel(target = SONG_SEARCH_TARGET) {
-      return normalizeSearchTarget(target) === TAG_SEARCH_TARGET ? 'タグ' : '曲名/アーティスト';
+      await searchUiService.updateTagSuggestions(query);
     }
 
     function updateSearchState(query = '', target = SONG_SEARCH_TARGET) {
-      if (!searchState || !searchStateText) {
-        return;
-      }
-
-      const safeQuery = String(query || '').trim();
-      if (!safeQuery) {
-        searchState.hidden = true;
-        searchStateText.textContent = '';
-        return;
-      }
-
-      searchStateText.textContent = `検索条件：${getSearchModeLabel(target)} ${safeQuery}`;
-      searchState.hidden = false;
+      searchUiService?.updateSearchState(query, target);
     }
 
     function resetToHome() {
-      hideTagSuggestions();
-
-      if (searchInput) {
-        searchInput.value = '';
-      }
-
-      if (searchTarget) {
-        searchTarget.value = SONG_SEARCH_TARGET;
-      }
-
-      updateSearchUiForTarget(SONG_SEARCH_TARGET);
-      updateSearchState('', SONG_SEARCH_TARGET);
-      updatePageUrl(1, '', SONG_SEARCH_TARGET);
-      loadSongs(1, '', SONG_SEARCH_TARGET);
+      searchUiService?.resetToHome();
     }
 
     function updateSearchUiForTarget(target = SONG_SEARCH_TARGET) {
-      const safeTarget = normalizeSearchTarget(target);
-      if (searchTarget && searchTarget.value !== safeTarget) {
-        searchTarget.value = safeTarget;
-      }
-
-      if (!searchInput) {
-        return;
-      }
-
-      if (safeTarget === TAG_SEARCH_TARGET) {
-        searchInput.placeholder = 'タグを入力（完全一致検索）';
-        searchInput.title = 'タグ検索は完全一致です。入力中は前方一致サジェストを表示します。';
-        if (searchHelp) {
-          searchHelp.innerHTML = '※ タグ検索は <strong>完全一致</strong> で実行し、入力中サジェストは前方一致です。曲名 / アーティスト検索では AND/OR や全文検索は行いません。';
-        }
-      } else {
-        searchInput.placeholder = '1ワード検索（対象は曲名とアーティスト）';
-        searchInput.title = '1ワード検索のみ対応。AND/OR検索はしません。ダブルコーテーションで括ると完全一致検索します。';
-        if (searchHelp) {
-          searchHelp.innerHTML = '※ 曲名 / アーティスト検索は 1ワードのみ対応します。半角スペースで区切っても AND/OR 検索はしません。<code>"..."</code> で完全一致です。タグ検索はセレクトで切り替えます。';
-        }
-        hideTagSuggestions();
-      }
+      searchUiService?.updateSearchUiForTarget(target);
     }
 
-    function createPaginationButton(label, targetPage, appliedQuery, safeTarget, { disabled = false, isActive = false, ariaLabel = '' } = {}) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `page-button${isActive ? ' is-active' : ''}`;
-      button.textContent = label;
-      button.disabled = disabled;
-
-      if (ariaLabel) {
-        button.setAttribute('aria-label', ariaLabel);
-      }
-
-      if (!disabled && !isActive) {
-        button.addEventListener('click', () => {
-          loadSongs(targetPage, appliedQuery, safeTarget);
-        });
-      }
-
-      return button;
+    function bindSearchUiInteractions() {
+      searchUiService?.bindSearchInteractions();
     }
 
     function renderPagination(page, songCount = 0, query = '', target = SONG_SEARCH_TARGET, pageSize = currentPageSize) {
-      const paginationEl = document.getElementById('pagination');
-      const appliedQuery = String(query || '').trim();
-      const safeTarget = normalizeSearchTarget(target);
-      const rankingMode = isRankingMode(appliedQuery, safeTarget);
-      const safePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(pageSize);
-      const maxPages = rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES;
-      const availablePages = Math.max(1, Math.min(maxPages, Math.ceil(songCount / safePageSize)));
-      const safePage = clampPage(page, availablePages);
-      paginationEl.innerHTML = '';
-
-      paginationEl.appendChild(
-        createPaginationButton('<', Math.max(1, safePage - 1), appliedQuery, safeTarget, {
-          disabled: safePage <= 1,
-          ariaLabel: '前のページ'
-        })
-      );
-
-      for (let p = 1; p <= availablePages; p += 1) {
-        paginationEl.appendChild(
-          createPaginationButton(String(p), p, appliedQuery, safeTarget, {
-            disabled: p === safePage,
-            isActive: p === safePage,
-            ariaLabel: `ページ ${p}`
-          })
-        );
+      if (!paginationService) {
+        return;
       }
 
-      paginationEl.appendChild(
-        createPaginationButton('>', Math.min(availablePages, safePage + 1), appliedQuery, safeTarget, {
-          disabled: safePage >= availablePages,
-          ariaLabel: '次のページ'
-        })
-      );
-
-      updatePaginationSafeSpace();
+      paginationService.renderPagination(page, songCount, query, target, pageSize);
     }
 
     function getVisibleTags(tags) {
@@ -800,53 +608,7 @@ function isLocalPreview() {
       }
     }
 
-    searchForm.addEventListener('submit', (event) => {
-      event.preventDefault();
-      hideTagSuggestions();
-      loadSongs(1, searchInput.value, searchTarget?.value);
-    });
-
-    searchClear?.addEventListener('click', () => {
-      resetToHome();
-    });
-
-    homeLink?.addEventListener('click', (event) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
-        return;
-      }
-
-      event.preventDefault();
-      resetToHome();
-    });
-
-    searchTarget?.addEventListener('change', () => {
-      updateSearchUiForTarget(searchTarget.value);
-      if (normalizeSearchTarget(searchTarget.value) === TAG_SEARCH_TARGET && String(searchInput.value || '').trim()) {
-        updateTagSuggestions(searchInput.value);
-      }
-    });
-
-    searchInput?.addEventListener('input', () => {
-      if (normalizeSearchTarget(searchTarget?.value) === TAG_SEARCH_TARGET) {
-        updateTagSuggestions(searchInput.value);
-      } else {
-        hideTagSuggestions();
-      }
-    });
-
-    searchInput?.addEventListener('focus', () => {
-      if (normalizeSearchTarget(searchTarget?.value) === TAG_SEARCH_TARGET && String(searchInput.value || '').trim()) {
-        updateTagSuggestions(searchInput.value);
-      }
-    });
-
-    searchInput?.addEventListener('blur', () => {
-      suggestHideTimer = window.setTimeout(hideTagSuggestions, 120);
-    });
-
-    searchSuggest?.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-    });
+    bindSearchUiInteractions();
 
     window.addEventListener('popstate', () => {
       loadSongs(getPageFromUrl(), getQueryFromUrl(), getTargetFromUrl());
