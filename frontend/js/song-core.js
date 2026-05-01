@@ -97,6 +97,7 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
   adjustChordPos: true,
   mnotoEnabled: false,
+  superscriptEnabled: false,
   chordFontSize: 14,
   chordOffsetPx: 7,
   chordLineOffsetPx: 0,
@@ -544,6 +545,7 @@ function loadDisplayPreferences() {
     displayPrefsState.enabled = storedPrefs.enabled === true;
     displayPrefsState.adjustChordPos = storedPrefs.adjustChordPos !== false;
     displayPrefsState.mnotoEnabled = storedPrefs.mnotoEnabled === true;
+    displayPrefsState.superscriptEnabled = storedPrefs.superscriptEnabled === true;
     displayPrefsState.chordFontSize = clampDisplayPreferenceNumber(
       storedPrefs.chordFontSize,
       6,
@@ -647,6 +649,7 @@ function syncDisplayPreferenceUi() {
   const enabledInput = document.getElementById('display-custom-enabled');
   const adjustInput = document.getElementById('display-adjust-chordpos');
   const mnotoInput = document.getElementById('display-mnoto-enabled');
+  const superscriptInput = document.getElementById('display-superscript-enabled');
   const mnotoStatusEl = document.getElementById('display-mnoto-status');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
@@ -670,6 +673,11 @@ function syncDisplayPreferenceUi() {
   if (mnotoInput) {
     mnotoInput.checked = displayPrefsState.mnotoEnabled;
     mnotoInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (superscriptInput) {
+    superscriptInput.checked = displayPrefsState.superscriptEnabled;
+    superscriptInput.disabled = !displayPrefsState.enabled;
   }
 
   if (mnotoStatusEl) {
@@ -1060,6 +1068,24 @@ function applyChordDisplayTextTransforms() {
   Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
     let nextText = String(span.textContent || '').replace(/maj/gi, 'M');
 
+    if (displayPrefsState.superscriptEnabled) {
+      if (typeof convertChordToSuperscriptHtml === 'function') {
+        span.innerHTML = convertChordToSuperscriptHtml(nextText);
+      } else {
+        span.textContent = nextText;
+      }
+
+      if (shouldUseMnoto) {
+        span.classList.add('cw-mnoto-chord');
+      }
+
+      const cleanedText = cleanDisplayText(nextText);
+      if (/^[~\s]+$/.test(nextText) || (NARROW_SYMBOL_PATTERN.test(cleanedText) && !isChordTextAllowed(cleanedText))) {
+        span.classList.add('cw-narrow-symbol');
+      }
+      return;
+    }
+
     if (shouldUseMnoto) {
       nextText = nextText.replace(/\((?:[#b+\-]?\d+(?:[,.][#b+\-]?\d+)*)\)/g, (match) => {
         const inner = match.slice(1, -1);
@@ -1213,6 +1239,7 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
 
   rootEl.dataset.displayCustom = displayPrefsState.enabled ? 'on' : 'off';
   rootEl.dataset.mnoto = mnotoActive ? 'on' : 'off';
+  rootEl.dataset.superscript = displayPrefsState.superscriptEnabled ? 'on' : 'off';
   rootEl.dataset.adjustChordPos = displayPrefsState.enabled && displayPrefsState.adjustChordPos ? 'on' : 'off';
   rootEl.style.setProperty('--mnoto-font-family', mnotoAvailabilityState.family
     ? `${mnotoAvailabilityState.family}, "Noto Sans JP", "Segoe UI", sans-serif`

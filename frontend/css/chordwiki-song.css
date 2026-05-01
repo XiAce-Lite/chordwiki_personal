@@ -1599,6 +1599,17 @@ span.chord {
   min-height: 1em;
 }
 
+span.chord sup,
+span.chord .cw-chord-affix {
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+span.chord .cw-chord-affix {
+  display: inline-block;
+  vertical-align: super;
+}
+
 span.word,
 span.wordtop {
   display: inline;

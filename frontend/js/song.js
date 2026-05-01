@@ -238,6 +238,7 @@ function initializeDisplayPreferencesUi() {
   const enabledInput = document.getElementById('display-custom-enabled');
   const adjustInput = document.getElementById('display-adjust-chordpos');
   const mnotoInput = document.getElementById('display-mnoto-enabled');
+  const superscriptInput = document.getElementById('display-superscript-enabled');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
   const lineOffsetInput = document.getElementById('display-chord-line-offset');
@@ -302,6 +303,11 @@ function initializeDisplayPreferencesUi() {
 
   mnotoInput?.addEventListener('change', () => {
     displayPrefsState.mnotoEnabled = mnotoInput.checked;
+    commitDisplayPreferences();
+  });
+
+  superscriptInput?.addEventListener('change', () => {
+    displayPrefsState.superscriptEnabled = superscriptInput.checked;
     commitDisplayPreferences();
   });
 

@@ -127,9 +127,16 @@ function renderLyricsLine(tokens, containerEl, options = {}) {
 
   for (const token of tokens || []) {
     const span = createSpan(token.kind);
-    span.textContent = token.kind === "chord"
-      ? transposeChordString(token.text, transposeSemitones, accidentalMode, keyContext)
-      : (token.text || "");
+    if (token.kind === "chord") {
+      const raw = transposeChordString(token.text, transposeSemitones, accidentalMode, keyContext);
+      if (displayPrefsState.superscriptEnabled) {
+        span.innerHTML = convertChordToSuperscriptHtml(raw);
+      } else {
+        span.textContent = raw;
+      }
+    } else {
+      span.textContent = token.text || "";
+    }
     p.appendChild(span);
   }
 
@@ -475,4 +482,114 @@ function renderChordWikiLike(chordProText, containerEl, transposeSemitones = 0, 
   }
 
   return { title: parsed.title, subtitle: parsed.subtitle, key: parsed.key };
+}
+
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getChordSegmentBeforeIndex(source, index) {
+  let start = index - 1;
+  while (start >= 0 && !/[\s\(\)\/,]/.test(source[start])) {
+    start -= 1;
+  }
+
+  return source.slice(start + 1, index).toLowerCase();
+}
+
+function convertChordToSuperscriptHtml(chordText) {
+  const source = String(chordText || "");
+  if (!source) {
+    return "";
+  }
+
+  let result = "";
+  let index = 0;
+  let lastAffix = "";
+
+  while (index < source.length) {
+    const rest = source.slice(index);
+
+    const affixMatch = rest.match(/^(sus|aug|dim|omit|add)/i);
+    if (affixMatch) {
+      const affixText = affixMatch[0];
+      result += `<span class="cw-chord-affix">${escapeHtml(affixText)}</span>`;
+      lastAffix = affixText.toLowerCase();
+      index += affixText.length;
+      continue;
+    }
+
+    const excludedSeventhMatch = rest.match(/^(m7|dim7|aug7)/i);
+    if (excludedSeventhMatch) {
+      const excludedText = excludedSeventhMatch[0];
+      result += escapeHtml(excludedText);
+      lastAffix = "";
+      index += excludedText.length;
+      continue;
+    }
+
+    if (source[index] === "(") {
+      const closeIndex = source.indexOf(")", index + 1);
+      if (closeIndex !== -1) {
+        const inner = source.slice(index + 1, closeIndex);
+        if (/\d/.test(inner)) {
+          result += `(<sup>${escapeHtml(inner)}</sup>)`;
+        } else {
+          result += `(${escapeHtml(inner)})`;
+        }
+
+        lastAffix = "";
+        index = closeIndex + 1;
+        continue;
+      }
+    }
+
+    const alteredTensionMatch = rest.match(/^[b#♭♯\-](13|11|9|5)/);
+    if (alteredTensionMatch) {
+      const alteredText = alteredTensionMatch[0];
+      result += `<sup>${escapeHtml(alteredText)}</sup>`;
+      lastAffix = "";
+      index += alteredText.length;
+      continue;
+    }
+
+    const tensionNumberMatch = rest.match(/^(13|11|9|7)/);
+    if (tensionNumberMatch) {
+      const tensionText = tensionNumberMatch[0];
+      const segment = getChordSegmentBeforeIndex(source, index);
+      const isBlockedMinorSeventh = tensionText === "7" && /(m|dim|aug)$/.test(segment);
+      const isAddTension = ["9", "11", "13"].includes(tensionText) && lastAffix === "add";
+
+      if (!isBlockedMinorSeventh || isAddTension) {
+        result += `<sup>${escapeHtml(tensionText)}</sup>`;
+      } else {
+        result += escapeHtml(tensionText);
+      }
+
+      lastAffix = "";
+      index += tensionText.length;
+      continue;
+    }
+
+    const currentChar = source[index];
+    const previousChar = source[index - 1] || "";
+    const nextChar = source[index + 1] || "";
+    if (/[b#♭♯]/.test(currentChar) && /[A-Ga-g]/.test(previousChar) && !/\d/.test(nextChar)) {
+      result += `<sup>${escapeHtml(currentChar)}</sup>`;
+      lastAffix = "";
+      index += 1;
+      continue;
+    }
+
+    result += escapeHtml(currentChar);
+    lastAffix = "";
+    index += 1;
+  }
+
+  return result;
 }
