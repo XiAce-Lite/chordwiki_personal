@@ -163,24 +163,23 @@
               </span>
             </div>
 
-            <div class="display-toggle-option display-toggle-option-with-help">
-              <input id="display-mnoto-enabled" type="checkbox" />
-              <label for="display-mnoto-enabled" class="display-toggle-label">MNoto Sans フォント対応</label>
+            <div class="display-select-option">
+              <label class="display-toggle-label" for="display-chord-style">コード表示</label>
+              <select id="display-chord-style" class="display-chord-style-select">
+                <option value="none">何もしない</option>
+                <option value="mnoto">MNoto Sans フォント対応</option>
+                <option value="superscript">テンション上付き表示</option>
+              </select>
               <span class="display-help">
-                <button type="button" class="display-help-button" aria-label="MNoto Sans フォント対応の説明">?</button>
+                <button type="button" class="display-help-button" aria-label="コード表示スタイルの説明">?</button>
                 <span class="display-help-tooltip" role="tooltip">
-                  MNoto Sans V2フォントをインストールしてある環境で、コード表示にそのフォントを使用します。
-                  利用可否は現在のブラウザで自動判定します。
-                  <a href="https://github.com/ykwe/MNoto-Sans-alpha" target="_blank" rel="noopener noreferrer">ダウンロードはこちら</a>
+                  <b>何もしない：</b>標準表示です。<br>
+                  <b>MNoto Sans フォント対応：</b>MNoto Sans V2がインストール済みの環境でそのフォントを使用します。<a href="https://github.com/ykwe/MNoto-Sans-alpha" target="_blank" rel="noopener noreferrer">ダウンロード</a><br>
+                  <b>テンション上付き表示：</b>7・M・テンションノートのサイズを調整し、テンションを上付き文字で表示します。
                 </span>
               </span>
             </div>
             <div id="display-mnoto-status" class="display-inline-note" aria-live="polite"></div>
-
-            <label class="display-toggle-option" for="display-superscript-enabled">
-              <input id="display-superscript-enabled" type="checkbox" />
-              <span>コードのテンションを上付き表示にする</span>
-            </label>
 
             <label class="display-toggle-option" for="display-lyric-weight">
               <input id="display-lyric-weight" type="checkbox" />

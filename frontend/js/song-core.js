@@ -4,6 +4,7 @@
  * - 分・秒を変更すると即保存され、状態表示が Saved になることを確認する。
  * - Start で自動スクロールを開始し、再生中にマーカーを動かしても止まらず再計算されることを確認する。
  * - End マーカーが画面内に入った時点で自動停止することを確認する。
+ * - 移調ボタン(-/+)を操作しても、上付き表示・MNoto表示が破綻しないことを確認する。
  */
 const {
   buildApiUrl,
@@ -96,6 +97,7 @@ const mnotoAvailabilityState = {
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
   adjustChordPos: true,
+  chordStyle: 'none',
   mnotoEnabled: false,
   superscriptEnabled: false,
   chordFontSize: 14,
@@ -532,6 +534,16 @@ function clampDisplayPreferenceNumber(value, min, max, fallback) {
   return Number.isFinite(parsed) ? clamp(parsed, min, max) : fallback;
 }
 
+function normalizeChordStyle(style) {
+  return ['none', 'mnoto', 'superscript'].includes(style) ? style : 'none';
+}
+
+function syncChordStyleFlags() {
+  displayPrefsState.chordStyle = normalizeChordStyle(displayPrefsState.chordStyle);
+  displayPrefsState.mnotoEnabled = displayPrefsState.chordStyle === 'mnoto';
+  displayPrefsState.superscriptEnabled = displayPrefsState.chordStyle === 'superscript';
+}
+
 function loadDisplayPreferences() {
   Object.assign(displayPrefsState, DEFAULT_DISPLAY_PREFS);
 
@@ -544,8 +556,16 @@ function loadDisplayPreferences() {
 
     displayPrefsState.enabled = storedPrefs.enabled === true;
     displayPrefsState.adjustChordPos = storedPrefs.adjustChordPos !== false;
-    displayPrefsState.mnotoEnabled = storedPrefs.mnotoEnabled === true;
-    displayPrefsState.superscriptEnabled = storedPrefs.superscriptEnabled === true;
+    if (typeof storedPrefs.chordStyle === 'string') {
+      displayPrefsState.chordStyle = normalizeChordStyle(storedPrefs.chordStyle);
+    } else if (storedPrefs.superscriptEnabled === true) {
+      displayPrefsState.chordStyle = 'superscript';
+    } else if (storedPrefs.mnotoEnabled === true) {
+      displayPrefsState.chordStyle = 'mnoto';
+    } else {
+      displayPrefsState.chordStyle = 'none';
+    }
+    syncChordStyleFlags();
     displayPrefsState.chordFontSize = clampDisplayPreferenceNumber(
       storedPrefs.chordFontSize,
       6,
@@ -585,6 +605,7 @@ function loadDisplayPreferences() {
 
 function saveDisplayPreferences() {
   try {
+    syncChordStyleFlags();
     window.localStorage.setItem(DISPLAY_PREFS_STORAGE_KEY, JSON.stringify(displayPrefsState));
   } catch (error) {
     console.warn('Failed to save display preferences:', error);
@@ -648,8 +669,7 @@ function isMnotoFontAvailable() {
 function syncDisplayPreferenceUi() {
   const enabledInput = document.getElementById('display-custom-enabled');
   const adjustInput = document.getElementById('display-adjust-chordpos');
-  const mnotoInput = document.getElementById('display-mnoto-enabled');
-  const superscriptInput = document.getElementById('display-superscript-enabled');
+  const chordStyleSelect = document.getElementById('display-chord-style');
   const mnotoStatusEl = document.getElementById('display-mnoto-status');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
@@ -670,14 +690,9 @@ function syncDisplayPreferenceUi() {
     adjustInput.disabled = !displayPrefsState.enabled;
   }
 
-  if (mnotoInput) {
-    mnotoInput.checked = displayPrefsState.mnotoEnabled;
-    mnotoInput.disabled = !displayPrefsState.enabled;
-  }
-
-  if (superscriptInput) {
-    superscriptInput.checked = displayPrefsState.superscriptEnabled;
-    superscriptInput.disabled = !displayPrefsState.enabled;
+  if (chordStyleSelect) {
+    chordStyleSelect.value = displayPrefsState.chordStyle;
+    chordStyleSelect.disabled = !displayPrefsState.enabled;
   }
 
   if (mnotoStatusEl) {
@@ -1234,12 +1249,15 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
     return;
   }
 
+  syncChordStyleFlags();
+
   const mnotoAvailable = updateMnotoFontAvailability();
   const mnotoActive = displayPrefsState.enabled && displayPrefsState.mnotoEnabled && mnotoAvailable;
+  const superscriptActive = displayPrefsState.enabled && displayPrefsState.superscriptEnabled;
 
   rootEl.dataset.displayCustom = displayPrefsState.enabled ? 'on' : 'off';
   rootEl.dataset.mnoto = mnotoActive ? 'on' : 'off';
-  rootEl.dataset.superscript = displayPrefsState.superscriptEnabled ? 'on' : 'off';
+  rootEl.dataset.superscript = superscriptActive ? 'on' : 'off';
   rootEl.dataset.adjustChordPos = displayPrefsState.enabled && displayPrefsState.adjustChordPos ? 'on' : 'off';
   rootEl.style.setProperty('--mnoto-font-family', mnotoAvailabilityState.family
     ? `${mnotoAvailabilityState.family}, "Noto Sans JP", "Segoe UI", sans-serif`

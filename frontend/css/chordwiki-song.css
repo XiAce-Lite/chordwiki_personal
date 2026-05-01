@@ -878,6 +878,31 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   font-weight: 600;
 }
 
+.display-select-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  color: #23415f;
+}
+
+.display-chord-style-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 6px;
+  font-size: 13px;
+  border: 1px solid #cfd8e3;
+  border-radius: 6px;
+  color: #163a5c;
+  background: #fff;
+  cursor: pointer;
+}
+
+.display-chord-style-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .display-number-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1599,15 +1624,15 @@ span.chord {
   min-height: 1em;
 }
 
-span.chord sup,
-span.chord .cw-chord-affix {
-  font-size: 0.7em;
+span.chord sup {
+  font-size: 0.75em;
   line-height: 1;
 }
 
-span.chord .cw-chord-affix {
-  display: inline-block;
-  vertical-align: super;
+span.chord .cw-chord-affix,
+span.chord .cw-chord-mid {
+  font-size: 0.85em;
+  line-height: 1;
 }
 
 span.word,
@@ -1685,6 +1710,10 @@ html[data-display-custom="on"] span.chord {
   color: #3273cd;
   font-weight: 600;
   top: calc(-1.5em + var(--user-chord-line-offset, 0px));
+}
+
+html[data-display-custom="on"][data-superscript="on"] span.chord {
+  font-weight: 700;
 }
 
 html[data-display-custom="on"][data-mnoto="on"] span.chord.cw-mnoto-chord:not(.cw-narrow-symbol) {

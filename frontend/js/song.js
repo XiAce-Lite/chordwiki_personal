@@ -237,8 +237,7 @@ function initializeDisplayPreferencesUi() {
 
   const enabledInput = document.getElementById('display-custom-enabled');
   const adjustInput = document.getElementById('display-adjust-chordpos');
-  const mnotoInput = document.getElementById('display-mnoto-enabled');
-  const superscriptInput = document.getElementById('display-superscript-enabled');
+  const chordStyleSelect = document.getElementById('display-chord-style');
   const fontSizeInput = document.getElementById('display-chord-font-size');
   const offsetInput = document.getElementById('display-chord-offset');
   const lineOffsetInput = document.getElementById('display-chord-line-offset');
@@ -301,13 +300,8 @@ function initializeDisplayPreferencesUi() {
     commitDisplayPreferences();
   });
 
-  mnotoInput?.addEventListener('change', () => {
-    displayPrefsState.mnotoEnabled = mnotoInput.checked;
-    commitDisplayPreferences();
-  });
-
-  superscriptInput?.addEventListener('change', () => {
-    displayPrefsState.superscriptEnabled = superscriptInput.checked;
+  chordStyleSelect?.addEventListener('change', () => {
+    displayPrefsState.chordStyle = chordStyleSelect.value;
     commitDisplayPreferences();
   });
 
