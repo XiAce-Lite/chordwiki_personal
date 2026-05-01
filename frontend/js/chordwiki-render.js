@@ -438,6 +438,20 @@ function transposeChordString(chord, semitones = 0, accidentalMode = "none", key
     return chord;
   }
 
+  // ()で囲まれた通常コード（例: (Eb), (EbM7), (F#m7)）を処理する
+  // 括弧全体が chord 文字列を包んでいる場合、内側を移調して再ラップする
+  if (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+    const inner = trimmed.slice(1, -1);
+    // テンションノート（数字で始まる、または b/# のみで始まる）は移調しない
+    // 通常コード（A-G で始まる）は移調する
+    if (/^[A-G]/.test(inner)) {
+      const transposedInner = transposeChordString(inner, semitones, accidentalMode, keyContext);
+      return `(${transposedInner})`;
+    }
+    // テンションノート等は変換せず返す
+    return chord;
+  }
+
   const resolvedMode = resolveAccidentalMode(trimmed, semitones, accidentalMode, keyContext);
   const outputMode = resolvedMode === "flat" ? "flat" : "sharp";
   const parts = splitSlashOrOn(trimmed);
@@ -502,6 +516,23 @@ function getChordSegmentBeforeIndex(source, index) {
   return source.slice(start + 1, index).toLowerCase();
 }
 
+function findMatchingParenthesisIndex(source, openIndex) {
+  let depth = 0;
+
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "(") {
+      depth += 1;
+    } else if (source[index] === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+
+  return -1;
+}
+
 function convertChordToSuperscriptHtml(chordText) {
   const source = String(chordText || "");
   if (!source) {
@@ -514,9 +545,15 @@ function convertChordToSuperscriptHtml(chordText) {
     "♭": "♭",
     "♯": "♯"
   };
-  const convertSuperscriptAccidental = (value) => String(value || "")
-    .replace(/b(?=\d)/g, "♭")
-    .replace(/#(?=\d)/g, "♯");
+  const renderSuperscriptAccidental = (value) => `<span class="cw-chord-accidental">${escapeHtml(accidentalSymbolMap[value] || value)}</span>`;
+  const renderSuperscriptContent = (value) => Array.from(String(value || "")).map((character, characterIndex, characters) => {
+    const nextCharacter = characters[characterIndex + 1] || "";
+    if (/[b#♭♯]/.test(character) && /\d/.test(nextCharacter)) {
+      return renderSuperscriptAccidental(character);
+    }
+
+    return escapeHtml(character);
+  }).join("");
 
   let result = "";
   let index = 0;
@@ -535,14 +572,18 @@ function convertChordToSuperscriptHtml(chordText) {
     }
 
     // paren group with tension digits -> whole paren is superscript
+    // plain chord groups like (Eb) are parsed recursively as a normal chord.
     if (source[index] === "(") {
-      const closeIndex = source.indexOf(")", index + 1);
+      const closeIndex = findMatchingParenthesisIndex(source, index);
       if (closeIndex !== -1) {
         const inner = source.slice(index + 1, closeIndex);
-        if (/\d/.test(inner)) {
-          result += `<sup>(${escapeHtml(convertSuperscriptAccidental(inner))})</sup>`;
+        const looksLikeChordGroup = /^(?:[A-G][b#♭♯]?|N\.C\.?)/.test(inner.trim());
+        if (looksLikeChordGroup) {
+          result += `(${convertChordToSuperscriptHtml(inner)})`;
+        } else if (/\d/.test(inner)) {
+          result += `<sup>(${renderSuperscriptContent(inner)})</sup>`;
         } else {
-          result += `(${escapeHtml(inner)})`;
+          result += `(${convertChordToSuperscriptHtml(inner)})`;
         }
         lastAffix = "";
         index = closeIndex + 1;
@@ -553,7 +594,7 @@ function convertChordToSuperscriptHtml(chordText) {
     // altered tension: b9, #11, -5 etc -> superscript
     const alteredTensionMatch = rest.match(/^[b#♭♯\-](13|11|9|5)/);
     if (alteredTensionMatch) {
-      result += `<sup>${escapeHtml(convertSuperscriptAccidental(alteredTensionMatch[0]))}</sup>`;
+      result += `<sup>${renderSuperscriptContent(alteredTensionMatch[0])}</sup>`;
       lastAffix = "";
       index += alteredTensionMatch[0].length;
       continue;
@@ -589,8 +630,7 @@ function convertChordToSuperscriptHtml(chordText) {
     const currentChar = source[index];
     const previousChar = source[index - 1] || "";
     if (/[b#♭♯]/.test(currentChar) && /[A-Ga-g]/.test(previousChar)) {
-      const symbol = accidentalSymbolMap[currentChar] || currentChar;
-      result += `<sup>${escapeHtml(symbol)}</sup>`;
+      result += `<sup>${renderSuperscriptAccidental(currentChar)}</sup>`;
       lastAffix = "";
       index += 1;
       continue;

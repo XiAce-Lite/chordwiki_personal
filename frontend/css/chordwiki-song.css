@@ -1629,6 +1629,11 @@ span.chord sup {
   line-height: 1;
 }
 
+span.chord sup .cw-chord-accidental {
+  font-size: 0.85em;
+  line-height: 1;
+}
+
 span.chord .cw-chord-affix,
 span.chord .cw-chord-mid {
   font-size: 0.85em;
