@@ -54,6 +54,12 @@ function isNoChordToken(token) {
   return t === "N.C." || t === "N.C" || t === "NC";
 }
 
+function normalizeChordToken(token) {
+  return String(token || "")
+    .replace(/（/g, "(")
+    .replace(/）/g, ")");
+}
+
 function createSpan(className, text) {
   const s = document.createElement("span");
   if (className) s.className = className;
@@ -76,7 +82,7 @@ function tokenizeLyricsLine(lineText) {
       if (end !== -1) {
         tokens.push({
           kind: "chord",
-          text: line.slice(i + 1, end)
+          text: normalizeChordToken(line.slice(i + 1, end))
         });
         i = end + 1;
         continue;
@@ -429,13 +435,14 @@ function splitSlashOrOn(chord) {
 function transposeChordString(chord, semitones = 0, accidentalMode = "none", keyContext = null) {
   if (!chord) return chord;
 
-  const trimmed = chord.trim();
+  const normalizedChord = normalizeChordToken(chord);
+  const trimmed = normalizedChord.trim();
   if (trimmed === "" || isNoChordToken(trimmed) || isBarToken(trimmed)) {
-    return chord;
+    return normalizedChord;
   }
 
   if (normalizeAccidentalMode(accidentalMode) === "none" && semitones === 0) {
-    return chord;
+    return normalizedChord;
   }
 
   // ()で囲まれた通常コード（例: (Eb), (EbM7), (F#m7)）を処理する
@@ -449,7 +456,7 @@ function transposeChordString(chord, semitones = 0, accidentalMode = "none", key
       return `(${transposedInner})`;
     }
     // テンションノート等は変換せず返す
-    return chord;
+    return normalizedChord;
   }
 
   const resolvedMode = resolveAccidentalMode(trimmed, semitones, accidentalMode, keyContext);
@@ -534,7 +541,7 @@ function findMatchingParenthesisIndex(source, openIndex) {
 }
 
 function convertChordToSuperscriptHtml(chordText) {
-  const source = String(chordText || "");
+  const source = normalizeChordToken(chordText);
   if (!source) {
     return "";
   }
@@ -592,7 +599,7 @@ function convertChordToSuperscriptHtml(chordText) {
     }
 
     // altered tension: b9, #11, -5 etc -> superscript
-    const alteredTensionMatch = rest.match(/^[b#♭♯\-](13|11|9|5)/);
+    const alteredTensionMatch = rest.match(/^[b#♭♯\-](13|11|9|6|5)/);
     if (alteredTensionMatch) {
       result += `<sup>${renderSuperscriptContent(alteredTensionMatch[0])}</sup>`;
       lastAffix = "";
@@ -608,7 +615,7 @@ function convertChordToSuperscriptHtml(chordText) {
         result += `<sup>${escapeHtml(tensionNumberMatch[0])}</sup>`;
       } else if (tensionNumberMatch[0] === "7") {
         result += `<span class="cw-chord-mid">7</span>`;
-      } else if (tensionNumberMatch[0] === "9" || tensionNumberMatch[0] === "11" || tensionNumberMatch[0] === "13") {
+      } else if (tensionNumberMatch[0] === "6" || tensionNumberMatch[0] === "9" || tensionNumberMatch[0] === "11" || tensionNumberMatch[0] === "13") {
         result += `<sup>${escapeHtml(tensionNumberMatch[0])}</sup>`;
       } else {
         result += escapeHtml(tensionNumberMatch[0]);
