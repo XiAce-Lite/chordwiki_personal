@@ -187,10 +187,11 @@ function getDefaultMarkerPositions() {
 
   const lines = sheetEl.querySelectorAll('p.line:not(.blank), p.comment');
   const endMarkerOffset = Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0);
+  const firstLyricLine = sheetEl.querySelector('p.line:not(.blank)');
   const defaults = !lines.length
     ? { startY: bounds.top, endY: bounds.bottom + endMarkerOffset }
     : {
-        startY: lines[0].getBoundingClientRect().top + window.scrollY,
+        startY: (firstLyricLine ?? lines[0]).getBoundingClientRect().top + window.scrollY,
         endY: lines[lines.length - 1].getBoundingClientRect().bottom + window.scrollY + endMarkerOffset
       };
 
