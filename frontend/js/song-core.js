@@ -104,6 +104,7 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   chordOffsetPx: 7,
   chordLineOffsetPx: 0,
   lyricLineGapPx: 15,
+  blankLineHeightPx: 14,
   commentLineGapPx: 16,
   lyricFontWeight: 'normal',
   commentFontWeight: 'bold'
@@ -590,6 +591,12 @@ function loadDisplayPreferences() {
       32,
       DEFAULT_DISPLAY_PREFS.lyricLineGapPx
     );
+    displayPrefsState.blankLineHeightPx = clampDisplayPreferenceNumber(
+      storedPrefs.blankLineHeightPx,
+      4,
+      32,
+      DEFAULT_DISPLAY_PREFS.blankLineHeightPx
+    );
     displayPrefsState.commentLineGapPx = clampDisplayPreferenceNumber(
       storedPrefs.commentLineGapPx,
       8,
@@ -675,6 +682,7 @@ function syncDisplayPreferenceUi() {
   const offsetInput = document.getElementById('display-chord-offset');
   const lineOffsetInput = document.getElementById('display-chord-line-offset');
   const lyricGapInput = document.getElementById('display-lyric-gap');
+  const blankLineHeightInput = document.getElementById('display-blank-line-height');
   const commentGapInput = document.getElementById('display-comment-gap');
   const lyricWeightInput = document.getElementById('display-lyric-weight');
   const commentWeightInput = document.getElementById('display-comment-weight');
@@ -724,6 +732,11 @@ function syncDisplayPreferenceUi() {
   if (lyricGapInput) {
     lyricGapInput.value = String(displayPrefsState.lyricLineGapPx);
     lyricGapInput.disabled = !displayPrefsState.enabled;
+  }
+
+  if (blankLineHeightInput) {
+    blankLineHeightInput.value = String(displayPrefsState.blankLineHeightPx);
+    blankLineHeightInput.disabled = !displayPrefsState.enabled;
   }
 
   if (commentGapInput) {
@@ -1266,6 +1279,7 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   rootEl.style.setProperty('--user-chord-offset', `${displayPrefsState.chordOffsetPx}px`);
   rootEl.style.setProperty('--user-chord-line-offset', `${displayPrefsState.chordLineOffsetPx}px`);
   rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
+  rootEl.style.setProperty('--user-blank-line-height', `${displayPrefsState.blankLineHeightPx}px`);
   rootEl.style.setProperty('--user-comment-gap', `${displayPrefsState.commentLineGapPx}px`);
   rootEl.dataset.lyricWeight = displayPrefsState.lyricFontWeight;
   rootEl.dataset.commentWeight = displayPrefsState.commentFontWeight;

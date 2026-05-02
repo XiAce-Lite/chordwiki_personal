@@ -185,7 +185,7 @@ function getDefaultMarkerPositions() {
     return { startY: 0, endY: 0 };
   }
 
-  const lines = sheetEl.querySelectorAll('p.line, p.comment');
+  const lines = sheetEl.querySelectorAll('p.line:not(.blank), p.comment');
   const endMarkerOffset = Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0);
   const defaults = !lines.length
     ? { startY: bounds.top, endY: bounds.bottom + endMarkerOffset }
@@ -945,7 +945,7 @@ function getAutoScrollLeadInStartScrollY() {
 }
 
 function getLineLyricLength(lineEl) {
-  if (!(lineEl instanceof Element) || !lineEl.matches('p.line')) {
+  if (!(lineEl instanceof Element) || !lineEl.matches('p.line:not(.blank)')) {
     return 0;
   }
 
@@ -984,7 +984,7 @@ function collectAutoScrollLineEntries() {
     return [];
   }
 
-  const lines = Array.from(sheetEl.querySelectorAll('p.line, p.comment'));
+  const lines = Array.from(sheetEl.querySelectorAll('p.line:not(.blank), p.comment'));
   const entries = [];
 
   lines.forEach((lineEl) => {

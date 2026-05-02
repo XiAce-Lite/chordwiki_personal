@@ -6,6 +6,7 @@
   --user-chord-offset: 7px;
   --user-chord-line-offset: 0px;
   --user-lyric-gap: 15px;
+  --user-blank-line-height: 14px;
   --user-comment-gap: 16px;
   --marker-safe-left: 6em;
   --marker-left-offset: 82px;
@@ -1575,7 +1576,7 @@ p.line {
 }
 
 p.line.blank {
-  min-height: 1.6em;
+  line-height: 0;
 }
 
 p.line.blank:empty::before {
@@ -1629,7 +1630,16 @@ span.chord sup {
   line-height: 1;
 }
 
-span.chord sup .cw-chord-accidental {
+body {
+  margin: 10px 0;
+  background: #fff;
+  color: #222;
+  font-family: system-ui, -apple-system, "Segoe UI",
+               "Noto Sans JP", "Hiragino Kaku Gothic ProN",
+               "Yu Gothic", sans-serif;
+}
+
+sup .cw-chord-accidental {
   font-size: 0.85em;
   line-height: 1;
 }
@@ -1686,6 +1696,11 @@ html[data-display-custom="on"] body {
 
 html[data-display-custom="on"] p.line {
   margin-bottom: var(--user-lyric-gap, 15px);
+}
+
+html[data-display-custom="on"] p.line.blank {
+  min-height: var(--user-blank-line-height, 14px);
+  margin-bottom: var(--user-blank-line-height, 14px);
 }
 
 html[data-display-custom="on"][data-lyric-weight="bold"] span.word,
