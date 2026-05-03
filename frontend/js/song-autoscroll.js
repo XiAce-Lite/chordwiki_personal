@@ -939,7 +939,8 @@ function getAutoScrollLeadInStartScrollY() {
   }
 
   return clamp(
-    autoScrollState.startY - (window.innerHeight * AUTO_SCROLL_FOCUS_RATIO_START),
+    // 遅延開始中は開始位置を固定し、余計な先行スクロールを発生させない。
+    autoScrollState.startY - (window.innerHeight * AUTO_SCROLL_FOCUS_RATIO_FINAL),
     0,
     getMaxWindowScrollY()
   );
@@ -1084,9 +1085,14 @@ function buildAutoScrollTimeline() {
     entries,
     segments,
     durationSec: Math.max(1, autoScrollState.mainDurationSec || 0),
-    startFocusY: entries[0].centerY,
+    startFocusY: Number.isFinite(autoScrollState.startY) ? autoScrollState.startY : entries[0].centerY,
     endFocusY: entries[entries.length - 1].centerY
   };
+
+  if (segments.length && Number.isFinite(autoScrollState.startY)) {
+    segments[0].startY = autoScrollState.startY;
+  }
+
   autoScrollState.timelineReady = true;
   return true;
 }
@@ -1112,6 +1118,9 @@ function getTimelineFocusYAtProgress(progressSec) {
   }
 
   const safeProgress = clamp(Number(progressSec) || 0, 0, timeline.durationSec);
+  if (safeProgress <= 0.0001 && Number.isFinite(autoScrollState.startY)) {
+    return autoScrollState.startY;
+  }
   const segment = timeline.segments.find((item) => safeProgress <= item.endSec + 0.0001)
     || timeline.segments[timeline.segments.length - 1];
 
@@ -1152,7 +1161,7 @@ function estimateProgressSecFromFocusY(focusY) {
   return clamp(bestProgressSec, 0, timeline.durationSec);
 }
 
-function syncAutoScrollProgressFromScrollY(scrollY) {
+function syncAutoScrollProgressFromScrollY(scrollY, { markAsStarted = true } = {}) {
   if (!autoScrollState.isPlaying || !autoScrollState.timelineReady || !autoScrollState.timeline) {
     return;
   }
@@ -1165,7 +1174,9 @@ function syncAutoScrollProgressFromScrollY(scrollY) {
 
   autoScrollState.progressSec = estimateProgressSecFromFocusY(focusY);
   autoScrollState.phase = 'main';
-  autoScrollState.hasScrollStarted = true;
+  if (markAsStarted) {
+    autoScrollState.hasScrollStarted = true;
+  }
   autoScrollState.phaseElapsedSec = autoScrollState.leadInSec;
   autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
   autoScrollState.lastFrameMs = performance.now();
@@ -1175,7 +1186,7 @@ function syncAutoScrollProgressFromScrollY(scrollY) {
   }
 }
 
-function syncAutoScrollPlaybackFromScrollY(scrollY, { fromUserScroll = false } = {}) {
+function syncAutoScrollPlaybackFromScrollY(scrollY, { fromUserScroll = false, markAsStarted = true } = {}) {
   if (!autoScrollState.isPlaying) {
     return;
   }
@@ -1195,7 +1206,9 @@ function syncAutoScrollPlaybackFromScrollY(scrollY, { fromUserScroll = false } =
     const duration = Math.max(0, Number(autoScrollState.durationSec) || 0);
     autoScrollState.playbackElapsedSec = clamp(duration * ratio, 0, duration);
     autoScrollState.phase = 'main';
-    autoScrollState.hasScrollStarted = ratio > 0.001;
+    if (markAsStarted) {
+      autoScrollState.hasScrollStarted = ratio > 0.001;
+    }
     autoScrollState.phaseElapsedSec = autoScrollState.playbackElapsedSec;
     autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
     autoScrollState.lastFrameMs = performance.now();
@@ -1207,7 +1220,7 @@ function syncAutoScrollPlaybackFromScrollY(scrollY, { fromUserScroll = false } =
     return;
   }
 
-  syncAutoScrollProgressFromScrollY(effectiveScrollY);
+  syncAutoScrollProgressFromScrollY(effectiveScrollY, { markAsStarted });
   autoScrollState.playbackElapsedSec = clamp(
     autoScrollState.leadInSec + autoScrollState.progressSec,
     0,
@@ -1396,9 +1409,8 @@ function runAutoScrollFrame(nowMs) {
     const leadRatio = autoScrollState.leadInSec > 0
       ? clamp(autoScrollState.phaseElapsedSec / autoScrollState.leadInSec, 0, 1)
       : 1;
-    const eased = easeInOutCubic(leadRatio);
-    focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_START
-      + ((AUTO_SCROLL_FOCUS_RATIO_FINAL - AUTO_SCROLL_FOCUS_RATIO_START) * eased);
+    // 遅延開始中は表示位置を固定し、実スクロール開始までは画面を動かさない。
+    focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
 
     if (leadRatio >= 1) {
       autoScrollState.phase = 'main';
@@ -1416,7 +1428,7 @@ function runAutoScrollFrame(nowMs) {
   autoScrollState.focusRatioCurrent = focusRatioCurrent;
 
   const focusY = autoScrollState.phase === 'lead-in'
-    ? (Number.isFinite(autoScrollState.timeline?.startFocusY) ? autoScrollState.timeline.startFocusY : autoScrollState.startY)
+    ? autoScrollState.startY
     : getTimelineFocusYAtProgress(autoScrollState.progressSec);
   const targetScrollY = focusY - (window.innerHeight * focusRatioCurrent);
   const reachableTargetScrollY = getReachableScrollY(targetScrollY);
@@ -1492,8 +1504,13 @@ function startAutoScroll() {
 
   const startScrollY = getAutoScrollStartScrollY();
   const shouldStartAtMarker = shouldScrollToStart();
+  const stopScrollY = getAutoScrollStopScrollY();
+  const currentScrollY = getReachableScrollY(window.scrollY);
+  const isWithinPlayableRange = currentScrollY >= (startScrollY - START_SCROLL_TOLERANCE_PX)
+    && currentScrollY <= (stopScrollY + START_SCROLL_TOLERANCE_PX);
   const shouldResumeFromCurrent = !shouldStartAtMarker
-    && Math.abs(window.scrollY - startScrollY) > START_SCROLL_TOLERANCE_PX;
+    && isWithinPlayableRange
+    && Math.abs(currentScrollY - startScrollY) > START_SCROLL_TOLERANCE_PX;
 
   if (autoScrollState.variableScrollEnabled !== false) {
     if (!refreshAutoScrollTimelineFromCurrentSettings()) {
@@ -1504,8 +1521,6 @@ function startAutoScroll() {
     const leadInStartScrollY = getAutoScrollLeadInStartScrollY();
 
     if (shouldStartAtMarker) {
-      setAutoScrollScrollY(leadInStartScrollY);
-    } else if (!shouldResumeFromCurrent && Math.abs(window.scrollY - leadInStartScrollY) > START_SCROLL_TOLERANCE_PX) {
       setAutoScrollScrollY(leadInStartScrollY);
     }
   } else if (shouldStartAtMarker) {
@@ -1534,10 +1549,10 @@ function startAutoScroll() {
 
   if (shouldResumeFromCurrent) {
     autoScrollState.phase = 'main';
-    autoScrollState.hasScrollStarted = true;
+    autoScrollState.hasScrollStarted = false;
     autoScrollState.phaseElapsedSec = autoScrollState.leadInSec;
     autoScrollState.focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
-    syncAutoScrollPlaybackFromScrollY(window.scrollY, { fromUserScroll: false });
+    syncAutoScrollPlaybackFromScrollY(window.scrollY, { fromUserScroll: false, markAsStarted: false });
   }
 
   if (!recalculateAutoScrollSpeed()) {
