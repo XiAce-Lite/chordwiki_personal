@@ -33,12 +33,19 @@
     }
   }
 
+  // chordwiki_personal では認証は SWA の MS アカウントが処理するため、
+  // handleUnauthorized は常に false を返すスタブとして提供する。
+  function handleUnauthorized(_response) {
+    return false;
+  }
+
   global.ChordWikiApiUtils = Object.freeze({
     buildApiUrl,
     buildSongApiUrl,
     buildEditSongApiUrl,
     buildSongUrl,
     getErrorDetail,
-    parseJsonResponse
+    parseJsonResponse,
+    handleUnauthorized
   });
 })(window);

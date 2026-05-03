@@ -1,6 +1,6 @@
 window.ChordWikiAuth?.applyRoleVisibility();
 
-const { buildApiUrl } = window.ChordWikiApiUtils;
+const { buildApiUrl, handleUnauthorized } = window.ChordWikiApiUtils;
 
 document.getElementById('add-button').addEventListener('click', () => {
   location.href = '/edit.html?mode=add';

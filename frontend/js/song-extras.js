@@ -640,6 +640,10 @@ async function saveSongMetaModal() {
       }
     );
 
+    if (window.ChordWikiApiUtils?.handleUnauthorized?.(response)) {
+      return;
+    }
+
     const body = await parseJsonResponse(response);
     if (!response.ok) {
       const detail = getErrorDetail(body, `HTTP ${response.status}`);

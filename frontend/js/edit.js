@@ -32,7 +32,8 @@ const {
   buildApiUrl,
   buildSongApiUrl,
   buildEditSongApiUrl,
-  buildSongUrl
+  buildSongUrl,
+  handleUnauthorized
 } = window.ChordWikiApiUtils;
 const {
   normalizeTextBlock,
@@ -76,7 +77,8 @@ function setFormDisabled(disabled) {
 function updatePageMeta() {
   const isEdit = state.mode === 'edit';
 
-  document.title = isEdit ? 'ChordWiki - Edit Song' : 'ChordWiki - Add Song';
+  const appName = window.ChordWikiRuntime?.appName || 'ChordWiki';
+  document.title = isEdit ? `${appName} - Edit Song` : `${appName} - Add Song`;
   pageTitleEl.textContent = isEdit ? 'コード譜編集' : 'コード譜の新規追加';
   pageDescriptionEl.textContent = isEdit
     ? '既存の曲データを読み込み、内容を更新します。ID は固定です。'

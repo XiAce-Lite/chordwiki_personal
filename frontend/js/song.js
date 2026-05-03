@@ -44,6 +44,10 @@ async function loadSong() {
       { credentials: 'include' }
     );
 
+    if (window.ChordWikiApiUtils?.handleUnauthorized?.(response)) {
+      return;
+    }
+
     const payload = await parseJsonResponse(response);
 
     if (response.status === 404) {
