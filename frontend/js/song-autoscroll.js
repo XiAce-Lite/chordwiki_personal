@@ -1150,6 +1150,57 @@ function getLineLyricLength(lineEl) {
   return totalLength;
 }
 
+function getLineChordCount(lineEl) {
+  if (!(lineEl instanceof Element)) {
+    return 0;
+  }
+
+  return lineEl.querySelectorAll('span.chord').length;
+}
+
+function getLineBarHintCount(lineEl) {
+  if (!(lineEl instanceof Element)) {
+    return 0;
+  }
+
+  const barMatches = String(lineEl.innerText || '').match(/\|/g);
+  return clamp((barMatches || []).length, 0, 8);
+}
+
+function clampAndNormalizeSegmentDurations(rawDurations, totalDurationSec) {
+  if (!Array.isArray(rawDurations) || rawDurations.length === 0) {
+    return [];
+  }
+
+  const safeTotal = Math.max(0.0001, Number(totalDurationSec) || 0);
+  const count = rawDurations.length;
+  const avgDuration = safeTotal / Math.max(1, count);
+  const minDuration = Math.max(0.0001, avgDuration * AUTO_SCROLL_SEGMENT_MIN_AVG_RATIO);
+  const maxDuration = Math.max(minDuration, avgDuration * AUTO_SCROLL_SEGMENT_MAX_AVG_RATIO);
+  const clampedDurations = rawDurations.map((duration) => {
+    const safeDuration = Math.max(0.0001, Number(duration) || 0);
+    return clamp(safeDuration, minDuration, maxDuration);
+  });
+
+  const clampedSum = clampedDurations.reduce((sum, value) => sum + value, 0);
+  if (!Number.isFinite(clampedSum) || clampedSum <= 0.0001) {
+    return rawDurations.map(() => safeTotal / count);
+  }
+
+  const normalizedDurations = clampedDurations.map((duration) => (duration / clampedSum) * safeTotal);
+  const normalizedSum = normalizedDurations.reduce((sum, value) => sum + value, 0);
+  if (!normalizedDurations.length) {
+    return [];
+  }
+
+  normalizedDurations[normalizedDurations.length - 1] = Math.max(
+    0.0001,
+    normalizedDurations[normalizedDurations.length - 1] + (safeTotal - normalizedSum)
+  );
+
+  return normalizedDurations;
+}
+
 function normalizeWeights(rawWeights, { floor = AUTO_SCROLL_WEIGHT_FLOOR } = {}) {
   if (!Array.isArray(rawWeights) || rawWeights.length === 0) {
     return [];
@@ -1194,7 +1245,9 @@ function collectAutoScrollLineEntries() {
       bottomY,
       centerY: (topY + bottomY) / 2,
       heightPx: Math.max(1, rect.height),
-      lyricLength: getLineLyricLength(lineEl)
+      lyricLength: getLineLyricLength(lineEl),
+      chordCount: getLineChordCount(lineEl),
+      barHintCount: getLineBarHintCount(lineEl)
     });
   });
 
@@ -1210,12 +1263,26 @@ function buildAutoScrollTimeline() {
   }
 
   const lyricValues = entries.map((entry) => entry.lyricLength);
+  const chordValues = entries.map((entry) => entry.chordCount);
   const heightValues = entries.map((entry) => entry.heightPx);
+  const barHintValues = entries.map((entry) => entry.barHintCount);
   const lyricNormalized = normalizeWeights(lyricValues, { floor: 0 });
+  const chordNormalized = normalizeWeights(chordValues, { floor: 0 });
   const heightNormalized = normalizeWeights(heightValues, { floor: 0 });
+  const barHintNormalized = normalizeWeights(barHintValues, { floor: 0 });
 
   entries.forEach((entry, index) => {
-    const rawWeight = (lyricNormalized[index] * 0.65) + (heightNormalized[index] * 0.35);
+    let rawWeight =
+      (lyricNormalized[index] * AUTO_SCROLL_WEIGHT_LYRIC_RATIO)
+      + (chordNormalized[index] * AUTO_SCROLL_WEIGHT_CHORD_RATIO)
+      + (heightNormalized[index] * AUTO_SCROLL_WEIGHT_VISUAL_RATIO)
+      + (barHintNormalized[index] * AUTO_SCROLL_WEIGHT_BAR_HINT_RATIO);
+
+    if (entry.lyricLength <= AUTO_SCROLL_PERFORMANCE_LINE_LYRIC_MAX
+      && entry.chordCount >= AUTO_SCROLL_PERFORMANCE_LINE_CHORD_MIN) {
+      rawWeight = Math.max(rawWeight, AUTO_SCROLL_PERFORMANCE_LINE_MIN_WEIGHT);
+    }
+
     entry.weight = rawWeight;
   });
 
@@ -1243,13 +1310,14 @@ function buildAutoScrollTimeline() {
     const segmentWeights = entries.slice(0, -1).map((entry) => entry.weight);
     const totalWeight = Math.max(0.0001, segmentWeights.reduce((sum, value) => sum + value, 0));
     const totalDurationSec = Math.max(1, autoScrollState.mainDurationSec || 0);
+    const rawDurations = segmentWeights.map((weight) => Math.max(0.0001, totalDurationSec * (weight / totalWeight)));
+    const segmentDurations = clampAndNormalizeSegmentDurations(rawDurations, totalDurationSec);
     let elapsedSec = 0;
 
     for (let i = 0; i < segmentCount; i += 1) {
-      const ratio = segmentWeights[i] / totalWeight;
       const durationSec = i === segmentCount - 1
         ? Math.max(0.0001, totalDurationSec - elapsedSec)
-        : Math.max(0.0001, totalDurationSec * ratio);
+        : Math.max(0.0001, segmentDurations[i] || 0);
       const startSec = elapsedSec;
       const endSec = startSec + durationSec;
       elapsedSec = endSec;
