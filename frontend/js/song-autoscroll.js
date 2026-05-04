@@ -1573,6 +1573,8 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
     AUTO_SCROLL_SPEED_MIN_MULTIPLIER,
     AUTO_SCROLL_SPEED_MAX_MULTIPLIER
   );
+  // 停止時が遅延開始(lead-in)フェーズだった場合、再スタート時に先頭から再開できるよう記録する。
+  const wasInLeadIn = !reachedEnd && autoScrollState.phase === 'lead-in';
 
   stopEndCountdownDisplay();
 
@@ -1614,6 +1616,10 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
     autoScrollState.overlayScreenY = null;
     setFocusOverlayActive(false);
     setRemainingDisplay(autoScrollState.durationSec);
+    // lead-in 中に停止した場合は、次の Start で先頭(Start マーカー)から再開する。
+    if (wasInLeadIn) {
+      autoScrollState.startFromMarkerPending = true;
+    }
   }
 
   updateAutoScrollControls();
@@ -1713,6 +1719,8 @@ function runAutoScrollFrame(nowMs) {
   }
 
   const multiplier = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+  // Keep countdown and lead-in in wall-clock seconds; speed multiplier affects scroll progression only.
+  const countdownDeltaSec = deltaSec;
   const effectiveDeltaSec = deltaSec * multiplier;
   let focusRatioCurrent = Number.isFinite(autoScrollState.focusRatioCurrent)
     ? autoScrollState.focusRatioCurrent
@@ -1720,7 +1728,7 @@ function runAutoScrollFrame(nowMs) {
 
   autoScrollState.playbackElapsedSec = Math.min(
     Math.max(0, Number(autoScrollState.durationSec) || 0),
-    autoScrollState.playbackElapsedSec + effectiveDeltaSec
+    autoScrollState.playbackElapsedSec + countdownDeltaSec
   );
 
   if (autoScrollState.playbackElapsedSec >= Math.max(0, Number(autoScrollState.durationSec) || 0)) {
@@ -1753,7 +1761,7 @@ function runAutoScrollFrame(nowMs) {
   }
 
   if (autoScrollState.phase === 'lead-in') {
-    autoScrollState.phaseElapsedSec += effectiveDeltaSec;
+    autoScrollState.phaseElapsedSec += countdownDeltaSec;
 
     const leadRatio = autoScrollState.leadInSec > 0
       ? clamp(autoScrollState.phaseElapsedSec / autoScrollState.leadInSec, 0, 1)
