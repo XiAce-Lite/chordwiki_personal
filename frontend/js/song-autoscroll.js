@@ -870,9 +870,8 @@ function restoreAutoScrollState() {
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
   autoScrollState.rewindToStartPending = false;
-  autoScrollState.startFromMarkerPending = Number.isFinite(autoScrollState.startY)
-    && Number.isFinite(autoScrollState.defaultStartY)
-    && Math.abs(autoScrollState.startY - autoScrollState.defaultStartY) > START_SCROLL_TOLERANCE_PX;
+  // 停止中の再生開始は常に Start 基準で開始する。
+  autoScrollState.startFromMarkerPending = Number.isFinite(autoScrollState.startY);
 
   if (savedState) {
     updateStoppedStatus(true);
@@ -1839,6 +1838,14 @@ function handleAutoScrollWheelAdjust(event) {
 
 function scrollBackToAutoScrollStart({ notify = true } = {}) {
   const targetScrollY = getAutoScrollStartScrollY();
+  stopEndCountdownDisplay();
+  stopOverlayEndAnimation();
+
+  autoScrollState.overlayScreenY = null;
+  autoScrollState.overlayPhase = 'center';
+  autoScrollState.overlayPrevScrollY = window.scrollY;
+  setFocusOverlayActive(false);
+
   setAutoScrollScrollY(targetScrollY);
   autoScrollState.rewindToStartPending = false;
   autoScrollState.startFromMarkerPending = true;

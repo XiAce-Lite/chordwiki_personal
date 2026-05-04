@@ -210,7 +210,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   border-radius: 12px;
   background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
-  backdrop-filter: blur(8px);
 }
 
 .song-extras-header {
@@ -680,7 +679,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   border-radius: 12px;
   background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
-  backdrop-filter: blur(8px);
 }
 
 .autoscroll-header {
@@ -1139,7 +1137,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   border-radius: 12px;
   background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
-  backdrop-filter: blur(8px);
 }
 
 .ink-floating-controls-row {
