@@ -325,7 +325,8 @@ function setRemainingDisplay(totalSeconds) {
     return;
   }
 
-  remainingEl.textContent = formatDuration(Math.max(0, Math.round(Number(totalSeconds) || 0)));
+  const remainingSec = Math.max(0, Number(totalSeconds) || 0);
+  remainingEl.textContent = formatDuration(remainingSec > 0 ? Math.ceil(remainingSec) : 0);
 }
 
 function syncHighlightToggleUi() {
@@ -1453,29 +1454,48 @@ function stopEndCountdownDisplay() {
     window.clearInterval(autoScrollState.endCountdownTimerId);
     autoScrollState.endCountdownTimerId = 0;
   }
+
+  if (autoScrollState.endCountdownFrameId) {
+    window.cancelAnimationFrame(autoScrollState.endCountdownFrameId);
+    autoScrollState.endCountdownFrameId = 0;
+  }
 }
 
-function startEndCountdownDisplay(remainingSec, speedMultiplier) {
+function startEndCountdownDisplay(remainingSec, phase1DurationSec) {
   stopEndCountdownDisplay();
 
   const remainStartSec = Math.max(0, Number(remainingSec) || 0);
-  const speed = clamp(Number(speedMultiplier) || 1, AUTO_SCROLL_SPEED_MIN_MULTIPLIER, AUTO_SCROLL_SPEED_MAX_MULTIPLIER);
+  const durationSec = Math.max(0, Number(phase1DurationSec) || 0);
 
   setRemainingDisplay(remainStartSec);
   if (remainStartSec <= 0) {
+    setRemainingDisplay(0);
+    return;
+  }
+
+  if (durationSec <= 0) {
+    setRemainingDisplay(0);
     return;
   }
 
   const startedAtMs = performance.now();
-  autoScrollState.endCountdownTimerId = window.setInterval(() => {
-    const elapsedSec = Math.max(0, (performance.now() - startedAtMs) / 1000);
-    const remainNow = Math.max(0, remainStartSec - (elapsedSec * speed));
+  function step(nowMs) {
+    const elapsedSec = Math.max(0, (nowMs - startedAtMs) / 1000);
+    const remainRatio = clamp(1 - (elapsedSec / durationSec), 0, 1);
+    const remainNow = remainStartSec * remainRatio;
     setRemainingDisplay(remainNow);
 
-    if (remainNow <= 0) {
+    if (remainNow <= 0 || elapsedSec >= durationSec) {
+      setRemainingDisplay(0);
+      autoScrollState.endCountdownFrameId = 0;
       stopEndCountdownDisplay();
+      return;
     }
-  }, AUTO_SCROLL_END_COUNTDOWN_TICK_MS);
+
+    autoScrollState.endCountdownFrameId = window.requestAnimationFrame(step);
+  }
+
+  autoScrollState.endCountdownFrameId = window.requestAnimationFrame(step);
 }
 
 function stopOverlayEndAnimation() {
@@ -1485,7 +1505,7 @@ function stopOverlayEndAnimation() {
   }
 }
 
-function startOverlayEndAnimation(durationSec) {
+function startOverlayEndAnimation(phase1DurationSec) {
   stopOverlayEndAnimation();
 
   const endMarkerEl = getEndMarkerEl();
@@ -1501,15 +1521,15 @@ function startOverlayEndAnimation(durationSec) {
     : (window.innerHeight / 2);
 
   const distanceToPhase1 = phase1Center - startCenter;
-  const totalDurationSec = Math.max(AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC, Number(durationSec) || 0);
+  const durationSec = Math.max(0, Number(phase1DurationSec) || 0);
 
   if (distanceToPhase1 <= 0.01) {
     autoScrollState.overlayScreenY = phase1Center;
     applyFocusOverlayTop();
   }
 
-  const speedPxPerSec = distanceToPhase1 > 0.01
-    ? distanceToPhase1 / totalDurationSec
+  const speedPxPerSec = (distanceToPhase1 > 0.01 && durationSec > 0.001)
+    ? (distanceToPhase1 / durationSec)
     : Math.max(60, (phase2Center - phase1Center) / AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC);
 
   let previousMs = null;
@@ -1549,7 +1569,11 @@ function startOverlayEndAnimation(durationSec) {
 
 function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false } = {}) {
   const remainingBeforeStopSec = Math.max(0, Number(autoScrollState.durationSec || 0) - Number(autoScrollState.playbackElapsedSec || 0));
-  const speedAtStop = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+  const speedAtStop = clamp(
+    Number(autoScrollState.speedMultiplier) || 1,
+    AUTO_SCROLL_SPEED_MIN_MULTIPLIER,
+    AUTO_SCROLL_SPEED_MAX_MULTIPLIER
+  );
 
   stopEndCountdownDisplay();
 
@@ -1579,12 +1603,14 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
   autoScrollState.overlayPrevScrollY = window.scrollY;
 
   if (reachedEnd) {
-    const endPhaseDurationSec = Math.max(remainingBeforeStopSec, AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC);
+    const endPhase1DurationSec = remainingBeforeStopSec > 0
+      ? (remainingBeforeStopSec / speedAtStop)
+      : 0;
     autoScrollState.rewindToStartPending = true;
     autoScrollState.startFromMarkerPending = true;
     setFocusOverlayActive(true);
-    startOverlayEndAnimation(endPhaseDurationSec);
-    startEndCountdownDisplay(endPhaseDurationSec, speedAtStop);
+    startOverlayEndAnimation(endPhase1DurationSec);
+    startEndCountdownDisplay(remainingBeforeStopSec, endPhase1DurationSec);
   } else {
     autoScrollState.overlayScreenY = null;
     setFocusOverlayActive(false);
@@ -1894,7 +1920,7 @@ function startAutoScroll() {
   autoScrollState.overlayPhase = shouldStartAtMarker ? 'start-to-center' : 'center';
   autoScrollState.overlayPrevScrollY = window.scrollY;
   autoScrollState.overlayScreenY = shouldStartAtMarker
-    ? autoScrollState.startY - window.scrollY + ((autoScrollState.overlayHighlightHeight || 140) / 2)
+    ? autoScrollState.startY - window.scrollY
     : (window.innerHeight / 2);
   updateFocusOverlayGeometry();
   setFocusOverlayActive(true);

@@ -208,7 +208,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   overscroll-behavior: contain;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
-  background: rgba(247, 251, 255, 0.96);
+  background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
   backdrop-filter: blur(8px);
 }
@@ -678,7 +678,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   overscroll-behavior: contain;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
-  background: rgba(247, 251, 255, 0.96);
+  background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
   backdrop-filter: blur(8px);
 }
@@ -1137,7 +1137,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   box-sizing: border-box;
   border: 1px solid #d6e7f8;
   border-radius: 12px;
-  background: rgba(247, 251, 255, 0.96);
+  background: #f7fbff;
   box-shadow: 0 10px 24px rgba(15, 76, 129, 0.16);
   backdrop-filter: blur(8px);
 }
