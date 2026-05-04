@@ -453,11 +453,106 @@ function setFocusOverlayActive(active) {
   overlayEl.style.display = shouldShow ? 'block' : 'none';
 }
 
+function getEndMarkerBottomY() {
+  const endMarkerEl = getEndMarkerEl();
+  if (endMarkerEl instanceof Element) {
+    const rect = endMarkerEl.getBoundingClientRect();
+    return rect.bottom + window.scrollY;
+  }
+
+  return Number.isFinite(autoScrollState.endY) ? autoScrollState.endY : 0;
+}
+
+function getTimelineLinePositionAtProgress(progressSec) {
+  const timeline = autoScrollState.timeline;
+  const segments = Array.isArray(timeline?.segments) ? timeline.segments : [];
+  if (!segments.length) {
+    return 0;
+  }
+
+  const safeProgress = clamp(Number(progressSec) || 0, 0, Number(timeline?.durationSec) || 0);
+  const segment = segments.find((item) => safeProgress <= item.endSec + 0.0001)
+    || segments[segments.length - 1];
+
+  if (!segment) {
+    return 0;
+  }
+
+  const localRatio = segment.durationSec > 0.0001
+    ? clamp((safeProgress - segment.startSec) / segment.durationSec, 0, 1)
+    : 1;
+  return segment.index + localRatio;
+}
+
+function interpolateEntryBoundaryY(entries, indexFloat, boundaryKey) {
+  if (!Array.isArray(entries) || !entries.length) {
+    return 0;
+  }
+
+  const maxIndex = entries.length - 1;
+  const safeIndex = clamp(Number(indexFloat) || 0, 0, maxIndex);
+  const lowerIndex = Math.floor(safeIndex);
+  const upperIndex = Math.min(maxIndex, lowerIndex + 1);
+  const ratio = clamp(safeIndex - lowerIndex, 0, 1);
+  const lowerY = Number(entries[lowerIndex]?.[boundaryKey]) || 0;
+  const upperY = Number(entries[upperIndex]?.[boundaryKey]) || lowerY;
+  return lowerY + ((upperY - lowerY) * ratio);
+}
+
+function updateVariableScrollFocusOverlay() {
+  const overlayEl = document.getElementById('autoscroll-focus-overlay');
+  const timeline = autoScrollState.timeline;
+  const entries = Array.isArray(timeline?.entries) ? timeline.entries : [];
+  if (!overlayEl || !entries.length) {
+    return;
+  }
+
+  const contextLines = Math.max(0, Number(AUTO_SCROLL_FOCUS_CONTEXT_LINES) || 0);
+  const windowSize = Math.min(entries.length, (contextLines * 2) + 1);
+  const maxTopIndex = Math.max(0, entries.length - windowSize);
+
+  const overlayProgressSec = autoScrollState.phase === 'lead-in'
+    ? clamp(Number(autoScrollState.phaseElapsedSec) || 0, 0, Number(timeline.durationSec) || 0)
+    : clamp(Number(autoScrollState.progressSec) || 0, 0, Number(timeline.durationSec) || 0);
+  const currentLineFloat = getTimelineLinePositionAtProgress(overlayProgressSec);
+  const topLineFloat = clamp(currentLineFloat - contextLines, 0, maxTopIndex);
+  const bottomLineFloat = topLineFloat + Math.max(0, windowSize - 1);
+
+  let overlayTopDocY = interpolateEntryBoundaryY(entries, topLineFloat, 'topY');
+  let overlayBottomDocY = interpolateEntryBoundaryY(entries, bottomLineFloat, 'bottomY');
+
+  const minTopDocY = Number(entries[0]?.topY) || overlayTopDocY;
+  const maxBottomDocY = Math.max(minTopDocY, getEndMarkerBottomY());
+  const desiredHeight = Math.max(1, overlayBottomDocY - overlayTopDocY);
+
+  overlayBottomDocY = clamp(overlayBottomDocY, minTopDocY, maxBottomDocY);
+  overlayTopDocY = clamp(overlayBottomDocY - desiredHeight, minTopDocY, overlayBottomDocY - 1);
+
+  const topScreen = clamp(
+    Math.round(overlayTopDocY - window.scrollY),
+    0,
+    Math.max(0, window.innerHeight - 1)
+  );
+  const height = clamp(
+    Math.round(overlayBottomDocY - overlayTopDocY),
+    1,
+    Math.max(1, window.innerHeight - topScreen)
+  );
+
+  autoScrollState.overlayHighlightHeight = height;
+  overlayEl.style.setProperty('--autoscroll-focus-top', `${topScreen}px`);
+  overlayEl.style.setProperty('--autoscroll-focus-height', `${height}px`);
+}
+
 function setAutoScrollHighlightEnabled(enabled, { persist = true, notify = true } = {}) {
   autoScrollState.highlightEnabled = enabled !== false;
   syncHighlightToggleUi();
   updateFocusOverlayGeometry();
   setFocusOverlayActive(autoScrollState.isPlaying);
+
+  if (autoScrollState.isPlaying && autoScrollState.variableScrollEnabled !== false) {
+    updateVariableScrollFocusOverlay();
+  }
 
   if (persist) {
     saveAutoScrollState({ notify: false });
@@ -1699,8 +1794,18 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
     autoScrollState.rewindToStartPending = true;
     autoScrollState.startFromMarkerPending = true;
     setFocusOverlayActive(true);
-    startOverlayEndAnimation(endPhase1DurationSec);
-    startEndCountdownDisplay(remainingBeforeStopSec, endPhase1DurationSec);
+
+    if (autoScrollState.variableScrollEnabled !== false) {
+      updateVariableScrollFocusOverlay();
+      if (remainingBeforeStopSec <= 0.001) {
+        scheduleOverlayReleaseAfterEnd();
+      } else {
+        startEndCountdownDisplay(remainingBeforeStopSec, endPhase1DurationSec);
+      }
+    } else {
+      startOverlayEndAnimation(endPhase1DurationSec);
+      startEndCountdownDisplay(remainingBeforeStopSec, endPhase1DurationSec);
+    }
   } else {
     autoScrollState.overlayScreenY = null;
     setFocusOverlayActive(false);
@@ -1796,13 +1901,17 @@ function runAutoScrollFrame(nowMs) {
       autoScrollState.overlayScreenY = window.innerHeight / 2;
     }
 
-    applyFocusOverlayTop();
+    if (autoScrollState.variableScrollEnabled !== false) {
+      updateVariableScrollFocusOverlay();
+    } else {
+      applyFocusOverlayTop();
+    }
     autoScrollState.virtualScrollY = window.scrollY;
     autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
     return;
   }
 
-  if (isEndMarkerVisibleEnough()) {
+  if (autoScrollState.variableScrollEnabled === false && isEndMarkerVisibleEnough()) {
     stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
     return;
   }
@@ -1855,7 +1964,7 @@ function runAutoScrollFrame(nowMs) {
     const leadRatio = autoScrollState.leadInSec > 0
       ? clamp(autoScrollState.phaseElapsedSec / autoScrollState.leadInSec, 0, 1)
       : 1;
-    // 遅延開始中はハイライト位置を固定し、実スクロール開始後にのみ追従移動させる。
+    // 遅延開始中も時間経過に合わせてハイライトエリアを追従させる。
     focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
 
     if (leadRatio >= 1) {
@@ -1898,7 +2007,7 @@ function runAutoScrollFrame(nowMs) {
   }
 
   autoScrollState.overlayPrevScrollY = window.scrollY;
-  applyFocusOverlayTop();
+  updateVariableScrollFocusOverlay();
 
   if (!autoScrollState.hasScrollStarted && Math.abs(window.scrollY - autoScrollState.playStartScrollY) > 0.6) {
     autoScrollState.hasScrollStarted = true;
@@ -1906,7 +2015,7 @@ function runAutoScrollFrame(nowMs) {
 
   updatePlayingStatus();
 
-  if (isEndMarkerVisibleEnough()) {
+  if (autoScrollState.variableScrollEnabled === false && isEndMarkerVisibleEnough()) {
     stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
     return;
   }
@@ -2031,6 +2140,10 @@ function startAutoScroll() {
     : (window.innerHeight / 2);
   updateFocusOverlayGeometry();
   setFocusOverlayActive(true);
+
+  if (autoScrollState.variableScrollEnabled !== false) {
+    updateVariableScrollFocusOverlay();
+  }
 
   if (shouldResumeFromCurrent) {
     autoScrollState.phase = 'main';
