@@ -1460,6 +1460,24 @@ function stopEndCountdownDisplay() {
   }
 }
 
+function stopOverlayReleaseTimer() {
+  if (autoScrollState.overlayReleaseTimerId) {
+    window.clearTimeout(autoScrollState.overlayReleaseTimerId);
+    autoScrollState.overlayReleaseTimerId = 0;
+  }
+}
+
+function scheduleOverlayReleaseAfterEnd() {
+  stopOverlayReleaseTimer();
+  autoScrollState.overlayReleaseTimerId = window.setTimeout(() => {
+    autoScrollState.overlayReleaseTimerId = 0;
+    if (!autoScrollState.isPlaying && autoScrollState.rewindToStartPending) {
+      autoScrollState.overlayScreenY = null;
+      setFocusOverlayActive(false);
+    }
+  }, AUTO_SCROLL_OVERLAY_RELEASE_DELAY_MS);
+}
+
 function startEndCountdownDisplay(remainingSec, phase1DurationSec) {
   stopEndCountdownDisplay();
 
@@ -1502,6 +1520,8 @@ function stopOverlayEndAnimation() {
     window.cancelAnimationFrame(autoScrollState.overlayEndAnimId);
     autoScrollState.overlayEndAnimId = null;
   }
+
+  stopOverlayReleaseTimer();
 }
 
 function startOverlayEndAnimation(phase1DurationSec) {
@@ -1551,6 +1571,7 @@ function startOverlayEndAnimation(phase1DurationSec) {
 
       if (target >= phase2Center - 0.01) {
         autoScrollState.overlayEndAnimId = null;
+        scheduleOverlayReleaseAfterEnd();
         return;
       }
 
@@ -1584,6 +1605,7 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
   }
 
   stopOverlayEndAnimation();
+  stopOverlayReleaseTimer();
 
   autoScrollState.isPlaying = false;
   autoScrollState.speedPxPerSec = 0;
@@ -1848,6 +1870,7 @@ function scrollBackToAutoScrollStart({ notify = true } = {}) {
   const targetScrollY = getAutoScrollStartScrollY();
   stopEndCountdownDisplay();
   stopOverlayEndAnimation();
+  stopOverlayReleaseTimer();
 
   autoScrollState.overlayScreenY = null;
   autoScrollState.overlayPhase = 'center';
@@ -1932,6 +1955,7 @@ function startAutoScroll() {
   autoScrollState.lastStatusSpeed = null;
   stopEndCountdownDisplay();
   stopOverlayEndAnimation();
+  stopOverlayReleaseTimer();
   autoScrollState.overlayPhase = shouldStartAtMarker ? 'start-to-center' : 'center';
   autoScrollState.overlayPrevScrollY = window.scrollY;
   autoScrollState.overlayScreenY = shouldStartAtMarker
