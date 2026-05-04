@@ -2024,7 +2024,8 @@ body.is-dragging-marker * {
 
   .autoscroll-ui,
   .song-extras-ui {
-    position: static;
+    position: relative;
+    z-index: 1400;
     top: auto;
     right: auto;
     max-width: none;

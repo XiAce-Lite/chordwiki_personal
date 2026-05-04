@@ -1927,7 +1927,8 @@ function startAutoScroll() {
   autoScrollState.overlayPhase = shouldStartAtMarker ? 'start-to-center' : 'center';
   autoScrollState.overlayPrevScrollY = window.scrollY;
   autoScrollState.overlayScreenY = shouldStartAtMarker
-    ? autoScrollState.startY - window.scrollY
+    // AutoScroller仕様: 開始直後はハイライト上端を Start マーカー上端に一致させる。
+    ? autoScrollState.startY - window.scrollY + ((autoScrollState.overlayHighlightHeight || 140) / 2)
     : (window.innerHeight / 2);
   updateFocusOverlayGeometry();
   setFocusOverlayActive(true);
