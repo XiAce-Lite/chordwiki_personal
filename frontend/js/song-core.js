@@ -57,13 +57,18 @@ const AUTO_SCROLL_FOCUS_RATIO_FINAL = 0.4;
 const AUTO_SCROLL_LEAD_IN_SEC = 1;
 const AUTO_SCROLL_COMMENT_WEIGHT = 0.22;
 const AUTO_SCROLL_WEIGHT_FLOOR = 0.12;
+const AUTO_SCROLL_START_MARKER_OFFSET_LINES = 1;
 const AUTO_SCROLL_SPEED_STEP = 0.05;
 const AUTO_SCROLL_SPEED_MIN_MULTIPLIER = 0.5;
 const AUTO_SCROLL_SPEED_MAX_MULTIPLIER = 3;
 const AUTO_SCROLL_WHEEL_STEP_PX = 72;
 const AUTO_SCROLL_SPEED_SMOOTHING = 0.18;
-const AUTO_SCROLL_END_MARKER_EXTRA_PX = 0;
+const AUTO_SCROLL_END_MARKER_EXTRA_PX = 20;
 const AUTO_SCROLL_END_STOP_BUFFER_PX = 100;
+const AUTO_SCROLL_END_COUNTDOWN_TICK_MS = 120;
+const AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC = 0.4;
+const AUTO_SCROLL_FOCUS_OVERLAY_MIN_LINES = 4;
+const AUTO_SCROLL_FOCUS_OVERLAY_MIN_SCROLL_PX = 72;
 const AUTO_SCROLL_USER_SCROLL_OVERRIDE_MS = 260;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
 const MARKER_EDGE_SCROLL_BASE_SPEED = 180;
@@ -158,7 +163,14 @@ const autoScrollState = {
   dragging: null,
   hasLoadedSavedState: false,
   rewindToStartPending: false,
-  startFromMarkerPending: false
+  startFromMarkerPending: false,
+  highlightEnabled: true,
+  overlayScreenY: null,
+  overlayHighlightHeight: 140,
+  overlayEndAnimId: null,
+  overlayPhase: 'center',
+  overlayPrevScrollY: 0,
+  endCountdownTimerId: 0
 };
 
 const youtubeTitleCache = new Map();

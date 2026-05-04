@@ -117,7 +117,7 @@ async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayA
   autoScrollEstimateState.inFlight = true;
 
   try {
-    const endpoint = buildApiUrl(`/api/youtube/search-duration?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
+    const endpoint = buildApiUrl(`/api/duration/estimate?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}`);
     const response = await fetch(endpoint, { credentials: 'include' });
     if (!response.ok) {
       return;
@@ -138,10 +138,19 @@ async function maybeEstimateAutoScrollDuration(song, displayTitle = '', displayA
       return;
     }
 
+    const sourceMap = {
+      itunes: 'iTunes',
+      musicbrainz: 'MusicBrainz',
+      youtube: 'YouTube',
+      default: '該当なし'
+    };
+    const sourceLabel = sourceMap[String(payload?.source || 'default')] || '不明';
+
     autoScrollState.durationSec = estimatedSec;
     setDurationInputs(estimatedSec);
     saveAutoScrollState({ notify: false });
-    setStatus(`Estimated · ${formatDuration(estimatedSec)} · YouTube参考値`, 'success');
+    setRemainingDisplay(autoScrollState.durationSec);
+    setStatus(`Estimated · ${formatDuration(estimatedSec)} · ${sourceLabel}`, 'success');
   } catch (error) {
     console.warn('Failed to estimate auto-scroll duration:', error);
   } finally {
@@ -188,11 +197,20 @@ function getDefaultMarkerPositions() {
   const lines = sheetEl.querySelectorAll('p.line:not(.blank), p.comment');
   const endMarkerOffset = Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0);
   const firstLyricLine = sheetEl.querySelector('p.line:not(.blank)');
+  const chordLines = Array.from(sheetEl.querySelectorAll('p.line')).filter((lineEl) => lineEl.querySelector('span.chord'));
   const defaults = !lines.length
     ? { startY: bounds.top, endY: bounds.bottom + endMarkerOffset }
     : {
-        startY: (firstLyricLine ?? lines[0]).getBoundingClientRect().top + window.scrollY,
-        endY: lines[lines.length - 1].getBoundingClientRect().bottom + window.scrollY + endMarkerOffset
+        startY: (() => {
+          const line = firstLyricLine ?? lines[0];
+          const rect = line.getBoundingClientRect();
+          return Math.round(rect.top + window.scrollY - (rect.height * AUTO_SCROLL_START_MARKER_OFFSET_LINES));
+        })(),
+        endY: (() => {
+          const line = chordLines[chordLines.length - 1] ?? lines[lines.length - 1];
+          const rect = line.getBoundingClientRect();
+          return Math.round(rect.bottom + window.scrollY + endMarkerOffset);
+        })()
       };
 
   autoScrollState.defaultStartY = defaults.startY;
@@ -207,10 +225,13 @@ function clampMarkerToSheet(y, fallbackY = 0, markerName = 'start') {
   }
 
   const candidate = Number.isFinite(y) ? y : fallbackY;
+  const extraTop = markerName === 'start'
+    ? Math.max(0, Math.round(estimateAutoScrollLineHeightPx() * AUTO_SCROLL_START_MARKER_OFFSET_LINES))
+    : 0;
   const extraBottom = markerName === 'end'
     ? Math.max(0, Number(AUTO_SCROLL_END_MARKER_EXTRA_PX) || 0)
     : 0;
-  return clamp(candidate, bounds.top, bounds.bottom + extraBottom);
+  return clamp(candidate, bounds.top - extraTop, bounds.bottom + extraBottom);
 }
 
 function getRangeDistancePx() {
@@ -294,6 +315,159 @@ function setStatus(message, tone = 'info') {
   statusEl.dataset.tone = tone;
 }
 
+function getRemainingDisplayEl() {
+  return document.getElementById('autoscroll-remaining');
+}
+
+function setRemainingDisplay(totalSeconds) {
+  const remainingEl = getRemainingDisplayEl();
+  if (!remainingEl) {
+    return;
+  }
+
+  remainingEl.textContent = formatDuration(Math.max(0, Math.round(Number(totalSeconds) || 0)));
+}
+
+function syncHighlightToggleUi() {
+  const toggleInput = document.getElementById('autoscroll-highlight-toggle');
+  if (!toggleInput) {
+    return;
+  }
+
+  toggleInput.checked = autoScrollState.highlightEnabled !== false;
+}
+
+function estimateAutoScrollLineHeightPx() {
+  const lines = Array.from(getSheetEl()?.querySelectorAll('p.line') || []);
+  const heights = [];
+
+  lines.slice(0, 24).forEach((lineEl) => {
+    const lineHeight = Math.round(lineEl.getBoundingClientRect().height);
+    if (lineHeight >= 10 && lineHeight <= 160) {
+      heights.push(lineHeight);
+    }
+  });
+
+  if (!heights.length) {
+    return 28;
+  }
+
+  heights.sort((left, right) => left - right);
+  return heights[Math.floor(heights.length / 2)] || 28;
+}
+
+function updateFocusOverlayGeometry() {
+  const overlayEl = document.getElementById('autoscroll-focus-overlay');
+  if (!overlayEl) {
+    return;
+  }
+
+  const lineHeight = estimateAutoScrollLineHeightPx();
+  const highlightHeight = clamp(
+    Math.round(lineHeight * 11),
+    120,
+    Math.max(140, window.innerHeight - 80)
+  );
+  autoScrollState.overlayHighlightHeight = highlightHeight;
+
+  let top;
+  if (typeof autoScrollState.overlayScreenY === 'number') {
+    top = clamp(
+      Math.round(autoScrollState.overlayScreenY - (highlightHeight / 2)),
+      0,
+      Math.max(0, window.innerHeight - highlightHeight)
+    );
+  } else {
+    top = Math.max(0, Math.round((window.innerHeight - highlightHeight) / 2));
+  }
+
+  overlayEl.style.setProperty('--autoscroll-focus-top', `${top}px`);
+  overlayEl.style.setProperty('--autoscroll-focus-height', `${highlightHeight}px`);
+}
+
+function applyFocusOverlayTop() {
+  if (typeof autoScrollState.overlayScreenY !== 'number') {
+    return;
+  }
+
+  const overlayEl = document.getElementById('autoscroll-focus-overlay');
+  if (!overlayEl) {
+    return;
+  }
+
+  const height = autoScrollState.overlayHighlightHeight || 140;
+  const top = clamp(
+    Math.round(autoScrollState.overlayScreenY - (height / 2)),
+    0,
+    Math.max(0, window.innerHeight - height)
+  );
+  overlayEl.style.setProperty('--autoscroll-focus-top', `${top}px`);
+}
+
+function countLinesInMarkerRange() {
+  const lines = Array.from(getSheetEl()?.querySelectorAll('p.line') || []);
+  if (!lines.length) {
+    return 0;
+  }
+
+  let count = 0;
+  lines.forEach((lineEl) => {
+    const rect = lineEl.getBoundingClientRect();
+    const centerY = ((rect.top + rect.bottom) / 2) + window.scrollY;
+    if (centerY >= autoScrollState.startY - 14 && centerY <= autoScrollState.endY + 14) {
+      count += 1;
+    }
+  });
+  return count;
+}
+
+function canUseFocusOverlay() {
+  if (autoScrollState.highlightEnabled === false) {
+    return false;
+  }
+
+  if (getMaxWindowScrollY() < AUTO_SCROLL_FOCUS_OVERLAY_MIN_SCROLL_PX) {
+    return false;
+  }
+
+  if (countLinesInMarkerRange() < AUTO_SCROLL_FOCUS_OVERLAY_MIN_LINES) {
+    return false;
+  }
+
+  const scrollRange = Math.abs(getAutoScrollStopScrollY() - getAutoScrollStartScrollY());
+  const threshold = Math.max(
+    AUTO_SCROLL_FOCUS_OVERLAY_MIN_SCROLL_PX,
+    Math.round(estimateAutoScrollLineHeightPx() * 2)
+  );
+  return scrollRange >= threshold;
+}
+
+function setFocusOverlayActive(active) {
+  const overlayEl = document.getElementById('autoscroll-focus-overlay');
+  if (!overlayEl) {
+    return;
+  }
+
+  const shouldShow = active && canUseFocusOverlay();
+  overlayEl.style.display = shouldShow ? 'block' : 'none';
+}
+
+function setAutoScrollHighlightEnabled(enabled, { persist = true, notify = true } = {}) {
+  autoScrollState.highlightEnabled = enabled !== false;
+  syncHighlightToggleUi();
+  updateFocusOverlayGeometry();
+  setFocusOverlayActive(autoScrollState.isPlaying);
+
+  if (persist) {
+    saveAutoScrollState({ notify: false });
+  }
+
+  if (notify) {
+    const label = autoScrollState.highlightEnabled ? 'ハイライト表示 ON' : 'ハイライト表示 OFF';
+    setStatus(`Stopped · ${label}`, 'info');
+  }
+}
+
 function getAutoScrollRemainingSec() {
   const durationSec = Math.max(0, Number(autoScrollState.durationSec) || 0);
   const elapsedSec = Math.max(0, Number(autoScrollState.playbackElapsedSec) || 0);
@@ -346,6 +520,7 @@ function updatePlayingStatus({ force = false } = {}) {
   autoScrollState.lastStatusRemainingSec = payload.remainingDisplaySec;
   autoScrollState.lastStatusTone = payload.tone;
   autoScrollState.lastStatusSpeed = currentSpeed;
+  setRemainingDisplay(payload.remainingDisplaySec);
   setStatus(payload.message, payload.tone);
 }
 
@@ -358,6 +533,7 @@ function updateAutoScrollControls() {
   toggleButton.textContent = autoScrollState.isPlaying ? 'Stop' : 'Start';
   toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
   syncVariableScrollToggleUi();
+  syncHighlightToggleUi();
   updateAutoScrollSpeedUi();
 }
 
@@ -467,7 +643,8 @@ function saveAutoScrollState({ notify = true } = {}) {
       endOffsetPx: Math.round(autoScrollState.endY - defaultEndY),
       durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
       speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100,
-      variableScrollEnabled: autoScrollState.variableScrollEnabled !== false
+      variableScrollEnabled: autoScrollState.variableScrollEnabled !== false,
+      highlightEnabled: autoScrollState.highlightEnabled !== false
     };
 
     window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
@@ -505,6 +682,7 @@ function syncDurationFromInputs({ notify = true } = {}) {
   }
 
   autoScrollState.durationSec = normalized.durationSec;
+  setRemainingDisplay(autoScrollState.isPlaying ? getAutoScrollRemainingDisplaySec() : autoScrollState.durationSec);
   refreshAutoScrollTimelineFromCurrentSettings();
 
   if (autoScrollState.isPlaying) {
@@ -638,6 +816,7 @@ function restoreAutoScrollState() {
   autoScrollState.durationSec = DEFAULT_DURATION_SEC;
   autoScrollState.speedMultiplier = 1;
   autoScrollState.variableScrollEnabled = true;
+  autoScrollState.highlightEnabled = true;
 
   if (autoScrollState.storageKey) {
     try {
@@ -676,10 +855,16 @@ function restoreAutoScrollState() {
     if (typeof savedState.variableScrollEnabled === 'boolean') {
       autoScrollState.variableScrollEnabled = savedState.variableScrollEnabled;
     }
+
+    if (typeof savedState.highlightEnabled === 'boolean') {
+      autoScrollState.highlightEnabled = savedState.highlightEnabled;
+    }
   }
 
   setDurationInputs(autoScrollState.durationSec);
+  setRemainingDisplay(autoScrollState.durationSec);
   syncVariableScrollToggleUi();
+  syncHighlightToggleUi();
   updateAutoScrollSpeedUi();
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 
@@ -1093,6 +1278,10 @@ function buildAutoScrollTimeline() {
     segments[0].startY = autoScrollState.startY;
   }
 
+  if (segments.length && Number.isFinite(autoScrollState.endY)) {
+    segments[segments.length - 1].endY = autoScrollState.endY;
+  }
+
   autoScrollState.timelineReady = true;
   return true;
 }
@@ -1246,22 +1435,117 @@ function getAutoScrollStopScrollY() {
   return clamp(autoScrollState.endY - stopViewportY, 0, getMaxWindowScrollY());
 }
 
-function isEndMarkerVisibleInViewport() {
-  const endMarkerEl = getEndMarkerEl();
-  if (!endMarkerEl) {
-    return false;
+function stopEndCountdownDisplay() {
+  if (autoScrollState.endCountdownTimerId) {
+    window.clearInterval(autoScrollState.endCountdownTimerId);
+    autoScrollState.endCountdownTimerId = 0;
+  }
+}
+
+function startEndCountdownDisplay(remainingSec, speedMultiplier) {
+  stopEndCountdownDisplay();
+
+  const remainStartSec = Math.max(0, Number(remainingSec) || 0);
+  const speed = clamp(Number(speedMultiplier) || 1, AUTO_SCROLL_SPEED_MIN_MULTIPLIER, AUTO_SCROLL_SPEED_MAX_MULTIPLIER);
+
+  setRemainingDisplay(remainStartSec);
+  if (remainStartSec <= 0) {
+    return;
   }
 
-  const rect = endMarkerEl.getBoundingClientRect();
-  // End がビューポート内へ100px入ったら true を返す
-  return rect.top <= window.innerHeight - AUTO_SCROLL_END_STOP_BUFFER_PX;
+  const startedAtMs = performance.now();
+  autoScrollState.endCountdownTimerId = window.setInterval(() => {
+    const elapsedSec = Math.max(0, (performance.now() - startedAtMs) / 1000);
+    const remainNow = Math.max(0, remainStartSec - (elapsedSec * speed));
+    setRemainingDisplay(remainNow);
+
+    if (remainNow <= 0) {
+      stopEndCountdownDisplay();
+    }
+  }, AUTO_SCROLL_END_COUNTDOWN_TICK_MS);
+}
+
+function stopOverlayEndAnimation() {
+  if (autoScrollState.overlayEndAnimId) {
+    window.cancelAnimationFrame(autoScrollState.overlayEndAnimId);
+    autoScrollState.overlayEndAnimId = null;
+  }
+}
+
+function startOverlayEndAnimation(durationSec) {
+  stopOverlayEndAnimation();
+
+  const endMarkerEl = getEndMarkerEl();
+  const markerRect = endMarkerEl?.getBoundingClientRect();
+  const endTopScreenY = markerRect ? markerRect.top : autoScrollState.endY - window.scrollY;
+  const endBottomScreenY = markerRect ? markerRect.bottom : autoScrollState.endY - window.scrollY;
+  const overlayHeight = autoScrollState.overlayHighlightHeight || 140;
+
+  const phase1Center = endTopScreenY - (overlayHeight / 2);
+  const phase2Center = Math.max(phase1Center, endBottomScreenY - (overlayHeight / 2));
+  const startCenter = typeof autoScrollState.overlayScreenY === 'number'
+    ? autoScrollState.overlayScreenY
+    : (window.innerHeight / 2);
+
+  const distanceToPhase1 = phase1Center - startCenter;
+  const totalDurationSec = Math.max(AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC, Number(durationSec) || 0);
+
+  if (distanceToPhase1 <= 0.01) {
+    autoScrollState.overlayScreenY = phase1Center;
+    applyFocusOverlayTop();
+  }
+
+  const speedPxPerSec = distanceToPhase1 > 0.01
+    ? distanceToPhase1 / totalDurationSec
+    : Math.max(60, (phase2Center - phase1Center) / AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC);
+
+  let previousMs = null;
+  function step(nowMs) {
+    if (previousMs === null) {
+      previousMs = nowMs;
+    }
+
+    const dtSec = clamp((nowMs - previousMs) / 1000, 0, 0.12);
+    previousMs = nowMs;
+
+    const current = Number(autoScrollState.overlayScreenY);
+    const target = current >= phase1Center ? phase2Center : phase1Center;
+    const dist = target - current;
+    const move = speedPxPerSec * dtSec;
+
+    if (dist <= move) {
+      autoScrollState.overlayScreenY = target;
+      applyFocusOverlayTop();
+
+      if (target >= phase2Center - 0.01) {
+        autoScrollState.overlayEndAnimId = null;
+        return;
+      }
+
+      autoScrollState.overlayEndAnimId = window.requestAnimationFrame(step);
+      return;
+    }
+
+    autoScrollState.overlayScreenY = current + move;
+    applyFocusOverlayTop();
+    autoScrollState.overlayEndAnimId = window.requestAnimationFrame(step);
+  }
+
+  autoScrollState.overlayEndAnimId = window.requestAnimationFrame(step);
 }
 
 function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false } = {}) {
+  const remainingBeforeStopSec = Math.max(0, Number(autoScrollState.durationSec || 0) - Number(autoScrollState.playbackElapsedSec || 0));
+  const speedAtStop = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
+
+  stopEndCountdownDisplay();
+
   if (autoScrollState.frameId) {
     window.cancelAnimationFrame(autoScrollState.frameId);
     autoScrollState.frameId = null;
   }
+
+  stopOverlayEndAnimation();
 
   autoScrollState.isPlaying = false;
   autoScrollState.speedPxPerSec = 0;
@@ -1278,10 +1562,20 @@ function stopAutoScroll(message = 'Stopped', tone = 'info', { reachedEnd = false
   autoScrollState.leadInSec = 0;
   autoScrollState.timelineReady = false;
   autoScrollState.userScrollOverrideUntilMs = 0;
+  autoScrollState.overlayPhase = 'center';
+  autoScrollState.overlayPrevScrollY = window.scrollY;
 
   if (reachedEnd) {
+    const endPhaseDurationSec = Math.max(remainingBeforeStopSec, AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC);
     autoScrollState.rewindToStartPending = true;
     autoScrollState.startFromMarkerPending = true;
+    setFocusOverlayActive(true);
+    startOverlayEndAnimation(endPhaseDurationSec);
+    startEndCountdownDisplay(endPhaseDurationSec, speedAtStop);
+  } else {
+    autoScrollState.overlayScreenY = null;
+    setFocusOverlayActive(false);
+    setRemainingDisplay(autoScrollState.durationSec);
   }
 
   updateAutoScrollControls();
@@ -1294,7 +1588,7 @@ function recalculateLegacyAutoScrollSpeed() {
   const remainingDistancePx = getAutoScrollStopScrollY() - window.scrollY;
 
   if (remainingDistancePx <= 0.5) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
+    stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
     return false;
   }
 
@@ -1318,11 +1612,6 @@ function recalculateLegacyAutoScrollSpeed() {
 function recalculateAutoScrollSpeed() {
   if (!autoScrollState.isPlaying) {
     return true;
-  }
-
-  if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
-    return false;
   }
 
   if (autoScrollState.variableScrollEnabled === false) {
@@ -1361,13 +1650,22 @@ function runAutoScrollFrame(nowMs) {
   autoScrollState.lastFrameMs = nowMs;
 
   if (autoScrollState.userScrollOverrideUntilMs > nowMs) {
+    const scrollDelta = window.scrollY - autoScrollState.overlayPrevScrollY;
+    autoScrollState.overlayPrevScrollY = window.scrollY;
+
+    if (autoScrollState.overlayPhase === 'start-to-center') {
+      autoScrollState.overlayScreenY = (autoScrollState.overlayScreenY || window.innerHeight / 2) + (1.2 * scrollDelta);
+      if (autoScrollState.overlayScreenY >= window.innerHeight / 2) {
+        autoScrollState.overlayScreenY = window.innerHeight / 2;
+        autoScrollState.overlayPhase = 'center';
+      }
+    } else {
+      autoScrollState.overlayScreenY = window.innerHeight / 2;
+    }
+
+    applyFocusOverlayTop();
     autoScrollState.virtualScrollY = window.scrollY;
     autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
-    return;
-  }
-
-  if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
     return;
   }
 
@@ -1382,6 +1680,11 @@ function runAutoScrollFrame(nowMs) {
     autoScrollState.playbackElapsedSec + effectiveDeltaSec
   );
 
+  if (autoScrollState.playbackElapsedSec >= Math.max(0, Number(autoScrollState.durationSec) || 0)) {
+    stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
+    return;
+  }
+
   if (autoScrollState.variableScrollEnabled === false) {
     autoScrollState.phase = 'main';
     autoScrollState.hasScrollStarted = true;
@@ -1392,12 +1695,10 @@ function runAutoScrollFrame(nowMs) {
 
     autoScrollState.virtualScrollY += autoScrollState.speedPxPerSec * deltaSec;
     setAutoScrollScrollY(autoScrollState.virtualScrollY);
+    autoScrollState.overlayScreenY = window.innerHeight / 2;
+    autoScrollState.overlayPrevScrollY = window.scrollY;
+    applyFocusOverlayTop();
     updatePlayingStatus();
-
-    if (isEndMarkerVisibleInViewport()) {
-      stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
-      return;
-    }
 
     autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
     return;
@@ -1416,6 +1717,12 @@ function runAutoScrollFrame(nowMs) {
       autoScrollState.phase = 'main';
       focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
     }
+
+    const overlayHeight = autoScrollState.overlayHighlightHeight || 140;
+    const startScreenY = autoScrollState.startY - window.scrollY + (overlayHeight / 2);
+    autoScrollState.overlayScreenY = startScreenY + ((window.innerHeight / 2 - startScreenY) * leadRatio);
+    autoScrollState.overlayPrevScrollY = window.scrollY;
+    applyFocusOverlayTop();
   } else {
     autoScrollState.progressSec = clamp(
       autoScrollState.progressSec + effectiveDeltaSec,
@@ -1423,6 +1730,17 @@ function runAutoScrollFrame(nowMs) {
       autoScrollState.timeline?.durationSec || autoScrollState.mainDurationSec
     );
     focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+
+    if (autoScrollState.overlayPhase === 'start-to-center') {
+      const scrollDelta = window.scrollY - autoScrollState.overlayPrevScrollY;
+      autoScrollState.overlayScreenY = (autoScrollState.overlayScreenY || window.innerHeight / 2) + (1.2 * scrollDelta);
+      if (autoScrollState.overlayScreenY >= window.innerHeight / 2) {
+        autoScrollState.overlayScreenY = window.innerHeight / 2;
+        autoScrollState.overlayPhase = 'center';
+      }
+    } else {
+      autoScrollState.overlayScreenY = window.innerHeight / 2;
+    }
   }
 
   autoScrollState.focusRatioCurrent = focusRatioCurrent;
@@ -1434,17 +1752,14 @@ function runAutoScrollFrame(nowMs) {
   const reachableTargetScrollY = getReachableScrollY(targetScrollY);
 
   setAutoScrollScrollY(reachableTargetScrollY);
+  autoScrollState.overlayPrevScrollY = window.scrollY;
+  applyFocusOverlayTop();
 
   if (!autoScrollState.hasScrollStarted && Math.abs(window.scrollY - autoScrollState.playStartScrollY) > 0.6) {
     autoScrollState.hasScrollStarted = true;
   }
 
   updatePlayingStatus();
-
-  if (isEndMarkerVisibleInViewport()) {
-    stopAutoScroll('Stopped · End が見えたため停止', 'success', { reachedEnd: true });
-    return;
-  }
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
 }
@@ -1546,6 +1861,15 @@ function startAutoScroll() {
   autoScrollState.lastStatusRemainingSec = null;
   autoScrollState.lastStatusTone = '';
   autoScrollState.lastStatusSpeed = null;
+  stopEndCountdownDisplay();
+  stopOverlayEndAnimation();
+  autoScrollState.overlayPhase = shouldStartAtMarker ? 'start-to-center' : 'center';
+  autoScrollState.overlayPrevScrollY = window.scrollY;
+  autoScrollState.overlayScreenY = shouldStartAtMarker
+    ? autoScrollState.startY - window.scrollY + ((autoScrollState.overlayHighlightHeight || 140) / 2)
+    : (window.innerHeight / 2);
+  updateFocusOverlayGeometry();
+  setFocusOverlayActive(true);
 
   if (shouldResumeFromCurrent) {
     autoScrollState.phase = 'main';
@@ -1643,6 +1967,7 @@ async function handleDeleteSong() {
 function resetAutoScrollDuration() {
   autoScrollState.durationSec = DEFAULT_DURATION_SEC;
   setDurationInputs(autoScrollState.durationSec);
+  setRemainingDisplay(autoScrollState.durationSec);
 
   if (autoScrollState.isPlaying && !recalculateAutoScrollSpeed()) {
     return;
@@ -1684,4 +2009,6 @@ function refreshAutoScrollAfterRender({ restoreSavedState = false } = {}) {
   }
 
   updateAutoScrollControls();
+  updateFocusOverlayGeometry();
+  setFocusOverlayActive(autoScrollState.isPlaying);
 }

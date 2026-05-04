@@ -28,6 +28,7 @@
         <div class="sheet-stage">
           <div id="key" class="song-key"></div>
           <div id="sheet" class="cw-sheet"></div>
+          <div id="autoscroll-focus-overlay" class="autoscroll-focus-overlay" aria-hidden="true"></div>
           <div id="autoscroll-marker-layer" class="autoscroll-marker-layer" aria-hidden="true"></div>
         </div>
         <div class="song-bottom-nav">
@@ -134,11 +135,19 @@
             <div class="autoscroll-buttons">
               <button id="autoscroll-toggle" type="button">Start</button>
               <button id="autoscroll-markers-reset" type="button">↺ Marker</button>
-              <label class="autoscroll-variable-toggle" for="autoscroll-variable-toggle">
-                <input id="autoscroll-variable-toggle" type="checkbox" checked />
-                <span>可変スクロール</span>
-              </label>
+              <div class="autoscroll-toggle-stack">
+                <label class="autoscroll-variable-toggle" for="autoscroll-variable-toggle">
+                  <input id="autoscroll-variable-toggle" type="checkbox" checked />
+                  <span>可変スクロール</span>
+                </label>
+                <label class="autoscroll-highlight-toggle" for="autoscroll-highlight-toggle">
+                  <input id="autoscroll-highlight-toggle" type="checkbox" checked />
+                  <span>ハイライト表示</span>
+                </label>
+              </div>
             </div>
+
+            <div class="autoscroll-remaining-row">残り時間 <span id="autoscroll-remaining">--:--</span></div>
           </div>
         </section>
 

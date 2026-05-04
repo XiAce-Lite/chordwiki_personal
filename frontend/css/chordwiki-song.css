@@ -551,7 +551,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
   padding: 2px 6px;
   border: 1px solid #c4d4e4;
   border-radius: 999px;
@@ -566,6 +565,34 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .autoscroll-variable-toggle input {
   margin: 0;
   accent-color: #0078d4;
+}
+
+.autoscroll-highlight-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid #c4d4e4;
+  border-radius: 999px;
+  background: #fff;
+  color: #23415f;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.autoscroll-highlight-toggle input {
+  margin: 0;
+  accent-color: #0078d4;
+}
+
+.autoscroll-toggle-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-left: auto;
 }
 
 .transpose-buttons {
@@ -1008,6 +1035,16 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.autoscroll-remaining-row {
+  font-size: 12px;
+  color: #35506a;
+}
+
+#autoscroll-remaining {
+  font-weight: 700;
+  color: #0f4c81;
 }
 
 .annotation-toolbar {
@@ -1767,6 +1804,36 @@ html[data-display-custom="on"] .song-key {
   pointer-events: none;
   z-index: 1100;
 }
+
+.autoscroll-focus-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1090;
+  display: none;
+  --autoscroll-focus-top: 0px;
+  --autoscroll-focus-height: 140px;
+}
+
+.autoscroll-focus-overlay::before,
+.autoscroll-focus-overlay::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: rgba(14, 33, 54, 0.2);
+}
+
+.autoscroll-focus-overlay::before {
+  top: 0;
+  height: var(--autoscroll-focus-top);
+}
+
+.autoscroll-focus-overlay::after {
+  top: calc(var(--autoscroll-focus-top) + var(--autoscroll-focus-height));
+  bottom: 0;
+}
+
 
 .autoscroll-marker {
   position: fixed;
