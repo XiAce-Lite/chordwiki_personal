@@ -8,7 +8,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: light)" />
   <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1" />
-  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260505-overlayfollow1" />
+  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260505-layout1" />
 </head>
 <body>
   <div class="container">
@@ -140,14 +140,22 @@
                   <input id="autoscroll-variable-toggle" type="checkbox" checked />
                   <span>可変スクロール</span>
                 </label>
+              </div>
+            </div>
+
+            <div class="autoscroll-remaining-row">
+              <span>残り時間 <span id="autoscroll-remaining">--:--</span></span>
+              <div class="autoscroll-remaining-controls">
                 <label class="autoscroll-highlight-toggle" for="autoscroll-highlight-toggle">
                   <input id="autoscroll-highlight-toggle" type="checkbox" checked />
                   <span>ハイライト表示</span>
                 </label>
+                <label class="autoscroll-highlight-context-lines" for="autoscroll-highlight-context-lines">
+                  <span>前後行数</span>
+                  <input id="autoscroll-highlight-context-lines" type="number" min="2" max="6" step="1" value="4" inputmode="numeric" />
+                </label>
               </div>
             </div>
-
-            <div class="autoscroll-remaining-row">残り時間 <span id="autoscroll-remaining">--:--</span></div>
           </div>
         </section>
 
@@ -326,10 +334,10 @@
   <script src="js/shared/song-utils.js?v=20260411-youtubevalidation1"></script>
   <script src="js/chordwiki-render.js?v=20260410-refactor1"></script>
   <script src="js/auth.js?v=20260410-refactor1"></script>
-  <script src="js/song-core.js?v=20260505-overlayfollow1"></script>
+  <script src="js/song-core.js?v=20260505-layout1"></script>
   <script src="js/song-extras.js?v=20260411-youtubevalidation1"></script>
-  <script src="js/song-autoscroll.js?v=20260505-overlayfollow1"></script>
+  <script src="js/song-autoscroll.js?v=20260505-layout1"></script>
   <script src="js/song-annotations.js?v=20260412-annotations4"></script>
-  <script src="js/song.js?v=20260503-blanklineprefs1"></script>
+  <script src="js/song.js?v=20260505-layout1"></script>
 </body>
 </html>

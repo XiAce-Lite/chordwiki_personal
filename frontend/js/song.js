@@ -146,6 +146,9 @@ function initializeAutoScrollUi() {
   document.getElementById('autoscroll-highlight-toggle')?.addEventListener('change', (event) => {
     setAutoScrollHighlightEnabled(event.target.checked, { persist: true, notify: true });
   });
+  document.getElementById('autoscroll-highlight-context-lines')?.addEventListener('input', (event) => {
+    setAutoScrollFocusContextLines(event.target.value, { persist: true, notify: true });
+  });
   document.getElementById('delete-button')?.addEventListener('click', handleDeleteSong);
   document.getElementById('autoscroll-collapse-toggle')?.addEventListener('click', toggleAutoScrollCollapsed);
   document.getElementById('youtube-player-close')?.addEventListener('click', closeYouTubePlayer);

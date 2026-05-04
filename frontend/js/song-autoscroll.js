@@ -338,6 +338,47 @@ function syncHighlightToggleUi() {
   toggleInput.checked = autoScrollState.highlightEnabled !== false;
 }
 
+function normalizeAutoScrollFocusContextLines(value) {
+  const numericValue = Number.parseInt(String(value ?? ''), 10);
+  const safeValue = Number.isFinite(numericValue)
+    ? numericValue
+    : AUTO_SCROLL_FOCUS_CONTEXT_LINES;
+  return clamp(
+    Math.round(safeValue),
+    AUTO_SCROLL_FOCUS_CONTEXT_LINES_MIN,
+    AUTO_SCROLL_FOCUS_CONTEXT_LINES_MAX
+  );
+}
+
+function syncAutoScrollFocusContextLinesUi() {
+  const inputEl = document.getElementById('autoscroll-highlight-context-lines');
+  if (!inputEl) {
+    return;
+  }
+
+  const lines = normalizeAutoScrollFocusContextLines(autoScrollState.focusContextLines);
+  autoScrollState.focusContextLines = lines;
+  inputEl.value = String(lines);
+}
+
+function setAutoScrollFocusContextLines(value, { persist = true, notify = true } = {}) {
+  const nextLines = normalizeAutoScrollFocusContextLines(value);
+  autoScrollState.focusContextLines = nextLines;
+  syncAutoScrollFocusContextLinesUi();
+
+  if (autoScrollState.isPlaying && autoScrollState.variableScrollEnabled !== false) {
+    updateVariableScrollFocusOverlay();
+  }
+
+  if (persist) {
+    saveAutoScrollState({ notify: false });
+  }
+
+  if (notify) {
+    setStatus(`Stopped · ハイライト範囲 前後${nextLines}行`, 'info');
+  }
+}
+
 function estimateAutoScrollLineHeightPx() {
   const lines = Array.from(getSheetEl()?.querySelectorAll('p.line') || []);
   const heights = [];
@@ -507,7 +548,7 @@ function updateVariableScrollFocusOverlay() {
     return;
   }
 
-  const contextLines = Math.max(0, Number(AUTO_SCROLL_FOCUS_CONTEXT_LINES) || 0);
+  const contextLines = Math.max(0, normalizeAutoScrollFocusContextLines(autoScrollState.focusContextLines));
   const windowSize = Math.min(entries.length, (contextLines * 2) + 1);
   const maxTopIndex = Math.max(0, entries.length - windowSize);
 
@@ -630,6 +671,7 @@ function updateAutoScrollControls() {
   toggleButton.classList.toggle('is-playing', autoScrollState.isPlaying);
   syncVariableScrollToggleUi();
   syncHighlightToggleUi();
+  syncAutoScrollFocusContextLinesUi();
   updateAutoScrollSpeedUi();
 }
 
@@ -740,7 +782,8 @@ function saveAutoScrollState({ notify = true } = {}) {
       durationSec: Math.max(0, Math.round(autoScrollState.durationSec)),
       speedMultiplier: Math.round((Number(autoScrollState.speedMultiplier) || 1) * 100) / 100,
       variableScrollEnabled: autoScrollState.variableScrollEnabled !== false,
-      highlightEnabled: autoScrollState.highlightEnabled !== false
+      highlightEnabled: autoScrollState.highlightEnabled !== false,
+      focusContextLines: normalizeAutoScrollFocusContextLines(autoScrollState.focusContextLines)
     };
 
     window.localStorage.setItem(autoScrollState.storageKey, JSON.stringify(payload));
@@ -913,6 +956,7 @@ function restoreAutoScrollState() {
   autoScrollState.speedMultiplier = 1;
   autoScrollState.variableScrollEnabled = true;
   autoScrollState.highlightEnabled = true;
+  autoScrollState.focusContextLines = AUTO_SCROLL_FOCUS_CONTEXT_LINES;
 
   if (autoScrollState.storageKey) {
     try {
@@ -955,12 +999,17 @@ function restoreAutoScrollState() {
     if (typeof savedState.highlightEnabled === 'boolean') {
       autoScrollState.highlightEnabled = savedState.highlightEnabled;
     }
+
+    if (Number.isFinite(savedState.focusContextLines)) {
+      autoScrollState.focusContextLines = normalizeAutoScrollFocusContextLines(savedState.focusContextLines);
+    }
   }
 
   setDurationInputs(autoScrollState.durationSec);
   setRemainingDisplay(autoScrollState.durationSec);
   syncVariableScrollToggleUi();
   syncHighlightToggleUi();
+  syncAutoScrollFocusContextLinesUi();
   updateAutoScrollSpeedUi();
   applyMarkerStateToRenderedSheet({ resetInvalidRange: true });
 

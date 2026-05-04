@@ -78,6 +78,8 @@ const AUTO_SCROLL_OVERLAY_END_MIN_DURATION_SEC = 0.4;
 const AUTO_SCROLL_OVERLAY_RELEASE_DELAY_MS = 2000;
 const AUTO_SCROLL_FOCUS_OVERLAY_MIN_LINES = 4;
 const AUTO_SCROLL_FOCUS_CONTEXT_LINES = 4;
+const AUTO_SCROLL_FOCUS_CONTEXT_LINES_MIN = 2;
+const AUTO_SCROLL_FOCUS_CONTEXT_LINES_MAX = 6;
 const AUTO_SCROLL_FOCUS_OVERLAY_MIN_SCROLL_PX = 72;
 const AUTO_SCROLL_USER_SCROLL_OVERRIDE_MS = 260;
 const MARKER_EDGE_SCROLL_ZONE_PX = 64;
@@ -176,6 +178,7 @@ const autoScrollState = {
   rewindToStartPending: false,
   startFromMarkerPending: false,
   highlightEnabled: true,
+  focusContextLines: AUTO_SCROLL_FOCUS_CONTEXT_LINES,
   overlayScreenY: null,
   overlayHighlightHeight: 140,
   overlayEndAnimId: null,
