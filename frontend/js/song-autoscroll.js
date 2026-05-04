@@ -1435,6 +1435,19 @@ function getAutoScrollStopScrollY() {
   return clamp(autoScrollState.endY - stopViewportY, 0, getMaxWindowScrollY());
 }
 
+function isEndMarkerVisibleEnough() {
+  const endMarkerEl = getEndMarkerEl();
+  if (!(endMarkerEl instanceof Element)) {
+    return false;
+  }
+
+  const rect = endMarkerEl.getBoundingClientRect();
+  const reachedWithBuffer = rect.top <= (window.innerHeight - AUTO_SCROLL_END_STOP_BUFFER_PX);
+  const atPageEnd = window.scrollY >= getMaxWindowScrollY() - 1;
+  const visibleInViewport = rect.bottom >= 0 && rect.top <= window.innerHeight;
+  return reachedWithBuffer || (atPageEnd && visibleInViewport);
+}
+
 function stopEndCountdownDisplay() {
   if (autoScrollState.endCountdownTimerId) {
     window.clearInterval(autoScrollState.endCountdownTimerId);
@@ -1669,6 +1682,11 @@ function runAutoScrollFrame(nowMs) {
     return;
   }
 
+  if (isEndMarkerVisibleEnough()) {
+    stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
+    return;
+  }
+
   const multiplier = Number.isFinite(autoScrollState.speedMultiplier) ? autoScrollState.speedMultiplier : 1;
   const effectiveDeltaSec = deltaSec * multiplier;
   let focusRatioCurrent = Number.isFinite(autoScrollState.focusRatioCurrent)
@@ -1700,6 +1718,11 @@ function runAutoScrollFrame(nowMs) {
     applyFocusOverlayTop();
     updatePlayingStatus();
 
+    if (isEndMarkerVisibleEnough()) {
+      stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
+      return;
+    }
+
     autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
     return;
   }
@@ -1710,7 +1733,7 @@ function runAutoScrollFrame(nowMs) {
     const leadRatio = autoScrollState.leadInSec > 0
       ? clamp(autoScrollState.phaseElapsedSec / autoScrollState.leadInSec, 0, 1)
       : 1;
-    // 遅延開始中は表示位置を固定し、実スクロール開始までは画面を動かさない。
+    // 遅延開始中はハイライト位置を固定し、実スクロール開始後にのみ追従移動させる。
     focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
 
     if (leadRatio >= 1) {
@@ -1718,9 +1741,6 @@ function runAutoScrollFrame(nowMs) {
       focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
     }
 
-    const overlayHeight = autoScrollState.overlayHighlightHeight || 140;
-    const startScreenY = autoScrollState.startY - window.scrollY + (overlayHeight / 2);
-    autoScrollState.overlayScreenY = startScreenY + ((window.innerHeight / 2 - startScreenY) * leadRatio);
     autoScrollState.overlayPrevScrollY = window.scrollY;
     applyFocusOverlayTop();
   } else {
@@ -1730,7 +1750,19 @@ function runAutoScrollFrame(nowMs) {
       autoScrollState.timeline?.durationSec || autoScrollState.mainDurationSec
     );
     focusRatioCurrent = AUTO_SCROLL_FOCUS_RATIO_FINAL;
+  }
 
+  autoScrollState.focusRatioCurrent = focusRatioCurrent;
+
+  const focusY = autoScrollState.phase === 'lead-in'
+    ? autoScrollState.startY
+    : getTimelineFocusYAtProgress(autoScrollState.progressSec);
+  const targetScrollY = focusY - (window.innerHeight * focusRatioCurrent);
+  const reachableTargetScrollY = getReachableScrollY(targetScrollY);
+
+  setAutoScrollScrollY(reachableTargetScrollY);
+
+  if (autoScrollState.phase !== 'lead-in') {
     if (autoScrollState.overlayPhase === 'start-to-center') {
       const scrollDelta = window.scrollY - autoScrollState.overlayPrevScrollY;
       autoScrollState.overlayScreenY = (autoScrollState.overlayScreenY || window.innerHeight / 2) + (1.2 * scrollDelta);
@@ -1743,15 +1775,6 @@ function runAutoScrollFrame(nowMs) {
     }
   }
 
-  autoScrollState.focusRatioCurrent = focusRatioCurrent;
-
-  const focusY = autoScrollState.phase === 'lead-in'
-    ? autoScrollState.startY
-    : getTimelineFocusYAtProgress(autoScrollState.progressSec);
-  const targetScrollY = focusY - (window.innerHeight * focusRatioCurrent);
-  const reachableTargetScrollY = getReachableScrollY(targetScrollY);
-
-  setAutoScrollScrollY(reachableTargetScrollY);
   autoScrollState.overlayPrevScrollY = window.scrollY;
   applyFocusOverlayTop();
 
@@ -1760,6 +1783,11 @@ function runAutoScrollFrame(nowMs) {
   }
 
   updatePlayingStatus();
+
+  if (isEndMarkerVisibleEnough()) {
+    stopAutoScroll('Stopped · End に到達しました。クリックで先頭へ戻ります。', 'success', { reachedEnd: true });
+    return;
+  }
 
   autoScrollState.frameId = window.requestAnimationFrame(runAutoScrollFrame);
 }

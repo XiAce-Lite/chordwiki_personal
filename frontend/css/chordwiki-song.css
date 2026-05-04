@@ -193,7 +193,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   position: fixed;
   top: var(--song-extras-safe-top);
   right: var(--floating-panel-safe-right);
-  z-index: 980;
+  z-index: 1400;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -357,7 +357,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   position: fixed;
   right: var(--youtube-player-safe-right);
   bottom: var(--youtube-player-safe-bottom);
-  z-index: 1200;
+  z-index: 1400;
   width: min(360px, calc(100vw - var(--youtube-player-safe-right) - 20px));
   border: 1px solid #d6e7f8;
   border-radius: 12px;
@@ -441,7 +441,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .song-meta-modal {
   position: fixed;
   inset: 0;
-  z-index: 1300;
+  z-index: 1500;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -663,7 +663,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   position: fixed;
   top: var(--autoscroll-safe-top);
   right: var(--floating-panel-safe-right);
-  z-index: 1000;
+  z-index: 1400;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1125,7 +1125,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   position: fixed;
   top: var(--ink-floating-safe-top);
   right: var(--floating-panel-safe-right);
-  z-index: 1105;
+  z-index: 1400;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1537,7 +1537,7 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
 .sticky-note-delete-modal {
   position: fixed;
   inset: 0;
-  z-index: 1305;
+  z-index: 1505;
   display: flex;
   align-items: center;
   justify-content: center;
