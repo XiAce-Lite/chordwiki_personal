@@ -1136,12 +1136,16 @@ function getLineLyricLength(lineEl) {
     return 0;
   }
 
+  // chord span を除いた歌詞テキストのみを対象に、記号類を除外して文字数を集計する。
   let totalLength = 0;
   const textNodes = lineEl.querySelectorAll('span:not(.chord)');
   textNodes.forEach((node) => {
-    const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
-    totalLength += text.length;
+    totalLength += String(node.textContent || '').replace(LYRIC_SYMBOL_RE, '').length;
   });
+
+  if (totalLength === 0) {
+    totalLength = String(lineEl.innerText || '').replace(LYRIC_SYMBOL_RE, '').length;
+  }
 
   return totalLength;
 }
@@ -1171,7 +1175,7 @@ function collectAutoScrollLineEntries() {
     return [];
   }
 
-  const lines = Array.from(sheetEl.querySelectorAll('p.line:not(.blank), p.comment'));
+  const lines = Array.from(sheetEl.querySelectorAll('p.line:not(.blank)'));
   const entries = [];
 
   lines.forEach((lineEl) => {
@@ -1185,12 +1189,12 @@ function collectAutoScrollLineEntries() {
 
     entries.push({
       el: lineEl,
-      type: lineEl.matches('p.comment') ? 'comment' : 'line',
+      type: 'line',
       topY,
       bottomY,
       centerY: (topY + bottomY) / 2,
       heightPx: Math.max(1, rect.height),
-      lyricLength: lineEl.matches('p.comment') ? 0 : getLineLyricLength(lineEl)
+      lyricLength: getLineLyricLength(lineEl)
     });
   });
 
@@ -1211,11 +1215,6 @@ function buildAutoScrollTimeline() {
   const heightNormalized = normalizeWeights(heightValues, { floor: 0 });
 
   entries.forEach((entry, index) => {
-    if (entry.type === 'comment') {
-      entry.weight = AUTO_SCROLL_COMMENT_WEIGHT;
-      return;
-    }
-
     const rawWeight = (lyricNormalized[index] * 0.65) + (heightNormalized[index] * 0.35);
     entry.weight = rawWeight;
   });
