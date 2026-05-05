@@ -10,6 +10,10 @@ function getEndMarkerEl() {
   return getMarkerLayerEl()?.querySelector('[data-marker="end"]') || null;
 }
 
+function getStartMarkerEl() {
+  return getMarkerLayerEl()?.querySelector('[data-marker="start"]') || null;
+}
+
 function formatDuration(totalSeconds) {
   const safeSeconds = clamp(Math.round(totalSeconds), 0, MAX_AUTOSCROLL_DURATION_SEC);
   const minutes = Math.floor(safeSeconds / 60);
@@ -572,8 +576,30 @@ function updateVariableScrollFocusOverlay() {
   let overlayTopDocY = interpolateEntryBoundaryY(entries, topLineFloat, 'topY');
   let overlayBottomDocY = interpolateEntryBoundaryY(entries, bottomLineFloat, 'bottomY');
 
-  const minTopDocY = Number(entries[0]?.topY) || overlayTopDocY;
-  const maxBottomDocY = Math.max(minTopDocY, getEndMarkerBottomY());
+  const baseMinTopDocY = Number(entries[0]?.topY) || overlayTopDocY;
+  let minTopDocY = baseMinTopDocY;
+  if (autoScrollState.phase === 'lead-in') {
+    const firstLineEl = entries[0]?.el;
+    if (firstLineEl instanceof Element) {
+      const lineRect = firstLineEl.getBoundingClientRect();
+      let chordTop = lineRect.top;
+      firstLineEl.querySelectorAll('span.chord').forEach((chordEl) => {
+        const chordRect = chordEl.getBoundingClientRect();
+        chordTop = Math.min(chordTop, chordRect.top);
+      });
+      const topCorrectionPx = Math.max(0, Math.round(lineRect.top - chordTop));
+      overlayTopDocY -= topCorrectionPx;
+    }
+
+    const startMarkerEl = getStartMarkerEl();
+    if (startMarkerEl instanceof Element) {
+      minTopDocY = startMarkerEl.getBoundingClientRect().bottom + window.scrollY;
+    } else if (Number.isFinite(autoScrollState.startY)) {
+      minTopDocY = autoScrollState.startY;
+    }
+  }
+
+  const maxBottomDocY = Math.max(baseMinTopDocY, getEndMarkerBottomY());
   const desiredHeight = Math.max(1, overlayBottomDocY - overlayTopDocY);
 
   overlayBottomDocY = clamp(overlayBottomDocY, minTopDocY, maxBottomDocY);
