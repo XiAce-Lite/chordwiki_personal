@@ -335,7 +335,10 @@ function syncHighlightToggleUi() {
     return;
   }
 
+  const isVariableOn = autoScrollState.variableScrollEnabled !== false;
   toggleInput.checked = autoScrollState.highlightEnabled !== false;
+  toggleInput.disabled = !isVariableOn;
+  toggleInput.closest('label')?.classList.toggle('is-disabled', !isVariableOn);
 }
 
 function normalizeAutoScrollFocusContextLines(value) {
@@ -356,9 +359,12 @@ function syncAutoScrollFocusContextLinesUi() {
     return;
   }
 
+  const isVariableOn = autoScrollState.variableScrollEnabled !== false;
   const lines = normalizeAutoScrollFocusContextLines(autoScrollState.focusContextLines);
   autoScrollState.focusContextLines = lines;
   inputEl.value = String(lines);
+  inputEl.disabled = !isVariableOn;
+  inputEl.closest('label')?.classList.toggle('is-disabled', !isVariableOn);
 }
 
 function setAutoScrollFocusContextLines(value, { persist = true, notify = true } = {}) {
@@ -464,6 +470,10 @@ function countLinesInMarkerRange() {
 }
 
 function canUseFocusOverlay() {
+  if (autoScrollState.variableScrollEnabled === false) {
+    return false;
+  }
+
   if (autoScrollState.highlightEnabled === false) {
     return false;
   }
@@ -689,6 +699,8 @@ function setAutoScrollVariableScrollEnabled(enabled, { persist = true, notify = 
   const changed = autoScrollState.variableScrollEnabled !== nextEnabled;
   autoScrollState.variableScrollEnabled = nextEnabled;
   syncVariableScrollToggleUi();
+  syncHighlightToggleUi();
+  syncAutoScrollFocusContextLinesUi();
 
   if (autoScrollState.isPlaying && changed) {
     stopAutoScroll('Stopped · スクロールモードを切り替えました', 'info');

@@ -586,6 +586,15 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   accent-color: #0078d4;
 }
 
+.autoscroll-highlight-toggle.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.autoscroll-highlight-toggle.is-disabled input {
+  cursor: not-allowed;
+}
+
 .autoscroll-buttons {
   align-items: flex-start;
 }
@@ -630,6 +639,15 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   text-align: right;
   color: #23415f;
   background: #fff;
+}
+
+.autoscroll-highlight-context-lines.is-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.autoscroll-highlight-context-lines.is-disabled input {
+  cursor: not-allowed;
 }
 
 .transpose-buttons {
