@@ -152,7 +152,7 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'cw-setlist-select-item';
-      button.textContent = `${setlist.name} (${setlist.songs.length})`;
+      button.textContent = `${setlist.name} (${setlist.songs.length}曲)`;
       button.addEventListener('click', () => {
         const result = setlistStore.addSongToSetlist(setlist.id, songId);
         if (result.ok) {
@@ -232,7 +232,7 @@
           const itemButton = document.createElement('button');
           itemButton.type = 'button';
           itemButton.className = 'cw-inline-setlist-item';
-          itemButton.textContent = `${setlist.name} (${setlist.songs.length})`;
+          itemButton.textContent = `${setlist.name} (${setlist.songs.length}曲)`;
           itemButton.addEventListener('click', () => {
             const result = setlistStore.addSongToSetlist(setlist.id, songId);
             if (result.ok) {

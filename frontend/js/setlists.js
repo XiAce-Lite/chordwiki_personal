@@ -130,11 +130,18 @@
   function renderSelector() {
     selectorEl.innerHTML = '';
 
-    state.setlists.forEach((setlist) => {
+    const sortedSetlists = [...state.setlists].sort((a, b) =>
+      String(a?.name || '').localeCompare(String(b?.name || ''), 'ja-JP', {
+        sensitivity: 'base',
+        numeric: true
+      })
+    );
+
+    sortedSetlists.forEach((setlist) => {
       const option = document.createElement('option');
       option.value = setlist.id;
       option.selected = setlist.id === state.selectedId;
-      option.textContent = `${setlist.name} (${setlist.songs.length})`;
+      option.textContent = `${setlist.name} (${setlist.songs.length}曲)`;
       selectorEl.appendChild(option);
     });
   }
