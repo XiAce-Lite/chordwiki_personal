@@ -2078,7 +2078,10 @@ function runAutoScrollFrame(nowMs) {
   const targetScrollY = focusY - (window.innerHeight * focusRatioCurrent);
   const reachableTargetScrollY = getReachableScrollY(targetScrollY);
 
-  setAutoScrollScrollY(reachableTargetScrollY);
+  // 可変モードでエンドマーカーが可視になったらスクロールを凍結し、ハイライトのみ継続する
+  if (!(autoScrollState.variableScrollEnabled !== false && isEndMarkerVisibleEnough())) {
+    setAutoScrollScrollY(reachableTargetScrollY);
+  }
 
   if (autoScrollState.phase !== 'lead-in') {
     if (autoScrollState.overlayPhase === 'start-to-center') {
