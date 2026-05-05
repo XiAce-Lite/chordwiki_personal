@@ -1,9 +1,14 @@
 window.ChordWikiAuth?.applyRoleVisibility();
 
 const { buildApiUrl, handleUnauthorized } = window.ChordWikiApiUtils;
+const setlistUi = window.ChordWikiSetlistUi;
 
 document.getElementById('add-button').addEventListener('click', () => {
   location.href = '/edit.html?mode=add';
+});
+
+document.getElementById('setlists-button')?.addEventListener('click', () => {
+  location.href = '/setlists.html';
 });
 
 const DEFAULT_PAGE_SIZE = 30;
@@ -97,6 +102,7 @@ const DEFAULT_PAGE_SIZE = 30;
       updatePaginationSafeSpace,
       loadSongs
     });
+    let songRowMenuOutsideClickBound = false;
 
 function isLocalPreview() {
       return Boolean(window.ChordWikiRuntime?.isLocalPreview?.(window.location))
@@ -429,6 +435,57 @@ function isLocalPreview() {
       return button;
     }
 
+    function createSongRowActions(song) {
+      const wrapper = document.createElement('span');
+      wrapper.className = 'song-row-actions';
+
+      const toggleButton = document.createElement('button');
+      toggleButton.type = 'button';
+      toggleButton.className = 'song-row-menu-toggle';
+      toggleButton.setAttribute('aria-label', '曲アクション');
+      toggleButton.textContent = '⋮';
+
+      const menu = document.createElement('div');
+      menu.className = 'song-row-menu';
+      menu.hidden = true;
+
+      const addButton = document.createElement('button');
+      addButton.type = 'button';
+      addButton.className = 'song-row-menu-item';
+      addButton.textContent = 'セットリストに追加';
+      addButton.addEventListener('click', () => {
+        menu.hidden = true;
+        if (!setlistUi) {
+          return;
+        }
+
+        setlistUi.openSetlistSelectionModal(song);
+      });
+
+      toggleButton.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const willOpen = menu.hidden;
+        document.querySelectorAll('.song-row-menu').forEach((menuEl) => {
+          menuEl.hidden = true;
+        });
+        menu.hidden = !willOpen;
+      });
+
+      if (!songRowMenuOutsideClickBound) {
+        document.addEventListener('click', () => {
+          document.querySelectorAll('.song-row-menu').forEach((menuEl) => {
+            menuEl.hidden = true;
+          });
+        });
+        songRowMenuOutsideClickBound = true;
+      }
+
+      menu.appendChild(addButton);
+      wrapper.appendChild(toggleButton);
+      wrapper.appendChild(menu);
+      return wrapper;
+    }
+
     function renderSongs(songs, page, query = '', pageSize = currentPageSize) {
       const songList = document.getElementById('song-list');
       const appliedQuery = String(query || '').trim();
@@ -510,6 +567,7 @@ function isLocalPreview() {
         itemEl.appendChild(rankEl);
         itemEl.appendChild(mainEl);
         itemEl.appendChild(scoreEl);
+        itemEl.appendChild(createSongRowActions(song));
         songList.appendChild(itemEl);
       });
     }

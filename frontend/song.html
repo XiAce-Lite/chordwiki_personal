@@ -8,6 +8,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: light)" />
   <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1" />
+  <link rel="stylesheet" href="css/setlists.css?v=20260505-setlists1" />
   <link rel="stylesheet" href="css/chordwiki-song.css?v=20260505-layout1" />
 </head>
 <body>
@@ -22,6 +23,10 @@
     </div>
 
     <div id="artist" class="song-artist"></div>
+    <div id="song-setlist-adder" class="song-setlist-adder">
+      <button id="song-setlist-toggle" class="song-setlist-toggle" type="button" data-role="setlist-toggle" aria-expanded="false">セットリストに追加 ▼</button>
+      <div id="song-setlist-panel" class="song-setlist-panel" data-role="setlist-panel" hidden></div>
+    </div>
 
     <div class="song-layout">
       <div class="song-main-column">
@@ -331,6 +336,8 @@
   <script src="js/runtime-config.js?v=20260410-refactor1"></script>
   <script src="js/shared/api.js?v=20260410-refactor1"></script>
   <script src="js/shared/storage-keys.js?v=20260416-refactor1"></script>
+  <script src="js/shared/setlists.js?v=20260505-setlists1"></script>
+  <script src="js/shared/setlist-ui.js?v=20260505-setlists1"></script>
   <script src="js/shared/song-utils.js?v=20260411-youtubevalidation1"></script>
   <script src="js/chordwiki-render.js?v=20260410-refactor1"></script>
   <script src="js/auth.js?v=20260410-refactor1"></script>

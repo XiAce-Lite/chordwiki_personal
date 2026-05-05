@@ -43,6 +43,10 @@
       "allowedRoles": ["authenticated"]
     },
     {
+      "route": "/setlists.html",
+      "allowedRoles": ["authenticated"]
+    },
+    {
       "route": "/",
       "allowedRoles": ["authenticated"]
     }

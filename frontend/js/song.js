@@ -336,6 +336,25 @@ function initializeDisplayPreferencesUi() {
   commentWeightInput?.addEventListener('change', commitDisplayPreferences);
 }
 
+function initializeSongSetlistUi() {
+  const setlistUi = window.ChordWikiSetlistUi;
+  if (!setlistUi) {
+    return;
+  }
+
+  const songId = String(getQueryParam('id') || '').trim();
+  if (!songId) {
+    return;
+  }
+
+  const root = document.getElementById('song-setlist-adder');
+  if (!root) {
+    return;
+  }
+
+  setlistUi.createSongAddPanel(root, songId);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('transpose-down').addEventListener('click', () => {
     transposeSemitones = clampTranspose(transposeSemitones - 1);
@@ -364,6 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeAutoScrollUi();
   initializeSongExtrasUi();
   initializeDisplayPreferencesUi();
+  initializeSongSetlistUi();
   updateTransposeDisplay();
   updateAutoScrollSafeTop();
   window.requestAnimationFrame(updateAutoScrollSafeTop);
