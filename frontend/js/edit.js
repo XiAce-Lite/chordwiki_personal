@@ -15,6 +15,8 @@ const artistInput = document.getElementById('artist');
 const tagsInput = document.getElementById('tags');
 const youtubeInput = document.getElementById('youtube');
 const chordProInput = document.getElementById('chordPro');
+const previewReserveEl = document.querySelector('.preview-reserve');
+const previewPaneContentEl = document.getElementById('preview-pane-content');
 
 const params = new URLSearchParams(window.location.search);
 const requestedMode = (params.get('mode') || 'add').toLowerCase();
@@ -303,6 +305,51 @@ function handleCancel() {
   window.location.href = '/';
 }
 
+// Live preview feature (independent from existing submit/delete flow)
+function setupChordProLivePreview() {
+  if (!chordProInput || !previewPaneContentEl || typeof renderChordWikiLike !== 'function') {
+    return;
+  }
+
+  let debounceTimer = 0;
+  let hasShownPreview = false;
+
+  const showPreviewPaneOnce = () => {
+    if (hasShownPreview) {
+      return;
+    }
+
+    hasShownPreview = true;
+    if (previewReserveEl) {
+      previewReserveEl.hidden = true;
+    }
+    previewPaneContentEl.hidden = false;
+  };
+
+  const renderPreview = () => {
+    const text = normalizeTextBlock(chordProInput.value || '');
+
+    try {
+      renderChordWikiLike(text, previewPaneContentEl);
+      showPreviewPaneOnce();
+    } catch (error) {
+      showPreviewPaneOnce();
+      const detail = String(error?.message || error || 'プレビューの描画に失敗しました。');
+      previewPaneContentEl.innerHTML = `<div style="color:red; white-space:pre;">${detail}</div>`;
+    }
+  };
+
+  chordProInput.addEventListener('input', () => {
+    if (debounceTimer) {
+      window.clearTimeout(debounceTimer);
+    }
+
+    debounceTimer = window.setTimeout(() => {
+      renderPreview();
+    }, 300);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   updatePageMeta();
 
@@ -311,6 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   deleteButton.addEventListener('click', handleDelete);
   cancelButton.addEventListener('click', handleCancel);
   formEl.addEventListener('submit', handleSubmit);
+  setupChordProLivePreview();
 
   if (state.mode === 'edit') {
     await loadSongForEdit();
