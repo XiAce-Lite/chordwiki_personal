@@ -17,6 +17,7 @@ const youtubeInput = document.getElementById('youtube');
 const chordProInput = document.getElementById('chordPro');
 const previewReserveEl = document.querySelector('.preview-reserve');
 const previewPaneContentEl = document.getElementById('preview-pane-content');
+let triggerChordProPreview = () => {};
 
 const params = new URLSearchParams(window.location.search);
 const requestedMode = (params.get('mode') || 'add').toLowerCase();
@@ -140,6 +141,7 @@ async function loadSongForEdit() {
     }
 
     populateForm(body || {});
+    triggerChordProPreview({ immediate: true });
     setFormVisible(true);
     showMessage('edit モードでデータを読み込みました。');
   } catch (error) {
@@ -311,6 +313,13 @@ function setupChordProLivePreview() {
     return;
   }
 
+  if (!window.displayPrefsState || typeof window.displayPrefsState !== 'object') {
+    window.displayPrefsState = {};
+  }
+  if (typeof window.displayPrefsState.superscriptEnabled !== 'boolean') {
+    window.displayPrefsState.superscriptEnabled = false;
+  }
+
   let debounceTimer = 0;
   let hasShownPreview = false;
 
@@ -339,7 +348,7 @@ function setupChordProLivePreview() {
     }
   };
 
-  chordProInput.addEventListener('input', () => {
+  const schedulePreview = () => {
     if (debounceTimer) {
       window.clearTimeout(debounceTimer);
     }
@@ -347,6 +356,22 @@ function setupChordProLivePreview() {
     debounceTimer = window.setTimeout(() => {
       renderPreview();
     }, 300);
+  };
+
+  triggerChordProPreview = ({ immediate = false } = {}) => {
+    if (immediate) {
+      if (debounceTimer) {
+        window.clearTimeout(debounceTimer);
+      }
+      renderPreview();
+      return;
+    }
+
+    schedulePreview();
+  };
+
+  chordProInput.addEventListener('input', () => {
+    triggerChordProPreview({ immediate: false });
   });
 }
 
