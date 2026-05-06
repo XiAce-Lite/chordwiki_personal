@@ -21,7 +21,7 @@
     }
 
     .page {
-      max-width: 860px;
+      max-width: 1760px;
       margin: 0 auto;
       padding: 24px 16px 40px;
     }
@@ -69,11 +69,18 @@
     }
 
     .form-top-pane .field {
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
 
-    .form-top-pane label {
-      margin-bottom: 4px;
+    .form-top-pane .field.inline-field {
+      display: grid;
+      grid-template-columns: 180px minmax(0, 1fr);
+      align-items: center;
+      column-gap: 12px;
+    }
+
+    .form-top-pane .field.inline-field > label {
+      margin-bottom: 0;
     }
 
     label {
@@ -93,7 +100,7 @@
       display: flex;
       justify-content: space-between;
       gap: 12px;
-      margin: -2px 0 8px;
+      margin: 0 0 6px;
       flex-wrap: wrap;
       font-size: 12px;
       color: #607080;
@@ -135,12 +142,7 @@
       min-height: 320px;
     }
 
-    .form-top-pane #tags {
-      white-space: nowrap;
-      overflow-x: auto;
-      overflow-y: hidden;
-    }
-
+    .form-top-pane #tags,
     .form-top-pane #youtube {
       min-height: calc(1.5em * 3 + 20px);
       height: calc(1.5em * 3 + 20px);
@@ -149,12 +151,42 @@
       overflow-y: auto;
     }
 
-    .preview-reserve {
+    .youtube-control {
+      min-width: 0;
+    }
+
+    .editor-preview-wrapper {
+      display: flex;
+      gap: 14px;
       margin-top: 10px;
+      align-items: stretch;
+    }
+
+    .editor-pane,
+    .preview-pane {
+      flex: 1 1 0;
+      min-width: 0;
       border: 1px solid #cfd8e3;
       border-radius: 8px;
       background: #f7f9fc;
       padding: 10px 12px;
+      box-sizing: border-box;
+    }
+
+    .editor-pane .field {
+      margin-bottom: 0;
+    }
+
+    .editor-pane label {
+      margin-bottom: 6px;
+    }
+
+    .preview-reserve {
+      margin-top: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      padding: 0;
     }
 
     .preview-reserve-title {
@@ -165,10 +197,30 @@
     }
 
     .preview-reserve-body {
-      min-height: 120px;
+      min-height: 360px;
       border: 1px dashed #cfd8e3;
       border-radius: 6px;
       background: #fff;
+    }
+
+    @media (max-width: 1200px) {
+      .form-top-pane .field.inline-field {
+        grid-template-columns: 150px minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .form-top-pane .field.inline-field {
+        display: block;
+      }
+
+      .form-top-pane .field.inline-field > label {
+        margin-bottom: 4px;
+      }
+
+      .editor-preview-wrapper {
+        flex-direction: column;
+      }
     }
 
     .button-row {
@@ -243,44 +295,52 @@
         </div>
 
         <div class="form-top-pane">
-          <div class="field">
+          <div class="field inline-field">
             <label for="title">曲名</label>
             <input type="text" id="title" name="title" required>
           </div>
 
-          <div class="field">
+          <div class="field inline-field">
             <label for="artist">アーティスト</label>
             <input type="text" id="artist" name="artist" required>
           </div>
 
-          <div class="field">
+          <div class="field inline-field">
             <label for="slug">URL用ID</label>
             <input type="text" id="slug" name="slug" required>
           </div>
 
-          <div class="field">
-            <label for="tags">タグ<span class="hint">任意 / 1行</span></label>
-            <input type="text" id="tags" name="tags" placeholder="pop, live">
+          <div class="field inline-field">
+            <label for="tags">タグ<span class="hint">任意 / 1行に1タグ</span></label>
+            <textarea id="tags" name="tags" rows="3" placeholder="pop&#10;live"></textarea>
           </div>
 
-          <div class="field">
+          <div class="field inline-field">
             <label for="youtube">YouTube<span class="hint">任意 / 1行に1動画</span></label>
-            <div class="youtube-meta">
-              <span class="youtube-prefix">https://www.youtube.com/watch?v=</span>
-              <span class="youtube-help">例：kZZstk3dGvQ?t=42 または kZZstk3dGvQ start=42</span>
+            <div class="youtube-control">
+              <div class="youtube-meta">
+                <span class="youtube-prefix">https://www.youtube.com/watch?v=</span>
+                <span class="youtube-help">例：kZZstk3dGvQ?t=42 または kZZstk3dGvQ start=42</span>
+              </div>
+              <textarea id="youtube" name="youtube" rows="3" placeholder="kZZstk3dGvQ&#10;kZZstk3dGvQ?t=42&#10;https://youtu.be/dQw4w9WgXcQ?t=0"></textarea>
             </div>
-            <textarea id="youtube" name="youtube" rows="3" placeholder="kZZstk3dGvQ&#10;kZZstk3dGvQ?t=42&#10;https://youtu.be/dQw4w9WgXcQ?t=0"></textarea>
           </div>
         </div>
 
-        <div class="field">
-          <label for="chordPro">本文</label>
-          <textarea id="chordPro" name="chordPro" required></textarea>
-        </div>
+        <div class="editor-preview-wrapper">
+          <div class="editor-pane">
+            <div class="field">
+              <label for="chordPro">本文</label>
+              <textarea id="chordPro" name="chordPro" required></textarea>
+            </div>
+          </div>
 
-        <div class="preview-reserve" aria-hidden="true">
-          <div class="preview-reserve-title">プレビュー（準備中）</div>
-          <div class="preview-reserve-body"></div>
+          <div class="preview-pane" aria-hidden="true">
+            <div class="preview-reserve">
+              <div class="preview-reserve-title">プレビュー（準備中）</div>
+              <div class="preview-reserve-body"></div>
+            </div>
+          </div>
         </div>
 
         <div class="button-row">
