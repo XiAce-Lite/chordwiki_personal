@@ -363,7 +363,7 @@
     }
 
     const nextShared = sharedToggleEl ? sharedToggleEl.checked : false;
-    const updated = setlistStore.updateSetlist(selected.id, () => ({ isShared: nextShared }));
+    const updated = setlistStore.setShared(selected.id, nextShared);
     if (!updated) {
       setlistUi?.showToast('公開設定を変更できませんでした', 'error');
       return;

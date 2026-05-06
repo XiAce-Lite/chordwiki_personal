@@ -558,6 +558,10 @@
     return updateSetlist(setlistId, () => ({ name: trimmedName }));
   }
 
+  function setShared(setlistId, isShared) {
+    return updateSetlist(setlistId, () => ({ isShared: Boolean(isShared) }));
+  }
+
   function deleteSetlist(setlistId) {
     const targetId = String(setlistId || '').trim();
     const existing = readSetlists().find((item) => item.id === targetId);
@@ -652,6 +656,7 @@
     removeSongFromSetlist,
     reorderSetlistSongs,
     renameSetlist,
+    setShared,
     deleteSetlist,
     ensureReady,
     syncWithCloud
