@@ -339,7 +339,30 @@ function setupChordProLivePreview() {
     const text = normalizeTextBlock(chordProInput.value || '');
 
     try {
-      renderChordWikiLike(text, previewPaneContentEl);
+      const info = renderChordWikiLike(text, previewPaneContentEl);
+      if (info.title || info.subtitle || info.key) {
+        const header = document.createElement('div');
+        header.className = 'preview-song-header';
+        if (info.title) {
+          const h = document.createElement('div');
+          h.className = 'preview-song-title';
+          h.textContent = info.title;
+          header.appendChild(h);
+        }
+        if (info.subtitle) {
+          const s = document.createElement('div');
+          s.className = 'preview-song-subtitle';
+          s.textContent = info.subtitle;
+          header.appendChild(s);
+        }
+        if (info.key) {
+          const k = document.createElement('div');
+          k.className = 'preview-song-key';
+          k.textContent = 'Key: ' + info.key;
+          header.appendChild(k);
+        }
+        previewPaneContentEl.insertBefore(header, previewPaneContentEl.firstChild);
+      }
       showPreviewPaneOnce();
       syncPreviewPaneHeight();
     } catch (error) {
@@ -398,6 +421,77 @@ function setupChordProLivePreview() {
   chordProInput.addEventListener('input', () => {
     triggerChordProPreview({ immediate: false });
   });
+
+  // Ctrl+wheel: change font size of textarea and preview independently
+  const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
+  let editorFontIdx = FONT_SIZES.indexOf(13);   // default 13px
+  let previewFontIdx = FONT_SIZES.indexOf(14);  // default 14px
+
+  const applyEditorFontSize = () => {
+    chordProInput.style.fontSize = FONT_SIZES[editorFontIdx] + 'px';
+  };
+  const applyPreviewFontSize = () => {
+    previewPaneContentEl.style.fontSize = FONT_SIZES[previewFontIdx] + 'px';
+  };
+
+  chordProInput.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    if (e.deltaY < 0) editorFontIdx = Math.min(editorFontIdx + 1, FONT_SIZES.length - 1);
+    else editorFontIdx = Math.max(editorFontIdx - 1, 0);
+    applyEditorFontSize();
+  }, { passive: false });
+
+  previewPaneContentEl.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
+    e.preventDefault();
+    if (e.deltaY < 0) previewFontIdx = Math.min(previewFontIdx + 1, FONT_SIZES.length - 1);
+    else previewFontIdx = Math.max(previewFontIdx - 1, 0);
+    applyPreviewFontSize();
+  }, { passive: false });
+}
+
+// Resizer: drag to adjust editor/preview width ratio
+function setupEditorResizer() {
+  const wrapper = document.querySelector('.editor-preview-wrapper');
+  const editorPane = document.querySelector('.editor-pane');
+  const previewPane = document.querySelector('.preview-pane');
+  const resizer = document.getElementById('editor-resizer');
+  if (!wrapper || !editorPane || !previewPane || !resizer) return;
+
+  let isDragging = false;
+  let startX = 0;
+  let startEditorW = 0;
+  let startPreviewW = 0;
+
+  resizer.addEventListener('mousedown', (e) => {
+    isDragging = true;
+    startX = e.clientX;
+    startEditorW = editorPane.getBoundingClientRect().width;
+    startPreviewW = previewPane.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const total = startEditorW + startPreviewW;
+    const newEditorW = Math.max(200, Math.min(startEditorW + dx, total - 200));
+    const newPreviewW = total - newEditorW;
+    editorPane.style.flex = `0 0 ${newEditorW}px`;
+    previewPane.style.flex = `0 0 ${newPreviewW}px`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -409,6 +503,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   cancelButton.addEventListener('click', handleCancel);
   formEl.addEventListener('submit', handleSubmit);
   setupChordProLivePreview();
+  setupEditorResizer();
 
   if (state.mode === 'edit') {
     await loadSongForEdit();

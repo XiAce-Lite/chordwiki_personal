@@ -160,6 +160,7 @@
 
     #chordPro {
       min-height: 320px;
+      font-size: 13px;
       font-family: "メイリオ", "Meiryo", MeiryoFont, sans-serif !important;
     }
 
@@ -178,9 +179,38 @@
 
     .editor-preview-wrapper {
       display: flex;
-      gap: 14px;
+      gap: 0;
       margin-top: 10px;
       align-items: stretch;
+    }
+
+    .editor-resizer {
+      flex: 0 0 10px;
+      cursor: col-resize;
+      background: transparent;
+      position: relative;
+      z-index: 1;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .editor-resizer::after {
+      content: '';
+      display: block;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 4px;
+      border-radius: 2px;
+      background: #cfd8e3;
+      transition: background 0.15s;
+    }
+
+    .editor-resizer:hover::after,
+    .editor-resizer.dragging::after {
+      background: #0078d4;
     }
 
     .editor-pane,
@@ -235,22 +265,100 @@
       padding: 10px;
     }
 
-    .preview-content .line,
-    .preview-content .comment {
+    .preview-content .preview-song-header {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #dce8f5;
+    }
+
+    .preview-content .preview-song-title {
+      font-family: "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", "Noto Sans JP", "Segoe UI", sans-serif;
+      font-size: clamp(1.1rem, 0.95rem + 0.5vw, 1.4rem);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.01em;
+      text-align: center;
+      white-space: normal;
+      word-break: break-word;
       margin: 0;
+      color: #222;
+    }
+
+    .preview-content .preview-song-subtitle {
+      font-size: 12px;
+      text-align: center;
+      color: #333;
+      margin-top: 4px;
+    }
+
+    .preview-content .preview-song-key {
+      display: block;
+      font-size: var(--song-text-size, 14px);
+      font-weight: 700;
+      color: #dc143c;
+      text-align: left;
+      margin: 6px 0 14px;
+    }
+
+    .preview-content .line {
+      position: relative;
+      padding-top: 1.6em;
+      margin: 0 0 0.4em;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .preview-content .comment {
+      display: block;
+      margin-top: 0.4em;
+      margin-bottom: 1.2em;
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .preview-content .comment .comment-body {
+      display: inline-block;
+      max-width: 100%;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background-color: #e6e6e6;
+      box-sizing: border-box;
+      white-space: pre-wrap;
+      font-weight: 700;
+      color: #444;
+    }
+
+    .preview-content .comment.ci .comment-body {
+      font-style: italic;
     }
 
     .preview-content .line.blank {
-      min-height: 1.2em;
+      padding-top: 0;
+      min-height: 0.8em;
+      margin-bottom: 0.6em;
     }
 
     .preview-content .chord {
-      color: #0b65c2;
+      display: inline-block;
+      position: relative;
+      top: -1.5em;
+      font-size: 12px;
       font-weight: 700;
+      line-height: 1;
+      color: #0b65c2;
       white-space: pre;
+      vertical-align: baseline;
+      margin-right: 0.2em;
+    }
+
+    .preview-content .chord sup {
+      font-size: 0.78em;
+      line-height: 1;
+      vertical-align: super;
     }
 
     .preview-content .word,
@@ -258,13 +366,7 @@
       white-space: pre-wrap;
     }
 
-    .preview-content .comment {
-      color: #607080;
-    }
 
-    .preview-content .comment.ci {
-      font-style: italic;
-    }
 
     .preview-content .cw-chord-affix,
     .preview-content .cw-chord-mid,
@@ -428,6 +530,8 @@
               <textarea id="chordPro" name="chordPro" required></textarea>
             </div>
           </div>
+
+          <div class="editor-resizer" id="editor-resizer" aria-hidden="true"></div>
 
           <div class="preview-pane" aria-hidden="true">
             <div class="preview-reserve">
