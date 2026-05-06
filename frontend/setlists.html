@@ -14,14 +14,14 @@
     <header class="setlists-header">
       <a href="/" class="setlists-home-link">← Top</a>
       <h1 class="setlists-title">セットリスト管理</h1>
-      <button id="setlists-create" type="button" class="cw-button cw-button-primary">+ 新規作成</button>
+      <button id="setlists-create" type="button" class="cw-button cw-button-primary editor-only">+ 新規作成</button>
     </header>
 
     <main class="setlists-main">
       <section class="setlists-sidebar">
         <h2 class="setlists-section-title">セットリスト</h2>
         <select id="setlists-selector" class="setlists-select" size="12"></select>
-        <div class="setlists-toolbar">
+        <div class="setlists-toolbar editor-only">
           <button id="setlists-rename" type="button" class="cw-button">名前を保存</button>
           <button id="setlists-delete" type="button" class="cw-button">削除</button>
         </div>
@@ -31,7 +31,7 @@
         <div id="setlists-empty" class="setlists-empty" hidden>
           セットリストがありません
           <div style="margin-top:10px;">
-            <button id="setlists-empty-create" type="button" class="cw-button cw-button-primary">新規セットリストを作成</button>
+            <button id="setlists-empty-create" type="button" class="cw-button cw-button-primary editor-only">新規セットリストを作成</button>
           </div>
         </div>
 
@@ -40,6 +40,12 @@
             <input id="setlists-name" class="setlists-name-input" type="text" maxlength="80" placeholder="セットリスト名">
             <span id="setlists-song-count"></span>
           </div>
+          <div id="setlists-shared-row" class="setlists-shared-row editor-only">
+            <label class="setlists-shared-label">
+              <input id="setlists-shared" type="checkbox">
+              公開する（他のユーザーも閲覧可能）
+            </label>
+          </div>
           <ul id="setlists-song-list" class="setlists-song-list"></ul>
         </div>
       </section>
@@ -47,7 +53,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
-  <script src="js/runtime-config.js?v=20260410-refactor1"></script>
+  <script src=".local/mock-auth.js" onerror="void 0"></script>
+  <script src="js/runtime-config.js?v=20260505-setlists1"></script>
   <script src="js/shared/api.js?v=20260410-refactor1"></script>
   <script src="js/shared/setlists.js?v=20260506-setlistssync1"></script>
   <script src="js/shared/setlist-ui.js?v=20260506-setlistssync1"></script>

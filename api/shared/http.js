@@ -18,6 +18,14 @@ function unauthorized(detail = '') {
   return jsonResponse(401, body);
 }
 
+function forbidden(detail = '') {
+  const body = { error: 'Forbidden' };
+  if (detail) {
+    body.detail = detail;
+  }
+  return jsonResponse(403, body);
+}
+
 function notFound(detail) {
   return jsonResponse(404, { error: 'NotFound', detail });
 }
@@ -45,6 +53,7 @@ module.exports = {
   jsonResponse,
   badRequest,
   unauthorized,
+  forbidden,
   notFound,
   methodNotAllowed,
   serverConfigError,

@@ -45,6 +45,22 @@ function getOwnerId(req) {
   }
 }
 
+function hasEditorRole(req) {
+  const rawPrincipal = getHeaderValue(req, 'x-ms-client-principal');
+  if (!rawPrincipal) {
+    return false;
+  }
+
+  try {
+    const principal = decodeClientPrincipal(rawPrincipal);
+    const roles = Array.isArray(principal?.userRoles) ? principal.userRoles : [];
+    return roles.includes('editor');
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
-  getOwnerId
+  getOwnerId,
+  hasEditorRole
 };

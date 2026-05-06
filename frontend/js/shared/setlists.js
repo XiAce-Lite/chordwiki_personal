@@ -45,6 +45,7 @@
       userId,
       name,
       songs,
+      isShared: raw.isShared === true,
       createdAt: Number.isFinite(createdAt) ? createdAt : now(),
       updatedAt: Number.isFinite(updatedAt) ? updatedAt : now()
     };

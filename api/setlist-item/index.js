@@ -1,11 +1,12 @@
 const { getContainer } = require('../shared/cosmos');
 const {
   badRequest,
+  forbidden,
   jsonResponse,
   methodNotAllowed,
   internalServerError
 } = require('../shared/http');
-const { resolveAuthorizedOwnerContext } = require('../shared/request-context');
+const { getOwnerId, hasEditorRole } = require('../shared/auth');
 
 const container = getContainer(
   process.env.COSMOS_DB_NAME || 'ChordWiki',
@@ -26,10 +27,12 @@ function normalizeSongIds(songIds) {
     .filter(Boolean);
 }
 
-function normalizeSetlistPayload(id, body, userId, existingCreatedAt) {
+function normalizeSetlistPayload(id, body, userId, existingCreatedAt, existingIsShared) {
   const source = body && typeof body === 'object' ? body : {};
   const name = String(source.name || '').trim();
   const createdAt = Number(source.createdAt);
+  // isShared が body に含まれている場合はそれを使用、なければ既存値を引き継ぐ
+  const isShared = 'isShared' in source ? source.isShared === true : Boolean(existingIsShared);
 
   if (!id) {
     return { error: 'id is required.' };
@@ -44,6 +47,7 @@ function normalizeSetlistPayload(id, body, userId, existingCreatedAt) {
     userId,
     name,
     songs: normalizeSongIds(source.songs),
+    isShared,
     createdAt: Number.isFinite(createdAt)
       ? createdAt
       : (Number.isFinite(existingCreatedAt) ? existingCreatedAt : now()),
@@ -59,16 +63,18 @@ async function handlePut(context, req, ownerId) {
   }
 
   let existingCreatedAt = NaN;
+  let existingIsShared = false;
   try {
     const { resource } = await container.item(id, ownerId).read();
     existingCreatedAt = Number(resource?.createdAt);
+    existingIsShared = resource?.isShared === true;
   } catch (error) {
     if (error?.code !== 404) {
       throw error;
     }
   }
 
-  const normalized = normalizeSetlistPayload(id, req.body, ownerId, existingCreatedAt);
+  const normalized = normalizeSetlistPayload(id, req.body, ownerId, existingCreatedAt, existingIsShared);
   if (normalized.error) {
     context.res = badRequest(normalized.error);
     return;
@@ -103,21 +109,30 @@ async function handleDelete(context, ownerId) {
 }
 
 module.exports = async function (context, req) {
-  const requestContext = resolveAuthorizedOwnerContext(context, req, container, {
-    serverConfigDetail: 'Missing Cosmos DB configuration for setlists.'
-  });
-  if (!requestContext) {
+  const ownerId = getOwnerId(req);
+  if (!ownerId) {
+    context.res = jsonResponse(401, { error: 'Unauthorized' });
+    return;
+  }
+
+  if (!hasEditorRole(req)) {
+    context.res = forbidden('セットリストの編集には編集権限が必要です。');
+    return;
+  }
+
+  if (!container) {
+    context.res = internalServerError('Missing Cosmos DB configuration for setlists.');
     return;
   }
 
   try {
     if (req.method === 'PUT') {
-      await handlePut(context, req, requestContext.ownerId);
+      await handlePut(context, req, ownerId);
       return;
     }
 
     if (req.method === 'DELETE') {
-      await handleDelete(context, requestContext.ownerId);
+      await handleDelete(context, ownerId);
       return;
     }
 

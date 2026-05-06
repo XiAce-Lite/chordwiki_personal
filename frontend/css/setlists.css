@@ -418,3 +418,32 @@
     min-width: 240px;
   }
 }
+
+/* ===== Editor-only visibility ===== */
+.editor-only {
+  display: none;
+}
+
+html.editor-enabled .editor-only {
+  display: revert;
+}
+
+/* ===== isShared toggle row ===== */
+.setlists-shared-row {
+  padding: 6px 0 4px;
+}
+
+.setlists-shared-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.setlists-shared-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}

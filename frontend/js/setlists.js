@@ -13,13 +13,15 @@
   const emptyCreateButtonEl = document.getElementById('setlists-empty-create');
   const renameButtonEl = document.getElementById('setlists-rename');
   const deleteButtonEl = document.getElementById('setlists-delete');
+  const sharedToggleEl = document.getElementById('setlists-shared');
 
   const state = {
     setlists: [],
     selectedId: '',
     songCatalogById: new Map(),
     sortable: null,
-    localCatalogLoaded: false
+    localCatalogLoaded: false,
+    isEditor: false
   };
 
   async function loadLocalCatalogFallback() {
@@ -121,8 +123,7 @@
         });
       });
     } catch (error) {
-      console.error('Failed to load song catalog for setlists page:', error);
-      setlistUi?.showToast('曲カタログの取得に失敗しました', 'warn');
+      console.warn('Failed to load song catalog for setlists page:', error);
       await loadLocalCatalogFallback();
     }
   }
@@ -169,6 +170,10 @@
     nameInputEl.value = selected.name;
     songCountEl.textContent = `${selected.songs.length} 曲`;
 
+    if (sharedToggleEl) {
+      sharedToggleEl.checked = selected.isShared === true;
+    }
+
     if (selected.songs.length === 0) {
       const emptyItem = document.createElement('li');
       emptyItem.className = 'setlists-song-item';
@@ -188,6 +193,10 @@
       handle.className = 'setlists-drag-handle';
       handle.textContent = '≡';
       handle.setAttribute('aria-label', '並び替え');
+      if (!state.isEditor) {
+        handle.style.display = 'none';
+        handle.setAttribute('aria-hidden', 'true');
+      }
 
       const meta = document.createElement('div');
       const titleEl = document.createElement('div');
@@ -216,6 +225,10 @@
       removeButton.className = 'setlists-song-remove';
       removeButton.textContent = '×';
       removeButton.setAttribute('aria-label', '曲を削除');
+      if (!state.isEditor) {
+        removeButton.style.display = 'none';
+        removeButton.setAttribute('aria-hidden', 'true');
+      }
       removeButton.addEventListener('click', () => {
         const updated = setlistStore.removeSongFromSetlist(selected.id, songId);
         if (!updated) {
@@ -343,6 +356,23 @@
     refresh({ keepCatalog: true });
   }
 
+  function handleSharedToggle() {
+    const selected = getSelectedSetlist();
+    if (!selected || !state.isEditor) {
+      return;
+    }
+
+    const nextShared = sharedToggleEl ? sharedToggleEl.checked : false;
+    const updated = setlistStore.updateSetlist(selected.id, () => ({ isShared: nextShared }));
+    if (!updated) {
+      setlistUi?.showToast('公開設定を変更できませんでした', 'error');
+      return;
+    }
+
+    setlistUi?.showToast(nextShared ? 'セットリストを公開しました' : 'セットリストを非公開にしました', 'success');
+    refresh({ keepCatalog: true });
+  }
+
   function bindEvents() {
     selectorEl.addEventListener('change', () => {
       state.selectedId = String(selectorEl.value || '').trim();
@@ -361,9 +391,18 @@
     emptyCreateButtonEl.addEventListener('click', handleCreateSetlist);
     renameButtonEl.addEventListener('click', handleRenameSetlist);
     deleteButtonEl.addEventListener('click', handleDeleteSetlist);
+
+    if (sharedToggleEl) {
+      sharedToggleEl.addEventListener('change', handleSharedToggle);
+    }
   }
 
   async function init() {
+    const auth = global.ChordWikiAuth;
+    if (auth) {
+      state.isEditor = await auth.applyRoleVisibility();
+    }
+
     bindEvents();
     await setlistStore.ensureReady?.();
     readSetlists();
