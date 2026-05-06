@@ -317,7 +317,7 @@ function setupChordProLivePreview() {
     window.displayPrefsState = {};
   }
   if (typeof window.displayPrefsState.superscriptEnabled !== 'boolean') {
-    window.displayPrefsState.superscriptEnabled = false;
+    window.displayPrefsState.superscriptEnabled = true;
   }
 
   let debounceTimer = 0;
@@ -341,11 +341,36 @@ function setupChordProLivePreview() {
     try {
       renderChordWikiLike(text, previewPaneContentEl);
       showPreviewPaneOnce();
+      syncPreviewPaneHeight();
     } catch (error) {
       showPreviewPaneOnce();
       const detail = String(error?.message || error || 'プレビューの描画に失敗しました。');
       previewPaneContentEl.innerHTML = `<div style="color:red; white-space:pre;">${detail}</div>`;
+      syncPreviewPaneHeight();
     }
+  };
+
+  const syncPreviewPaneHeight = () => {
+    if (state.mode !== 'edit') {
+      chordProInput.style.height = '';
+      previewPaneContentEl.style.height = '';
+      return;
+    }
+
+    if (window.innerWidth <= 900) {
+      chordProInput.style.height = '';
+      previewPaneContentEl.style.height = '';
+      return;
+    }
+
+    chordProInput.style.height = '';
+    previewPaneContentEl.style.height = '';
+
+    const targetHeight = Math.max(chordProInput.scrollHeight, previewPaneContentEl.scrollHeight, 360);
+    const cappedHeight = Math.min(targetHeight, Math.floor(window.innerHeight * 0.56));
+
+    chordProInput.style.height = `${cappedHeight}px`;
+    previewPaneContentEl.style.height = `${cappedHeight}px`;
   };
 
   const schedulePreview = () => {
