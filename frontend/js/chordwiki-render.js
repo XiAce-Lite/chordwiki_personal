@@ -67,6 +67,37 @@ function createSpan(className, text) {
   return s;
 }
 
+const VOICE_MARKER_PATTERN = /[\u2660\u2663\u2665\u2666]/u; // ♠♣♥♦
+const VOICE_MARKER_CLASS_MAP = Object.freeze({
+  '\u2660': 'male',
+  '\u2663': 'male2',
+  '\u2665': 'female',
+  '\u2666': 'female2'
+});
+
+function applyVoiceMarkers(spanEl) {
+  const raw = String(spanEl.textContent || '');
+  if (!VOICE_MARKER_PATTERN.test(raw)) {
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const ch of raw) {
+    const cls = VOICE_MARKER_CLASS_MAP[ch];
+    if (cls) {
+      const marker = document.createElement('span');
+      marker.className = cls;
+      marker.textContent = ch;
+      fragment.appendChild(marker);
+    } else {
+      fragment.appendChild(document.createTextNode(ch));
+    }
+  }
+
+  spanEl.textContent = '';
+  spanEl.appendChild(fragment);
+}
+
 /**
  * ChordWiki互換: tokenize では `chord` と `word` だけを作る。
  * `wordtop` は render 時に、行頭の最初の歌詞 span にのみ後付けする。
@@ -117,6 +148,7 @@ function renderCommentLine(text, containerEl, isItalic = false) {
   p.className = isItalic ? "comment ci" : "comment";
 
   const body = createSpan("comment-body", text || "");
+  applyVoiceMarkers(body);
   p.appendChild(body);
   containerEl.appendChild(p);
 }
@@ -142,6 +174,7 @@ function renderLyricsLine(tokens, containerEl, options = {}) {
       }
     } else {
       span.textContent = token.text || "";
+      applyVoiceMarkers(span);
     }
     p.appendChild(span);
   }
