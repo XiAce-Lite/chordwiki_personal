@@ -365,6 +365,7 @@
 
   async function init() {
     bindEvents();
+    await setlistStore.ensureReady?.();
     readSetlists();
     renderSelector();
     renderEmptyState();

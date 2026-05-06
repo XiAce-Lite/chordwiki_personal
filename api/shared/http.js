@@ -10,8 +10,24 @@ function badRequest(detail) {
   return jsonResponse(400, { error: 'BadRequest', detail });
 }
 
+function unauthorized(detail = '') {
+  const body = { error: 'Unauthorized' };
+  if (detail) {
+    body.detail = detail;
+  }
+  return jsonResponse(401, body);
+}
+
 function notFound(detail) {
   return jsonResponse(404, { error: 'NotFound', detail });
+}
+
+function methodNotAllowed(detail = '') {
+  const body = { error: 'MethodNotAllowed' };
+  if (detail) {
+    body.detail = detail;
+  }
+  return jsonResponse(405, body);
 }
 
 function serverConfigError(detail = 'Missing COSMOS_ENDPOINT or COSMOS_KEY.') {
@@ -28,7 +44,9 @@ function internalServerError(error) {
 module.exports = {
   jsonResponse,
   badRequest,
+  unauthorized,
   notFound,
+  methodNotAllowed,
   serverConfigError,
   internalServerError
 };

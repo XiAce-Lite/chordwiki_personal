@@ -122,12 +122,14 @@
     input.focus();
   }
 
-  function openSetlistSelectionModal(song, { onDone } = {}) {
+  async function openSetlistSelectionModal(song, { onDone } = {}) {
     const songId = String(song?.id || '').trim();
     if (!songId) {
       showToast('曲IDが不正です。', 'error');
       return;
     }
+
+    await setlistStore.ensureReady?.();
 
     const setlists = setlistStore.readSetlists();
 
@@ -218,7 +220,8 @@
       toggleButton.setAttribute('aria-expanded', 'false');
     };
 
-    const renderPanel = () => {
+    const renderPanel = async () => {
+      await setlistStore.ensureReady?.();
       const setlists = setlistStore.readSetlists();
       panel.innerHTML = '';
 
@@ -237,7 +240,7 @@
             const result = setlistStore.addSongToSetlist(setlist.id, songId);
             if (result.ok) {
               showToast('セットリストに曲を追加しました', 'success');
-              renderPanel();
+              void renderPanel();
               return;
             }
 
@@ -262,7 +265,7 @@
             const result = setlistStore.addSongToSetlist(createdSetlist.id, songId);
             if (result.ok) {
               showToast('セットリストを作成し、曲を追加しました', 'success');
-              renderPanel();
+              void renderPanel();
             }
           }
         });
@@ -270,14 +273,14 @@
       panel.appendChild(createButton);
     };
 
-    toggleButton.addEventListener('click', () => {
+    toggleButton.addEventListener('click', async () => {
       const isOpen = !panel.hidden;
       if (isOpen) {
         closePanel();
         return;
       }
 
-      renderPanel();
+      await renderPanel();
       panel.hidden = false;
       toggleButton.setAttribute('aria-expanded', 'true');
     });
