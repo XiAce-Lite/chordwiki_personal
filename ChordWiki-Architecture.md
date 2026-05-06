@@ -149,7 +149,7 @@
   - `COSMOS_ENDPOINT`
   - `COSMOS_KEY`
   - `COSMOS_DB_NAME`（既定値: `ChordWiki`）
-  - `COSMOS_DB_CONTAINER`（既定値: `Songs`）
+  - `COSMOS_DB_CONTAINER_SONGS`（既定値: `Songs`）
 
 ### 3.3 Azure Cosmos DB（Core SQL / Free Tier 想定）
 
