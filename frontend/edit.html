@@ -72,6 +72,18 @@
       margin-bottom: 8px;
     }
 
+    .form-top-pane {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+
+    .form-top-left,
+    .form-top-right {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+
     .form-top-pane .field.inline-field {
       display: grid;
       grid-template-columns: 180px minmax(0, 1fr);
@@ -81,6 +93,14 @@
 
     .form-top-pane .field.inline-field > label {
       margin-bottom: 0;
+    }
+
+    .form-top-pane .field.inline-field.top-aligned {
+      align-items: flex-start;
+    }
+
+    .form-top-pane .field.inline-field.top-aligned > label {
+      padding-top: 10px;
     }
 
     label {
@@ -207,9 +227,22 @@
       .form-top-pane .field.inline-field {
         grid-template-columns: 150px minmax(0, 1fr);
       }
+
+      .form-top-pane {
+        gap: 12px;
+      }
     }
 
     @media (max-width: 900px) {
+      .form-top-pane {
+        display: block;
+      }
+
+      .form-top-left,
+      .form-top-right {
+        width: 100%;
+      }
+
       .form-top-pane .field.inline-field {
         display: block;
       }
@@ -289,40 +322,44 @@
       <div id="loading" class="loading">初期化しています...</div>
 
       <form id="song-form" hidden novalidate>
-        <div class="field">
-          <label for="song-id">ID<span class="hint">edit時は固定</span></label>
-          <input type="text" id="song-id" name="id" readonly>
-        </div>
-
         <div class="form-top-pane">
-          <div class="field inline-field">
-            <label for="title">曲名</label>
-            <input type="text" id="title" name="title" required>
+          <div class="form-top-left">
+            <div class="field inline-field">
+              <label for="song-id">ID<span class="hint">edit時は固定</span></label>
+              <input type="text" id="song-id" name="id" readonly>
+            </div>
+
+            <div class="field inline-field">
+              <label for="title">曲名</label>
+              <input type="text" id="title" name="title" required>
+            </div>
+
+            <div class="field inline-field">
+              <label for="artist">アーティスト</label>
+              <input type="text" id="artist" name="artist" required>
+            </div>
+
+            <div class="field inline-field">
+              <label for="slug">URL用ID</label>
+              <input type="text" id="slug" name="slug" required>
+            </div>
           </div>
 
-          <div class="field inline-field">
-            <label for="artist">アーティスト</label>
-            <input type="text" id="artist" name="artist" required>
-          </div>
+          <div class="form-top-right">
+            <div class="field inline-field top-aligned">
+              <label for="tags">タグ<span class="hint">任意 / 1行に1タグ</span></label>
+              <textarea id="tags" name="tags" rows="3" placeholder="pop&#10;live"></textarea>
+            </div>
 
-          <div class="field inline-field">
-            <label for="slug">URL用ID</label>
-            <input type="text" id="slug" name="slug" required>
-          </div>
-
-          <div class="field inline-field">
-            <label for="tags">タグ<span class="hint">任意 / 1行に1タグ</span></label>
-            <textarea id="tags" name="tags" rows="3" placeholder="pop&#10;live"></textarea>
-          </div>
-
-          <div class="field inline-field">
-            <label for="youtube">YouTube<span class="hint">任意 / 1行に1動画</span></label>
-            <div class="youtube-control">
-              <div class="youtube-meta">
-                <span class="youtube-prefix">https://www.youtube.com/watch?v=</span>
-                <span class="youtube-help">例：kZZstk3dGvQ?t=42 または kZZstk3dGvQ start=42</span>
+            <div class="field inline-field top-aligned">
+              <label for="youtube">YouTube<span class="hint">任意 / 1行に1動画</span></label>
+              <div class="youtube-control">
+                <div class="youtube-meta">
+                  <span class="youtube-prefix">https://www.youtube.com/watch?v=</span>
+                  <span class="youtube-help">例：kZZstk3dGvQ?t=42 または kZZstk3dGvQ start=42</span>
+                </div>
+                <textarea id="youtube" name="youtube" rows="3" placeholder="kZZstk3dGvQ&#10;kZZstk3dGvQ?t=42&#10;https://youtu.be/dQw4w9WgXcQ?t=0"></textarea>
               </div>
-              <textarea id="youtube" name="youtube" rows="3" placeholder="kZZstk3dGvQ&#10;kZZstk3dGvQ?t=42&#10;https://youtu.be/dQw4w9WgXcQ?t=0"></textarea>
             </div>
           </div>
         </div>
