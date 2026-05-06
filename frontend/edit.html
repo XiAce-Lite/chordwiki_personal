@@ -232,26 +232,10 @@
       margin-bottom: 6px;
     }
 
-    .preview-reserve {
-      margin-top: 0;
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      padding: 0;
-    }
-
-    .preview-reserve-title {
-      font-size: 12px;
+    .preview-pane-label {
       color: #607080;
       margin-bottom: 8px;
       font-weight: 700;
-    }
-
-    .preview-reserve-body {
-      min-height: 360px;
-      border: 1px dashed #cfd8e3;
-      border-radius: 6px;
-      background: #fff;
     }
 
     .preview-content {
@@ -263,6 +247,7 @@
       overflow-y: auto;
       box-sizing: border-box;
       padding: 10px;
+      font-size: 13px;
     }
 
     .preview-content .preview-song-header {
@@ -273,7 +258,7 @@
 
     .preview-content .preview-song-title {
       font-family: "Hiragino Sans", "BIZ UDPGothic", "Yu Gothic UI", "Noto Sans JP", "Segoe UI", sans-serif;
-      font-size: clamp(1.1rem, 0.95rem + 0.5vw, 1.4rem);
+      font-size: 1.4em;
       font-weight: 700;
       line-height: 1.2;
       letter-spacing: 0.01em;
@@ -285,7 +270,7 @@
     }
 
     .preview-content .preview-song-subtitle {
-      font-size: 12px;
+      font-size: 0.9em;
       text-align: center;
       color: #333;
       margin-top: 4px;
@@ -293,7 +278,7 @@
 
     .preview-content .preview-song-key {
       display: block;
-      font-size: var(--song-text-size, 14px);
+      font-size: inherit;
       font-weight: 700;
       color: #dc143c;
       text-align: left;
@@ -307,7 +292,6 @@
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.5;
-      font-size: 14px;
     }
 
     .preview-content .comment {
@@ -317,7 +301,6 @@
       white-space: pre-wrap;
       word-break: break-word;
       line-height: 1.6;
-      font-size: 14px;
     }
 
     .preview-content .comment .comment-body {
@@ -346,7 +329,7 @@
       display: inline-block;
       position: relative;
       top: -1.5em;
-      font-size: 12px;
+      font-size: 0.9em;
       font-weight: 700;
       line-height: 1;
       color: #0b65c2;
@@ -534,11 +517,8 @@
           <div class="editor-resizer" id="editor-resizer" aria-hidden="true"></div>
 
           <div class="preview-pane" aria-hidden="true">
-            <div class="preview-reserve">
-              <div class="preview-reserve-title">プレビュー</div>
-              <div class="preview-reserve-body"></div>
-            </div>
-            <div id="preview-pane-content" class="preview-content" hidden></div>
+            <div class="preview-pane-label">プレビュー</div>
+            <div id="preview-pane-content" class="preview-content"></div>
           </div>
         </div>
 

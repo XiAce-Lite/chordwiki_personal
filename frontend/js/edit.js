@@ -321,52 +321,40 @@ function setupChordProLivePreview() {
   }
 
   let debounceTimer = 0;
-  let hasShownPreview = false;
-
-  const showPreviewPaneOnce = () => {
-    if (hasShownPreview) {
-      return;
-    }
-
-    hasShownPreview = true;
-    if (previewReserveEl) {
-      previewReserveEl.hidden = true;
-    }
-    previewPaneContentEl.hidden = false;
-  };
 
   const renderPreview = () => {
     const text = normalizeTextBlock(chordProInput.value || '');
 
     try {
       const info = renderChordWikiLike(text, previewPaneContentEl);
-      if (info.title || info.subtitle || info.key) {
+      const displayTitle = info.title || (titleInput ? titleInput.value.trim() : '');
+      const displaySubtitle = info.subtitle || '';
+      const displayKey = info.key || '';
+      if (displayTitle || displaySubtitle || displayKey) {
         const header = document.createElement('div');
         header.className = 'preview-song-header';
-        if (info.title) {
+        if (displayTitle) {
           const h = document.createElement('div');
           h.className = 'preview-song-title';
-          h.textContent = info.title;
+          h.textContent = displayTitle;
           header.appendChild(h);
         }
-        if (info.subtitle) {
+        if (displaySubtitle) {
           const s = document.createElement('div');
           s.className = 'preview-song-subtitle';
-          s.textContent = info.subtitle;
+          s.textContent = displaySubtitle;
           header.appendChild(s);
         }
-        if (info.key) {
+        if (displayKey) {
           const k = document.createElement('div');
           k.className = 'preview-song-key';
-          k.textContent = 'Key: ' + info.key;
+          k.textContent = 'Key: ' + displayKey;
           header.appendChild(k);
         }
         previewPaneContentEl.insertBefore(header, previewPaneContentEl.firstChild);
       }
-      showPreviewPaneOnce();
       syncPreviewPaneHeight();
     } catch (error) {
-      showPreviewPaneOnce();
       const detail = String(error?.message || error || 'プレビューの描画に失敗しました。');
       previewPaneContentEl.innerHTML = `<div style="color:red; white-space:pre;">${detail}</div>`;
       syncPreviewPaneHeight();
@@ -422,10 +410,16 @@ function setupChordProLivePreview() {
     triggerChordProPreview({ immediate: false });
   });
 
+  if (titleInput) {
+    titleInput.addEventListener('input', () => {
+      triggerChordProPreview({ immediate: false });
+    });
+  }
+
   // Ctrl+wheel: change font size of textarea and preview independently
   const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
   let editorFontIdx = FONT_SIZES.indexOf(13);   // default 13px
-  let previewFontIdx = FONT_SIZES.indexOf(14);  // default 14px
+  let previewFontIdx = FONT_SIZES.indexOf(13);  // default 13px (match textarea)
 
   const applyEditorFontSize = () => {
     chordProInput.style.fontSize = FONT_SIZES[editorFontIdx] + 'px';
