@@ -37,20 +37,12 @@ import {
 import {
   HighlightStyle,
   syntaxHighlighting,
-  Language,
-  defineLanguageFacet,
-  languageDataProp,
+  StreamLanguage,
 } from 'https://cdn.jsdelivr.net/npm/@codemirror/language@6/+esm';
 
 import {
   Tag,
-  tags,
-  styleTags,
 } from 'https://cdn.jsdelivr.net/npm/@lezer/highlight@1/+esm';
-
-import {
-  parser as buildParser,
-} from 'https://cdn.jsdelivr.net/npm/@lezer/lr@1/+esm';
 
 /* ====================================================================
    1. MIDI ルート音カラーテーブル (editor-highlight.js と同じ定義)
@@ -120,10 +112,6 @@ const chordProHighlightStyle = HighlightStyle.define([
   ...T.bass.map((t, i) => ({ tag: t, color: MIDI_COLORS[i], fontWeight: 'bold' })),
 ]);
 
-/* ====================================================================
-   4. パーサー: @lezer/lr なしで直接 StreamParser を使う
-   ==================================================================== */
-import { StreamLanguage } from 'https://cdn.jsdelivr.net/npm/@codemirror/language@6/+esm';
 
 const ROOT_RE = /^([A-G][b#]?)/;
 
