@@ -142,7 +142,8 @@
       const option = document.createElement('option');
       option.value = setlist.id;
       option.selected = setlist.id === state.selectedId;
-      option.textContent = `${setlist.name} (${setlist.songs.length}曲)`;
+      const badge = setlistStore.isOwnedByActiveUser(setlist) ? '' : '[共有] ';
+      option.textContent = `${badge}${setlist.name} (${setlist.songs.length}曲)`;
       selectorEl.appendChild(option);
     });
   }
@@ -199,6 +200,7 @@
       }
 
       const meta = document.createElement('div');
+      meta.className = 'setlists-song-meta';
       const titleEl = document.createElement('div');
       titleEl.className = 'setlists-song-title';
 

@@ -355,8 +355,7 @@
 }
 
 .setlists-song-item {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #edf2f7;
@@ -369,11 +368,17 @@
 }
 
 .setlists-drag-handle {
+  flex: 0 0 24px;
   border: 0;
   background: transparent;
   font-size: 16px;
   color: #5d738a;
   cursor: grab;
+}
+
+.setlists-song-meta {
+  flex: 1;
+  min-width: 0;
 }
 
 .setlists-song-title {

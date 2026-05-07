@@ -115,11 +115,22 @@
   }
 
   function writeAllSetlists(setlists) {
-    const normalized = Array.isArray(setlists)
-      ? sortByUpdatedAtDesc(setlists.map((item) => normalizeSetlist(item)).filter(Boolean))
-      : [];
+    const byId = new Map();
+    if (Array.isArray(setlists)) {
+      for (const raw of setlists) {
+        const item = normalizeSetlist(raw);
+        if (!item) {
+          continue;
+        }
 
-    return writeStorageArray(STORAGE_KEY, normalized);
+        const existing = byId.get(item.id);
+        if (!existing || item.updatedAt >= existing.updatedAt) {
+          byId.set(item.id, item);
+        }
+      }
+    }
+
+    return writeStorageArray(STORAGE_KEY, sortByUpdatedAtDesc([...byId.values()]));
   }
 
   function writeAllPendingDeletions(deletions) {
@@ -693,6 +704,7 @@
     setShared,
     deleteSetlist,
     ensureReady,
-    syncWithCloud
+    syncWithCloud,
+    isOwnedByActiveUser
   });
 })(window);
