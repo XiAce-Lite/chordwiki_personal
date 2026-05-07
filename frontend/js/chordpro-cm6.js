@@ -261,7 +261,10 @@ for (let i = 0; i < 12; i++) {
   tokenTagMap[`bass-${i}`] = T.bass[i];
 }
 
-const chordProLanguage = StreamLanguage.define(chordProStreamParser);
+const chordProLanguage = StreamLanguage.define({
+  ...chordProStreamParser,
+  tokenTable: tokenTagMap,
+});
 
 /* ====================================================================
    5. キーマップ: [ → [] 補完、{ → {} 補完、a-g 大文字変換
@@ -391,7 +394,7 @@ const chordProKeymap = [
 const chordProTheme = EditorView.theme({
   '&': {
     fontSize: '13px',
-    fontFamily: '"Cascadia Code", "Cascadia Mono", "Consolas", "MS Gothic", "ＭＳ ゴシック", monospace',
+    fontFamily: '"メイリオ", Meiryo, "MS Gothic", "ＭＳ ゴシック", monospace',
     borderRadius: '8px',
     border: '1px solid #cfd8e3',
     background: '#fff',
@@ -413,6 +416,7 @@ const chordProTheme = EditorView.theme({
   '.cm-scroller': {
     overflow: 'auto',
     fontFamily: 'inherit',
+    maxHeight: '70vh',
   },
   '.cm-activeLine': {
     backgroundColor: '#f0f7ff',
