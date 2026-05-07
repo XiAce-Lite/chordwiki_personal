@@ -138,6 +138,32 @@
     return sortByUpdatedAtDesc(filterUserScopedItems(readAllPendingDeletions(), userId));
   }
 
+  function getVisibleSetlists(userId = activeUserId) {
+    const targetUserId = String(userId || '').trim();
+    return sortByUpdatedAtDesc(readAllSetlists().filter((item) => {
+      const itemUserId = String(item?.userId || '').trim();
+      const isShared = item?.isShared === true;
+
+      if (isShared) {
+        return true;
+      }
+
+      if (!targetUserId) {
+        return !itemUserId;
+      }
+
+      return !itemUserId || itemUserId === targetUserId;
+    }));
+  }
+
+  function isOwnedByActiveUser(setlist) {
+    const itemUserId = String(setlist?.userId || '').trim();
+    if (!itemUserId) {
+      return true;
+    }
+    return itemUserId === String(activeUserId || '').trim();
+  }
+
   function writeScopedSetlists(userId, setlists) {
     const targetUserId = String(userId || '').trim();
     const retained = readAllSetlists().filter((item) => {
@@ -173,7 +199,7 @@
   }
 
   function readSetlists() {
-    return getScopedSetlists();
+    return getVisibleSetlists();
   }
 
   function writeSetlists(setlists) {
@@ -486,6 +512,10 @@
     }
 
     const current = setlists[index];
+    if (!isOwnedByActiveUser(current)) {
+      return null;
+    }
+
     const next = normalizeSetlist({
       ...current,
       ...(typeof updater === 'function' ? updater(current) : null),
@@ -566,6 +596,10 @@
     const targetId = String(setlistId || '').trim();
     const existing = readSetlists().find((item) => item.id === targetId);
     if (!existing) {
+      return false;
+    }
+
+    if (!isOwnedByActiveUser(existing)) {
       return false;
     }
 
