@@ -35,15 +35,7 @@ import {
   historyKeymap,
 } from '@codemirror/commands';
 
-import {
-  HighlightStyle,
-  syntaxHighlighting,
-  StreamLanguage,
-} from '@codemirror/language';
 
-import {
-  Tag,
-} from '@lezer/highlight';
 
 /* ====================================================================
    1. MIDI ルート音カラーテーブル (editor-highlight.js と同じ定義)
@@ -73,211 +65,10 @@ function rootMidi(root) {
   return ROOT_MIDI[root] ?? -1;
 }
 
-/* ====================================================================
-   2. カスタム Tag 定義
-   ==================================================================== */
-const T = {
-  comment:    Tag.define(),
-  brace:      Tag.define(),
-  directName: Tag.define(),
-  colon:      Tag.define(),
-  directVal:  Tag.define(),
-  bracket:    Tag.define(),
-  // ルート音は MIDI 番号ごとに12種
-  note:       Array.from({length:12}, () => Tag.define()),
-  chord:      Tag.define(),   // サフィックス (m, maj7 など)
-  slash:      Tag.define(),
-  bass:       Array.from({length:12}, () => Tag.define()),  // スラッシュ後ルート
-  barline:    Tag.define(),
-  hyphen:     Tag.define(),
-  lyric:      Tag.define(),   // 歌詞テキスト
-};
-
-/* ====================================================================
-   3. HighlightStyle (Tag → CSS スタイル)
-   ==================================================================== */
-const chordProHighlightStyle = HighlightStyle.define([
-  { tag: T.comment,    color: '#006f00' },
-  { tag: T.brace,      color: '#26af1e', fontWeight: 'bold' },
-  { tag: T.directName, color: '#26af1e', fontWeight: 'bold' },
-  { tag: T.colon,      color: '#802f14', fontWeight: 'bold' },
-  { tag: T.directVal,  color: '#4785bc' },
-  { tag: T.bracket,    color: '#1818ff', fontWeight: 'bold' },
-  { tag: T.chord,      color: '#333',    fontWeight: 'bold' },
-  { tag: T.slash,      color: '#888',    fontWeight: 'bold' },
-  { tag: T.barline,    color: '#00537e', fontWeight: 'bold' },
-  { tag: T.hyphen,     color: '#d9006c', fontWeight: 'bold' },
-  { tag: T.lyric,      color: '#636363' },
-  // ルート音 (note) と ベース音 (bass) - 各 MIDI 番号ごと
-  ...T.note.map((t, i) => ({ tag: t, color: MIDI_COLORS[i], fontWeight: 'bold' })),
-  ...T.bass.map((t, i) => ({ tag: t, color: MIDI_COLORS[i], fontWeight: 'bold' })),
-]);
-
-
 const ROOT_RE = /^([A-G][b#]?)/;
 
-function parseRoot(s) {
-  const m = s.match(ROOT_RE);
-  return m ? { root: m[1], rest: s.slice(m[1].length) } : null;
-}
-
-/**
- * CodeMirror 6 StreamParser for ChordPro
- */
-const chordProStreamParser = {
-  name: 'chordpro',
-  token(stream, state) {
-    // ChordPro の [ ] { } は1行内で完結する → 行頭で状態をリセット
-    // （閉じ括弧なしで行が終わった場合に次行以降が誤状態で再パースされるのを防ぐ）
-    if (stream.sol()) {
-      state.inChord = false;
-      state.inDirective = false;
-      state.afterColon = false;
-      state.lineStart = true;
-    }
-
-    // コメント行 (# で始まる)
-    if (state.lineStart && stream.peek() === '#') {
-      stream.skipToEnd();
-      return 'comment';
-    }
-
-    // ディレクティブ開始 {
-    if (stream.peek() === '{') {
-      state.lineStart = false;
-      stream.next();
-      state.inDirective = true;
-      state.afterColon = false;
-      return 'brace';
-    }
-
-    // ディレクティブ内部
-    if (state.inDirective) {
-      if (stream.peek() === '}') {
-        stream.next();
-        state.inDirective = false;
-        return 'brace';
-      }
-      if (stream.peek() === ':') {
-        stream.next();
-        state.afterColon = true;
-        return 'colon';
-      }
-      if (state.afterColon) {
-        // 値: } まで or 行末まで
-        if (!stream.skipTo('}')) {
-          stream.skipToEnd();
-        }
-        return 'directVal';
-      }
-      // ディレクティブ名: : or } まで
-      if (!stream.match(/^[^:}]+/)) {
-        stream.next();
-      }
-      return 'directName';
-    }
-
-    // コード [ ... ]
-    if (stream.peek() === '[') {
-      state.lineStart = false;
-      stream.next();
-      state.inChord = true;
-      state.chordBuf = '';
-      return 'bracket';
-    }
-
-    if (state.inChord) {
-      if (stream.peek() === ']') {
-        stream.next();
-        state.inChord = false;
-        return 'bracket';
-      }
-      // スラッシュ
-      if (stream.peek() === '/') {
-        stream.next();
-        return 'slash';
-      }
-      // ルート音
-      const rest = stream.string.slice(stream.pos);
-      const m = rest.match(ROOT_RE);
-      if (m) {
-        const root = m[1];
-        const midi = rootMidi(root);
-        stream.pos += root.length;
-        return midi >= 0 ? `note-${midi}` : 'chord';
-      }
-      // サフィックス (] / までの文字)
-      if (!stream.match(/^[^\]/]+/)) {
-        stream.next();
-      }
-      return 'chord';
-    }
-
-    // 小節線 |
-    if (stream.peek() === '|') {
-      state.lineStart = false;
-      stream.next();
-      return 'barline';
-    }
-
-    // ハイフン連続
-    if (stream.peek() === '-') {
-      stream.match(/^-+/);
-      state.lineStart = false;
-      return 'hyphen';
-    }
-
-    // 歌詞テキスト (次の特殊文字まで)
-    if (!stream.match(/^[^{}\[\]|\-#]+/)) {
-      stream.next();
-    }
-    state.lineStart = false;
-    return 'lyric';
-  },
-
-  startState() {
-    return { lineStart: true, inDirective: false, afterColon: false, inChord: false };
-  },
-
-  blankLine(state) {
-    state.lineStart = true;
-    state.inDirective = false;
-    state.afterColon = false;
-    state.inChord = false;
-  },
-
-  indent() { return 0; },
-
-  languageData: {
-    commentTokens: { line: '#' },
-  }
-};
-
-// token 名 → Tag のマッピング
-const tokenTagMap = {
-  comment:    T.comment,
-  brace:      T.brace,
-  directName: T.directName,
-  colon:      T.colon,
-  directVal:  T.directVal,
-  bracket:    T.bracket,
-  chord:      T.chord,
-  slash:      T.slash,
-  barline:    T.barline,
-  hyphen:     T.hyphen,
-  lyric:      T.lyric,
-};
-for (let i = 0; i < 12; i++) {
-  tokenTagMap[`note-${i}`] = T.note[i];
-  tokenTagMap[`bass-${i}`] = T.bass[i];
-}
-
-chordProStreamParser.tokenTable = tokenTagMap;
-
-const chordProLanguage = StreamLanguage.define(chordProStreamParser);
-
 /* ====================================================================
-   4.1 保険: デコレーションで直接着色 (parser依存を回避)
+   2. デコレーションで直接着色
    ==================================================================== */
 // 1行分のデコレーション Range 配列を返す（RangeSetBuilder 不要）
 function buildLineDecorations(lineFrom, text) {
@@ -703,8 +494,6 @@ const editableCompartment = new Compartment();
         lineNumbers(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
-        chordProLanguage.extension,
-        syntaxHighlighting(chordProHighlightStyle),
         chordProDecorationPlugin,
         chordProTheme,
         keymap.of([
