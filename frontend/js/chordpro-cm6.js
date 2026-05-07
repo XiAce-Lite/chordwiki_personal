@@ -185,10 +185,9 @@ function buildLineDecorations(lineFrom, text) {
   return ranges;
 }
 
-// 初回フルビルド用
-function buildChordDecorations(view) {
+function buildChordDecorations(state) {
   const builder = new RangeSetBuilder();
-  const doc = view.state.doc;
+  const doc = state.doc;
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
     for (const r of buildLineDecorations(line.from, line.text)) {
@@ -200,62 +199,12 @@ function buildChordDecorations(view) {
 
 const chordProDecorationPlugin = ViewPlugin.fromClass(class {
   constructor(view) {
-    this.decorations = buildChordDecorations(view);
+    this.decorations = buildChordDecorations(view.state);
   }
   update(update) {
-    if (!update.docChanged) return;
-
-    // 既存デコレーションの位置を新ドキュメント座標にマッピング
-    let decos = this.decorations.map(update.changes);
-
-    // 変更された行の範囲を新ドキュメント上で収集
-    const changedLineRanges = [];
-    update.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
-      const doc = update.state.doc;
-      changedLineRanges.push({
-        from: doc.lineAt(fromB).from,
-        to:   doc.lineAt(toB).to,
-      });
-    });
-
-    if (changedLineRanges.length === 0) {
-      this.decorations = decos;
-      return;
+    if (update.docChanged) {
+      this.decorations = buildChordDecorations(update.state);
     }
-
-    // 重複範囲をマージして RangeSet.update 回数を最小化
-    changedLineRanges.sort((a, b) => a.from - b.from);
-    const merged = [{ ...changedLineRanges[0] }];
-    for (let i = 1; i < changedLineRanges.length; i++) {
-      const last = merged[merged.length - 1];
-      if (changedLineRanges[i].from <= last.to + 1) {
-        last.to = Math.max(last.to, changedLineRanges[i].to);
-      } else {
-        merged.push({ ...changedLineRanges[i] });
-      }
-    }
-
-    // 変更範囲のデコレーションのみ差し替え（その他の行は map 済みのものを流用）
-    for (const { from, to } of merged) {
-      const doc = update.state.doc;
-      const startLine = doc.lineAt(from).number;
-      const endLine   = doc.lineAt(to).number;
-
-      const newRanges = [];
-      for (let n = startLine; n <= endLine; n++) {
-        const line = doc.line(n);
-        newRanges.push(...buildLineDecorations(line.from, line.text));
-      }
-
-      decos = decos.update({
-        filterFrom: from,
-        filterTo:   to,
-        filter: () => false,  // 旧デコレーションを除去
-        add: newRanges,       // 新デコレーションを挿入（ソート済み）
-      });
-    }
-
-    this.decorations = decos;
   }
 }, {
   decorations: v => v.decorations,
