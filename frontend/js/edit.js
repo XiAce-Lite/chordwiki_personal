@@ -75,6 +75,8 @@ function setFormDisabled(disabled) {
 
   submitButton.disabled = disabled;
   cancelButton.disabled = disabled;
+  // CM6 エディターの読み取り専用切替
+  window.ChordProEditor?.setDisabled(disabled);
 }
 
 function updatePageMeta() {
@@ -104,7 +106,13 @@ function populateForm(song) {
   artistInput.value = song.artist || '';
   tagsInput.value = Array.isArray(song.tags) ? song.tags.join('\n') : '';
   youtubeInput.value = formatYoutubeEntries(song.youtube);
-  chordProInput.value = normalizeTextBlock(song.chordPro || '');
+  // CM6 が存在する場合は API 経由で値を設定、なければ従来の textarea に設定
+  const text = normalizeTextBlock(song.chordPro || '');
+  if (window.ChordProEditor) {
+    window.ChordProEditor.setValue(text);
+  } else {
+    chordProInput.value = text;
+  }
 }
 
 function initializeAddMode() {
@@ -221,7 +229,9 @@ async function handleSubmit(event) {
   const title = titleInput.value.trim();
   const slug = slugInput.value.trim();
   const artist = artistInput.value.trim();
-  const chordPro = normalizeTextBlock(chordProInput.value).trim();
+  const chordPro = normalizeTextBlock(
+    window.ChordProEditor ? window.ChordProEditor.getValue() : chordProInput.value
+  ).trim();
   const tags = normalizeTagsInput(tagsInput.value);
   const youtubeErrors = validateYoutubeTextarea(youtubeInput.value);
   const youtube = parseYoutubeTextarea(youtubeInput.value);
@@ -310,7 +320,11 @@ function handleCancel() {
 
 // Live preview feature (independent from existing submit/delete flow)
 function setupChordProLivePreview() {
-  if (!chordProInput || !previewPaneContentEl || typeof renderChordWikiLike !== 'function') {
+  if (!previewPaneContentEl || typeof renderChordWikiLike !== 'function') {
+    return;
+  }
+  // CM6 か従来の textarea どちらかが必要
+  if (!window.ChordProEditor && !chordProInput) {
     return;
   }
 
@@ -324,7 +338,10 @@ function setupChordProLivePreview() {
   let debounceTimer = 0;
 
   const renderPreview = () => {
-    const text = normalizeTextBlock(chordProInput.value || '');
+    const rawText = window.ChordProEditor
+      ? window.ChordProEditor.getValue()
+      : (chordProInput ? chordProInput.value : '');
+    const text = normalizeTextBlock(rawText || '');
 
     try {
       const info = renderChordWikiLike(text, previewPaneContentEl);
@@ -363,25 +380,29 @@ function setupChordProLivePreview() {
   };
 
   const syncPreviewPaneHeight = () => {
+    // CM6 エディターの DOM 要素を取得 (なければ従来の textarea)
+    const editorEl = document.getElementById('chordpro-cm6') || chordProInput;
+    if (!editorEl) return;
+
     if (state.mode !== 'edit') {
-      chordProInput.style.height = '';
+      editorEl.style.height = '';
       previewPaneContentEl.style.height = '';
       return;
     }
 
     if (window.innerWidth <= 900) {
-      chordProInput.style.height = '';
+      editorEl.style.height = '';
       previewPaneContentEl.style.height = '';
       return;
     }
 
-    chordProInput.style.height = '';
+    editorEl.style.height = '';
     previewPaneContentEl.style.height = '';
 
-    const targetHeight = Math.max(chordProInput.scrollHeight, previewPaneContentEl.scrollHeight, 360);
+    const targetHeight = Math.max(editorEl.scrollHeight, previewPaneContentEl.scrollHeight, 360);
     const cappedHeight = Math.min(targetHeight, Math.floor(window.innerHeight * 0.56));
 
-    chordProInput.style.height = `${cappedHeight}px`;
+    editorEl.style.height = `${cappedHeight}px`;
     previewPaneContentEl.style.height = `${cappedHeight}px`;
   };
 
@@ -407,9 +428,16 @@ function setupChordProLivePreview() {
     schedulePreview();
   };
 
-  chordProInput.addEventListener('input', () => {
-    triggerChordProPreview({ immediate: false });
-  });
+  // CM6 がある場合は onChange で、なければ従来の input イベントでプレビュー更新
+  if (window.ChordProEditor) {
+    window.ChordProEditor.onChange(() => {
+      triggerChordProPreview({ immediate: false });
+    });
+  } else if (chordProInput) {
+    chordProInput.addEventListener('input', () => {
+      triggerChordProPreview({ immediate: false });
+    });
+  }
 
   if (titleInput) {
     titleInput.addEventListener('input', () => {
@@ -485,12 +513,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   deleteButton.addEventListener('click', handleDelete);
   cancelButton.addEventListener('click', handleCancel);
   formEl.addEventListener('submit', handleSubmit);
-  setupChordProLivePreview();
   setupEditorResizer();
 
-  if (state.mode === 'edit') {
-    await loadSongForEdit();
-  } else {
-    initializeAddMode();
+  // CM6 は type="module" で非同期ロードされるため、
+  // ロード完了を待ってから setupChordProLivePreview を呼ぶ
+  async function waitForCm6AndSetup() {
+    // 最大 5 秒待機 (50ms × 100 回)
+    for (let i = 0; i < 100; i++) {
+      if (window.ChordProEditor) break;
+      await new Promise(r => setTimeout(r, 50));
+    }
+    setupChordProLivePreview();
+
+    if (state.mode === 'edit') {
+      await loadSongForEdit();
+    } else {
+      initializeAddMode();
+    }
   }
+
+  waitForCm6AndSetup();
 });
