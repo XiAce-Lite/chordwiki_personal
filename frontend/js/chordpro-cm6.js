@@ -395,6 +395,7 @@ const chordProTheme = EditorView.theme({
     borderRadius: '8px',
     border: '1px solid #cfd8e3',
     background: '#fff',
+    maxHeight: '70vh',
   },
   '&.cm-focused': {
     outline: '2px solid #3b82f6',
@@ -413,7 +414,6 @@ const chordProTheme = EditorView.theme({
   '.cm-scroller': {
     overflow: 'auto',
     fontFamily: 'inherit',
-    maxHeight: '70vh',
   },
   '.cm-activeLine': {
     backgroundColor: '#f0f7ff',
