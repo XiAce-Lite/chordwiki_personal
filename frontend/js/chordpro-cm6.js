@@ -17,7 +17,6 @@ import {
   ViewPlugin,
   keymap,
   lineNumbers,
-  drawSelection,
   dropCursor,
   highlightActiveLine,
   highlightActiveLineGutter,
@@ -389,7 +388,7 @@ const chordProDecorationPlugin = ViewPlugin.fromClass(class {
     this.decorations = buildChordDecorations(view);
   }
   update(update) {
-    if (update.docChanged || update.viewportChanged) {
+    if (update.docChanged) {
       this.decorations = buildChordDecorations(update.view);
     }
   }
@@ -625,7 +624,6 @@ const editableCompartment = new Compartment();
       doc: initialValue,
       extensions: [
         history(),
-        drawSelection(),
         dropCursor(),
         EditorView.lineWrapping,
         lineNumbers(),

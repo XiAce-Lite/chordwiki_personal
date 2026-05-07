@@ -396,6 +396,10 @@ function setupChordProLivePreview() {
       return;
     }
 
+    // CM6スクローラーのスクロール位置を保存（高さリセット時に先頭に戻るのを防ぐ）
+    const scrollerEl = editorEl.querySelector('.cm-scroller');
+    const savedScrollTop = scrollerEl ? scrollerEl.scrollTop : 0;
+
     editorEl.style.height = '';
     previewPaneContentEl.style.height = '';
 
@@ -404,6 +408,9 @@ function setupChordProLivePreview() {
 
     editorEl.style.height = `${cappedHeight}px`;
     previewPaneContentEl.style.height = `${cappedHeight}px`;
+
+    // スクロール位置を復元
+    if (scrollerEl) scrollerEl.scrollTop = savedScrollTop;
   };
 
   const schedulePreview = () => {
