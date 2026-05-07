@@ -141,6 +141,7 @@ async function loadSongForEdit() {
     }
 
     populateForm(body || {});
+    window.ChordWikiEditorHighlight?.render();
     triggerChordProPreview({ immediate: true });
     setFormVisible(true);
     showMessage('edit モードでデータを読み込みました。');

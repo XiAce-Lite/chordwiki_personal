@@ -464,6 +464,62 @@
     .preview-content span.male2  { color: #006400; }
     .preview-content span.female { color: #ff1493; }
     .preview-content span.female2 { color: #ff8c00; }
+
+    /* ===== シンタックスハイライト overlay ===== */
+    .editor-hl-wrapper {
+      position: relative;
+      display: block;
+      width: 100%;
+    }
+    .editor-hl-overlay {
+      position: absolute;
+      overflow: hidden;
+      pointer-events: none;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      color: #1f2937;
+      z-index: 0;
+      /* top / left / width / height / padding / font は JS で同期 */
+    }
+    .editor-hl-textarea {
+      position: relative;
+      z-index: 1;
+      background: transparent !important;
+      color: transparent !important;
+      -webkit-text-fill-color: transparent;
+      caret-color: #1f2937 !important;
+    }
+
+    /* ===== cm-* トークンカラー (overlay 内にスコープ) ===== */
+    .editor-hl-overlay .cm-other      { color: #636363; }
+    .editor-hl-overlay .cm-comment    { color: #006f00; }
+    .editor-hl-overlay .cm-brace      { color: #26af1e; font-weight: bold; }
+    .editor-hl-overlay .cm-name       { color: #26af1e; font-weight: bold; }
+    .editor-hl-overlay .cm-colon      { color: #802f14; font-weight: bold; }
+    .editor-hl-overlay .cm-brace-text { color: #4785bc; }
+    .editor-hl-overlay .cm-square     { color: #1818ff; font-weight: bold; }
+    .editor-hl-overlay .cm-square-text{ color: inherit; }
+    .editor-hl-overlay .cm-note       { font-weight: bold; }
+    .editor-hl-overlay .cm-chord      { color: #333;  font-weight: bold; }
+    .editor-hl-overlay .cm-slash      { color: #888;  font-weight: bold; }
+    .editor-hl-overlay .cm-bass       { font-weight: bold; }
+    .editor-hl-overlay .cm-barline    { color: #00537e; font-weight: bold; }
+    .editor-hl-overlay .cm-hyphen     { color: #d9006c; font-weight: bold; }
+
+    /* MIDI ルート音カラー */
+    .editor-hl-overlay .cm-midi-0  { color: hsl(0,   88%, 46%); }
+    .editor-hl-overlay .cm-midi-1  { color: hsl(30,  99%, 33%); }
+    .editor-hl-overlay .cm-midi-2  { color: hsl(49,  90%, 46%); }
+    .editor-hl-overlay .cm-midi-3  { color: hsl(60,  98%, 33%); }
+    .editor-hl-overlay .cm-midi-4  { color: hsl(79,  59%, 46%); }
+    .editor-hl-overlay .cm-midi-5  { color: hsl(135, 76%, 33%); }
+    .editor-hl-overlay .cm-midi-6  { color: hsl(172, 68%, 46%); }
+    .editor-hl-overlay .cm-midi-7  { color: hsl(191, 41%, 33%); }
+    .editor-hl-overlay .cm-midi-8  { color: hsl(273, 79%, 46%); }
+    .editor-hl-overlay .cm-midi-9  { color: hsl(291, 46%, 33%); }
+    .editor-hl-overlay .cm-midi-10 { color: hsl(295, 97%, 46%); }
+    .editor-hl-overlay .cm-midi-11 { color: hsl(332, 97%, 33%); }
   </style>
 </head>
 <body>
@@ -546,11 +602,21 @@
     </div>
   </div>
 
+  <script>
+    /* localhost のみ: mock-auth を同期ロードしてフェッチをインターセプト */
+    (function () {
+      var h = location.hostname;
+      if (h === 'localhost' || h === '127.0.0.1') {
+        document.write('<script src=".local/mock-auth.js" onerror="void 0"><\/script>');
+      }
+    })();
+  </script>
   <script src="js/runtime-config.js?v=20260410-refactor1"></script>
   <script src="js/shared/api.js?v=20260410-refactor1"></script>
   <script src="js/shared/song-utils.js?v=20260411-youtubevalidation1"></script>
   <script src="js/shared/id.js?v=20260410-refactor1"></script>
   <script src="js/chordwiki-render.js?v=20260410-refactor1"></script>
+  <script src="js/editor-highlight.js?v=20260507-highlight1"></script>
   <script src="js/edit.js?v=20260411-youtubevalidation1"></script>
 </body>
 </html>
