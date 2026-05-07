@@ -19,30 +19,29 @@ import {
   dropCursor,
   highlightActiveLine,
   highlightActiveLineGutter,
-} from 'https://cdn.jsdelivr.net/npm/@codemirror/view@6/+esm';
+} from '@codemirror/view';
 
 import {
   EditorState,
-  StateEffect,
   Compartment,
-} from 'https://cdn.jsdelivr.net/npm/@codemirror/state@6/+esm';
+} from '@codemirror/state';
 
 import {
   defaultKeymap,
   indentWithTab,
   history,
   historyKeymap,
-} from 'https://cdn.jsdelivr.net/npm/@codemirror/commands@6/+esm';
+} from '@codemirror/commands';
 
 import {
   HighlightStyle,
   syntaxHighlighting,
   StreamLanguage,
-} from 'https://cdn.jsdelivr.net/npm/@codemirror/language@6/+esm';
+} from '@codemirror/language';
 
 import {
   Tag,
-} from 'https://cdn.jsdelivr.net/npm/@lezer/highlight@1/+esm';
+} from '@lezer/highlight';
 
 /* ====================================================================
    1. MIDI ルート音カラーテーブル (editor-highlight.js と同じ定義)
