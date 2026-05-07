@@ -206,6 +206,18 @@
     return inBracket.length === 0 || inBracket[inBracket.length - 1] === '/';
   }
 
+  /** {key:...} の値部分にカーソルがあるか判定 */
+  function isKeyDirectiveValuePosition(val, cursorPos) {
+    var before = val.slice(0, cursorPos);
+    var braceStart = before.lastIndexOf('{');
+    if (braceStart === -1) return false;
+    /* { とカーソルの間に } がないことを確認 */
+    if (val.slice(braceStart, cursorPos).indexOf('}') !== -1) return false;
+    /* 同じ行内で {key: にマッチするか (改行をまたがない) */
+    var segment = val.slice(braceStart, cursorPos);
+    return /^\{key:/i.test(segment) && segment.indexOf('\n') === -1;
+  }
+
   /* ------------------------------------------------------------------ */
   /* ハイライト適用                                                      */
   /* ------------------------------------------------------------------ */
@@ -308,10 +320,10 @@
         return;
       }
 
-      /* [] 内ルート音位置で a-g → A-G */
+      /* [] 内ルート音位置、または {key:} 値部分で a-g → A-G */
       /* ただし A-G の直後の b はフラット記号なので変換しない */
       if (/^[a-g]$/.test(e.key) && sel === selEnd) {
-        if (isRootPosition(val, sel)) {
+        if (isRootPosition(val, sel) || isKeyDirectiveValuePosition(val, sel)) {
           var isFlat = e.key === 'b' && /[A-G]/.test(val[sel - 1] || '');
           if (!isFlat) {
             e.preventDefault();
