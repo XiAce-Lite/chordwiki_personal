@@ -476,7 +476,7 @@ const editableCompartment = new Compartment();
         lineNumbers(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
-        chordProLanguage,
+        chordProLanguage.extension,
         syntaxHighlighting(chordProHighlightStyle),
         chordProTheme,
         keymap.of([
