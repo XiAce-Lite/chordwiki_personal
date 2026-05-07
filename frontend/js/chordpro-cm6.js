@@ -13,6 +13,8 @@
 
 import {
   EditorView,
+  Decoration,
+  ViewPlugin,
   keymap,
   lineNumbers,
   drawSelection,
@@ -23,6 +25,7 @@ import {
 
 import {
   EditorState,
+  RangeSetBuilder,
   Compartment,
 } from '@codemirror/state';
 
@@ -266,6 +269,134 @@ chordProStreamParser.tokenTable = tokenTagMap;
 const chordProLanguage = StreamLanguage.define(chordProStreamParser);
 
 /* ====================================================================
+   4.1 保険: デコレーションで直接着色 (parser依存を回避)
+   ==================================================================== */
+function addMark(builder, from, to, className) {
+  if (to <= from) return;
+  builder.add(from, to, Decoration.mark({ class: className }));
+}
+
+function decorateChordLine(builder, lineFrom, text) {
+  if (text.startsWith('#')) {
+    addMark(builder, lineFrom, lineFrom + text.length, 'cp-comment');
+    return;
+  }
+
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+
+    if (ch === '{') {
+      const close = text.indexOf('}', i + 1);
+      const end = close >= 0 ? close + 1 : text.length;
+      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-brace');
+      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-brace');
+
+      const innerStart = i + 1;
+      const innerEnd = close >= 0 ? close : text.length;
+      const colon = text.indexOf(':', innerStart);
+      if (colon >= 0 && colon < innerEnd) {
+        addMark(builder, lineFrom + innerStart, lineFrom + colon, 'cp-direct-name');
+        addMark(builder, lineFrom + colon, lineFrom + colon + 1, 'cp-colon');
+        addMark(builder, lineFrom + colon + 1, lineFrom + innerEnd, 'cp-direct-val');
+      } else {
+        addMark(builder, lineFrom + innerStart, lineFrom + innerEnd, 'cp-direct-name');
+      }
+      i = end;
+      continue;
+    }
+
+    if (ch === '[') {
+      const close = text.indexOf(']', i + 1);
+      const end = close >= 0 ? close + 1 : text.length;
+      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-bracket');
+      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-bracket');
+
+      const innerStart = i + 1;
+      const innerEnd = close >= 0 ? close : text.length;
+      const inside = text.slice(innerStart, innerEnd);
+      const slashLocal = inside.indexOf('/');
+      const head = slashLocal >= 0 ? inside.slice(0, slashLocal) : inside;
+
+      if (head.length > 0) {
+        const m = head.match(ROOT_RE);
+        if (m) {
+          const root = m[1];
+          const midi = rootMidi(root);
+          addMark(builder, lineFrom + innerStart, lineFrom + innerStart + root.length, midi >= 0 ? `cp-note-${midi}` : 'cp-chord');
+          addMark(builder, lineFrom + innerStart + root.length, lineFrom + innerStart + head.length, 'cp-chord');
+        } else {
+          addMark(builder, lineFrom + innerStart, lineFrom + innerStart + head.length, 'cp-chord');
+        }
+      }
+
+      if (slashLocal >= 0) {
+        const slashAbs = innerStart + slashLocal;
+        addMark(builder, lineFrom + slashAbs, lineFrom + slashAbs + 1, 'cp-slash');
+        const tail = inside.slice(slashLocal + 1);
+        if (tail.length > 0) {
+          const tailStart = slashAbs + 1;
+          const m = tail.match(ROOT_RE);
+          if (m) {
+            const root = m[1];
+            const midi = rootMidi(root);
+            addMark(builder, lineFrom + tailStart, lineFrom + tailStart + root.length, midi >= 0 ? `cp-bass-${midi}` : 'cp-chord');
+            addMark(builder, lineFrom + tailStart + root.length, lineFrom + tailStart + tail.length, 'cp-chord');
+          } else {
+            addMark(builder, lineFrom + tailStart, lineFrom + tailStart + tail.length, 'cp-chord');
+          }
+        }
+      }
+
+      i = end;
+      continue;
+    }
+
+    if (ch === '|') {
+      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-barline');
+      i++;
+      continue;
+    }
+
+    if (ch === '-') {
+      let k = i + 1;
+      while (k < text.length && text[k] === '-') k++;
+      addMark(builder, lineFrom + i, lineFrom + k, 'cp-hyphen');
+      i = k;
+      continue;
+    }
+
+    let k = i + 1;
+    while (k < text.length && !/[{\[\]|-]/.test(text[k])) k++;
+    addMark(builder, lineFrom + i, lineFrom + k, 'cp-lyric');
+    i = k;
+  }
+}
+
+function buildChordDecorations(view) {
+  const builder = new RangeSetBuilder();
+  const doc = view.state.doc;
+  for (let n = 1; n <= doc.lines; n++) {
+    const line = doc.line(n);
+    decorateChordLine(builder, line.from, line.text);
+  }
+  return builder.finish();
+}
+
+const chordProDecorationPlugin = ViewPlugin.fromClass(class {
+  constructor(view) {
+    this.decorations = buildChordDecorations(view);
+  }
+  update(update) {
+    if (update.docChanged || update.viewportChanged) {
+      this.decorations = buildChordDecorations(update.view);
+    }
+  }
+}, {
+  decorations: v => v.decorations,
+});
+
+/* ====================================================================
    5. キーマップ: [ → [] 補完、{ → {} 補完、a-g 大文字変換
    ==================================================================== */
 const ROOT_MIDI_KEYS = Object.freeze({
@@ -429,6 +560,29 @@ const chordProTheme = EditorView.theme({
     color: '#9aa5b4',
     fontSize: '11px',
   },
+  '.cm-content .cp-comment': { color: '#006f00' },
+  '.cm-content .cp-brace': { color: '#26af1e', fontWeight: 'bold' },
+  '.cm-content .cp-direct-name': { color: '#26af1e', fontWeight: 'bold' },
+  '.cm-content .cp-colon': { color: '#802f14', fontWeight: 'bold' },
+  '.cm-content .cp-direct-val': { color: '#4785bc' },
+  '.cm-content .cp-bracket': { color: '#1818ff', fontWeight: 'bold' },
+  '.cm-content .cp-chord': { color: '#333', fontWeight: 'bold' },
+  '.cm-content .cp-slash': { color: '#888', fontWeight: 'bold' },
+  '.cm-content .cp-barline': { color: '#00537e', fontWeight: 'bold' },
+  '.cm-content .cp-hyphen': { color: '#d9006c', fontWeight: 'bold' },
+  '.cm-content .cp-lyric': { color: '#636363' },
+  '.cm-content .cp-note-0, .cm-content .cp-bass-0': { color: MIDI_COLORS[0], fontWeight: 'bold' },
+  '.cm-content .cp-note-1, .cm-content .cp-bass-1': { color: MIDI_COLORS[1], fontWeight: 'bold' },
+  '.cm-content .cp-note-2, .cm-content .cp-bass-2': { color: MIDI_COLORS[2], fontWeight: 'bold' },
+  '.cm-content .cp-note-3, .cm-content .cp-bass-3': { color: MIDI_COLORS[3], fontWeight: 'bold' },
+  '.cm-content .cp-note-4, .cm-content .cp-bass-4': { color: MIDI_COLORS[4], fontWeight: 'bold' },
+  '.cm-content .cp-note-5, .cm-content .cp-bass-5': { color: MIDI_COLORS[5], fontWeight: 'bold' },
+  '.cm-content .cp-note-6, .cm-content .cp-bass-6': { color: MIDI_COLORS[6], fontWeight: 'bold' },
+  '.cm-content .cp-note-7, .cm-content .cp-bass-7': { color: MIDI_COLORS[7], fontWeight: 'bold' },
+  '.cm-content .cp-note-8, .cm-content .cp-bass-8': { color: MIDI_COLORS[8], fontWeight: 'bold' },
+  '.cm-content .cp-note-9, .cm-content .cp-bass-9': { color: MIDI_COLORS[9], fontWeight: 'bold' },
+  '.cm-content .cp-note-10, .cm-content .cp-bass-10': { color: MIDI_COLORS[10], fontWeight: 'bold' },
+  '.cm-content .cp-note-11, .cm-content .cp-bass-11': { color: MIDI_COLORS[11], fontWeight: 'bold' },
 }, { dark: false });
 
 /* ====================================================================
@@ -478,6 +632,7 @@ const editableCompartment = new Compartment();
         highlightActiveLineGutter(),
         chordProLanguage.extension,
         syntaxHighlighting(chordProHighlightStyle),
+        chordProDecorationPlugin,
         chordProTheme,
         keymap.of([
           ...chordProKeymap,
