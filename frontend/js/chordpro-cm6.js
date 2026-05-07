@@ -290,7 +290,6 @@ function decorateChordLine(builder, lineFrom, text) {
       const close = text.indexOf('}', i + 1);
       const end = close >= 0 ? close + 1 : text.length;
       addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-brace');
-      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-brace');
 
       const innerStart = i + 1;
       const innerEnd = close >= 0 ? close : text.length;
@@ -302,6 +301,7 @@ function decorateChordLine(builder, lineFrom, text) {
       } else {
         addMark(builder, lineFrom + innerStart, lineFrom + innerEnd, 'cp-direct-name');
       }
+      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-brace');
       i = end;
       continue;
     }
@@ -310,7 +310,6 @@ function decorateChordLine(builder, lineFrom, text) {
       const close = text.indexOf(']', i + 1);
       const end = close >= 0 ? close + 1 : text.length;
       addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-bracket');
-      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-bracket');
 
       const innerStart = i + 1;
       const innerEnd = close >= 0 ? close : text.length;
@@ -347,6 +346,8 @@ function decorateChordLine(builder, lineFrom, text) {
           }
         }
       }
+
+      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-bracket');
 
       i = end;
       continue;
