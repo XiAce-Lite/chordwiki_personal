@@ -270,15 +270,18 @@ const chordProLanguage = StreamLanguage.define(chordProStreamParser);
 /* ====================================================================
    4.1 保険: デコレーションで直接着色 (parser依存を回避)
    ==================================================================== */
-function addMark(builder, from, to, className) {
-  if (to <= from) return;
-  builder.add(from, to, Decoration.mark({ class: className }));
-}
+// 1行分のデコレーション Range 配列を返す（RangeSetBuilder 不要）
+function buildLineDecorations(lineFrom, text) {
+  const ranges = [];
 
-function decorateChordLine(builder, lineFrom, text) {
+  function add(from, to, cls) {
+    if (to <= from) return;
+    ranges.push(Decoration.mark({ class: cls }).range(from, to));
+  }
+
   if (text.startsWith('#')) {
-    addMark(builder, lineFrom, lineFrom + text.length, 'cp-comment');
-    return;
+    add(lineFrom, lineFrom + text.length, 'cp-comment');
+    return ranges;
   }
 
   let i = 0;
@@ -287,31 +290,39 @@ function decorateChordLine(builder, lineFrom, text) {
 
     if (ch === '{') {
       const close = text.indexOf('}', i + 1);
-      const end = close >= 0 ? close + 1 : text.length;
-      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-brace');
-
+      if (close < 0) {
+        // 閉じ } がない → { 以降を lyric として扱い終了
+        add(lineFrom + i, lineFrom + text.length, 'cp-lyric');
+        break;
+      }
+      const end = close + 1;
+      add(lineFrom + i, lineFrom + i + 1, 'cp-brace');
       const innerStart = i + 1;
-      const innerEnd = close >= 0 ? close : text.length;
+      const innerEnd = close;
       const colon = text.indexOf(':', innerStart);
       if (colon >= 0 && colon < innerEnd) {
-        addMark(builder, lineFrom + innerStart, lineFrom + colon, 'cp-direct-name');
-        addMark(builder, lineFrom + colon, lineFrom + colon + 1, 'cp-colon');
-        addMark(builder, lineFrom + colon + 1, lineFrom + innerEnd, 'cp-direct-val');
+        add(lineFrom + innerStart, lineFrom + colon, 'cp-direct-name');
+        add(lineFrom + colon, lineFrom + colon + 1, 'cp-colon');
+        add(lineFrom + colon + 1, lineFrom + innerEnd, 'cp-direct-val');
       } else {
-        addMark(builder, lineFrom + innerStart, lineFrom + innerEnd, 'cp-direct-name');
+        add(lineFrom + innerStart, lineFrom + innerEnd, 'cp-direct-name');
       }
-      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-brace');
+      add(lineFrom + close, lineFrom + close + 1, 'cp-brace');
       i = end;
       continue;
     }
 
     if (ch === '[') {
       const close = text.indexOf(']', i + 1);
-      const end = close >= 0 ? close + 1 : text.length;
-      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-bracket');
-
+      if (close < 0) {
+        // 閉じ ] がない → [ 以降を lyric として扱い終了
+        add(lineFrom + i, lineFrom + text.length, 'cp-lyric');
+        break;
+      }
+      const end = close + 1;
+      add(lineFrom + i, lineFrom + i + 1, 'cp-bracket');
       const innerStart = i + 1;
-      const innerEnd = close >= 0 ? close : text.length;
+      const innerEnd = close;
       const inside = text.slice(innerStart, innerEnd);
       const slashLocal = inside.indexOf('/');
       const head = slashLocal >= 0 ? inside.slice(0, slashLocal) : inside;
@@ -321,16 +332,16 @@ function decorateChordLine(builder, lineFrom, text) {
         if (m) {
           const root = m[1];
           const midi = rootMidi(root);
-          addMark(builder, lineFrom + innerStart, lineFrom + innerStart + root.length, midi >= 0 ? `cp-note-${midi}` : 'cp-chord');
-          addMark(builder, lineFrom + innerStart + root.length, lineFrom + innerStart + head.length, 'cp-chord');
+          add(lineFrom + innerStart, lineFrom + innerStart + root.length, midi >= 0 ? `cp-note-${midi}` : 'cp-chord');
+          add(lineFrom + innerStart + root.length, lineFrom + innerStart + head.length, 'cp-chord');
         } else {
-          addMark(builder, lineFrom + innerStart, lineFrom + innerStart + head.length, 'cp-chord');
+          add(lineFrom + innerStart, lineFrom + innerStart + head.length, 'cp-chord');
         }
       }
 
       if (slashLocal >= 0) {
         const slashAbs = innerStart + slashLocal;
-        addMark(builder, lineFrom + slashAbs, lineFrom + slashAbs + 1, 'cp-slash');
+        add(lineFrom + slashAbs, lineFrom + slashAbs + 1, 'cp-slash');
         const tail = inside.slice(slashLocal + 1);
         if (tail.length > 0) {
           const tailStart = slashAbs + 1;
@@ -338,22 +349,21 @@ function decorateChordLine(builder, lineFrom, text) {
           if (m) {
             const root = m[1];
             const midi = rootMidi(root);
-            addMark(builder, lineFrom + tailStart, lineFrom + tailStart + root.length, midi >= 0 ? `cp-bass-${midi}` : 'cp-chord');
-            addMark(builder, lineFrom + tailStart + root.length, lineFrom + tailStart + tail.length, 'cp-chord');
+            add(lineFrom + tailStart, lineFrom + tailStart + root.length, midi >= 0 ? `cp-bass-${midi}` : 'cp-chord');
+            add(lineFrom + tailStart + root.length, lineFrom + tailStart + tail.length, 'cp-chord');
           } else {
-            addMark(builder, lineFrom + tailStart, lineFrom + tailStart + tail.length, 'cp-chord');
+            add(lineFrom + tailStart, lineFrom + tailStart + tail.length, 'cp-chord');
           }
         }
       }
 
-      if (close >= 0) addMark(builder, lineFrom + close, lineFrom + close + 1, 'cp-bracket');
-
+      add(lineFrom + close, lineFrom + close + 1, 'cp-bracket');
       i = end;
       continue;
     }
 
     if (ch === '|') {
-      addMark(builder, lineFrom + i, lineFrom + i + 1, 'cp-barline');
+      add(lineFrom + i, lineFrom + i + 1, 'cp-barline');
       i++;
       continue;
     }
@@ -361,24 +371,29 @@ function decorateChordLine(builder, lineFrom, text) {
     if (ch === '-') {
       let k = i + 1;
       while (k < text.length && text[k] === '-') k++;
-      addMark(builder, lineFrom + i, lineFrom + k, 'cp-hyphen');
+      add(lineFrom + i, lineFrom + k, 'cp-hyphen');
       i = k;
       continue;
     }
 
     let k = i + 1;
     while (k < text.length && !/[{\[\]|-]/.test(text[k])) k++;
-    addMark(builder, lineFrom + i, lineFrom + k, 'cp-lyric');
+    add(lineFrom + i, lineFrom + k, 'cp-lyric');
     i = k;
   }
+
+  return ranges;
 }
 
+// 初回フルビルド用
 function buildChordDecorations(view) {
   const builder = new RangeSetBuilder();
   const doc = view.state.doc;
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
-    decorateChordLine(builder, line.from, line.text);
+    for (const r of buildLineDecorations(line.from, line.text)) {
+      builder.add(r.from, r.to, r.value);
+    }
   }
   return builder.finish();
 }
@@ -388,9 +403,59 @@ const chordProDecorationPlugin = ViewPlugin.fromClass(class {
     this.decorations = buildChordDecorations(view);
   }
   update(update) {
-    if (update.docChanged) {
-      this.decorations = buildChordDecorations(update.view);
+    if (!update.docChanged) return;
+
+    // 既存デコレーションの位置を新ドキュメント座標にマッピング
+    let decos = this.decorations.map(update.changes);
+
+    // 変更された行の範囲を新ドキュメント上で収集
+    const changedLineRanges = [];
+    update.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+      const doc = update.state.doc;
+      changedLineRanges.push({
+        from: doc.lineAt(fromB).from,
+        to:   doc.lineAt(toB).to,
+      });
+    });
+
+    if (changedLineRanges.length === 0) {
+      this.decorations = decos;
+      return;
     }
+
+    // 重複範囲をマージして RangeSet.update 回数を最小化
+    changedLineRanges.sort((a, b) => a.from - b.from);
+    const merged = [{ ...changedLineRanges[0] }];
+    for (let i = 1; i < changedLineRanges.length; i++) {
+      const last = merged[merged.length - 1];
+      if (changedLineRanges[i].from <= last.to + 1) {
+        last.to = Math.max(last.to, changedLineRanges[i].to);
+      } else {
+        merged.push({ ...changedLineRanges[i] });
+      }
+    }
+
+    // 変更範囲のデコレーションのみ差し替え（その他の行は map 済みのものを流用）
+    for (const { from, to } of merged) {
+      const doc = update.state.doc;
+      const startLine = doc.lineAt(from).number;
+      const endLine   = doc.lineAt(to).number;
+
+      const newRanges = [];
+      for (let n = startLine; n <= endLine; n++) {
+        const line = doc.line(n);
+        newRanges.push(...buildLineDecorations(line.from, line.text));
+      }
+
+      decos = decos.update({
+        filterFrom: from,
+        filterTo:   to,
+        filter: () => false,  // 旧デコレーションを除去
+        add: newRanges,       // 新デコレーションを挿入（ソート済み）
+      });
+    }
+
+    this.decorations = decos;
   }
 }, {
   decorations: v => v.decorations,
