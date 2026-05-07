@@ -383,7 +383,9 @@
     nameInputEl.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        handleRenameSetlist();
+        if (state.isEditor) {
+          handleRenameSetlist();
+        }
       }
     });
 
@@ -401,6 +403,10 @@
     const auth = global.ChordWikiAuth;
     if (auth) {
       state.isEditor = await auth.applyRoleVisibility();
+    }
+
+    if (!state.isEditor) {
+      nameInputEl.readOnly = true;
     }
 
     bindEvents();

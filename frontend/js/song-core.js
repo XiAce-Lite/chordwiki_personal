@@ -92,13 +92,7 @@ const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
 const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';
 const LOCAL_TEST_SONG_GLOBAL_KEY = '__LOCAL_TEST_SONG__';
 const LOCAL_TEST_SONG_LIBRARY_GLOBAL_KEY = '__LOCAL_TEST_SONG_LIBRARY__';
-const VOICE_MARKER_PATTERN = /[♠♣♥♦]/u;
-const VOICE_MARKER_CLASS_MAP = Object.freeze({
-  '♠': 'male',
-  '♣': 'male2',
-  '♥': 'female',
-  '♦': 'female2'
-});
+// VOICE_MARKER_PATTERN と VOICE_MARKER_CLASS_MAP は chordwiki-render.js で定義済み
 const MNOTO_FONT_CANDIDATES = Object.freeze([
   '"MNoto Sans alpha V2"',
   '"MNoto Sans alpha"',
