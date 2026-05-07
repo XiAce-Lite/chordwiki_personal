@@ -1,6 +1,14 @@
 /**
  * editor-highlight.js
- * ChordPro シンタックスハイライト (textarea overlay 方式)
+ * ChordPro シンタックスハイライト (Approach B: overlay 前面方式)
+ *
+ * textarea は color: rgba(0,0,0,0.01) で事実上不可視にし、overlay (z-index:1) を
+ * 前面に重ねてカラーテキストを表示する。IME 確定前は overlay を非表示にして
+ * textarea を通常色で表示し、確定後に再描画する。
+ *
+ * 補助入力:
+ *   [ → [] 自動補完、{ → {} 自動補完
+ *   [] 内ルート音位置で a-g → A-G (フラット b は変換しない)
  *
  * 公開 API: window.ChordWikiEditorHighlight = { render, attach }
  *   render()         - #chordPro の overlay を再描画 (edit.js から呼ぶ)
@@ -148,26 +156,54 @@
   /* ------------------------------------------------------------------ */
   /* overlay スタイル同期                                                */
   /* ------------------------------------------------------------------ */
-  function syncOverlay(ta, ov) {
+
+  /**
+   * フォント・パディングは実行中に変化しないため attach 時に一度だけ設定する。
+   * (Ctrl+ホイールによるフォントサイズ変更機能を削除したため)
+   */
+  function initOverlayStaticStyles(ta, ov) {
     var cs = getComputedStyle(ta);
-    /* 位置: テキストエリアのボーダー内側の角に合わせる */
-    ov.style.top  = cs.borderTopWidth;
-    ov.style.left = cs.borderLeftWidth;
-    /* サイズ: clientWidth/Height はスクロールバー・ボーダーを除いた内側幅 */
-    ov.style.width  = ta.clientWidth  + 'px';
-    ov.style.height = ta.clientHeight + 'px';
     ov.style.boxSizing     = 'border-box';
-    /* パディングをテキストエリアと揃える */
     ov.style.paddingTop    = cs.paddingTop;
     ov.style.paddingRight  = cs.paddingRight;
     ov.style.paddingBottom = cs.paddingBottom;
     ov.style.paddingLeft   = cs.paddingLeft;
-    /* フォントをテキストエリアと揃える */
     ov.style.fontFamily    = cs.fontFamily;
     ov.style.fontSize      = cs.fontSize;
     ov.style.fontWeight    = cs.fontWeight;
     ov.style.lineHeight    = cs.lineHeight;
     ov.style.letterSpacing = cs.letterSpacing;
+  }
+
+  /**
+   * サイズ・位置はリサイズ操作で変化するためレンダリングのたびに更新する。
+   */
+  function syncOverlaySize(ta, ov) {
+    var cs = getComputedStyle(ta);
+    ov.style.top    = cs.borderTopWidth;
+    ov.style.left   = cs.borderLeftWidth;
+    ov.style.width  = ta.clientWidth  + 'px';
+    ov.style.height = ta.clientHeight + 'px';
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* [] 内ルート音位置の判定                                            */
+  /* カーソル位置がブラケット内の先頭、または / の直後かを返す          */
+  /* ------------------------------------------------------------------ */
+  function isRootPosition(val, cursorPos) {
+    var before = val.slice(0, cursorPos);
+    var depth = 0;
+    var bracketStart = -1;
+    for (var i = before.length - 1; i >= 0; i--) {
+      if (before[i] === ']') { depth++; }
+      else if (before[i] === '[') {
+        if (depth === 0) { bracketStart = i; break; }
+        depth--;
+      }
+    }
+    if (bracketStart === -1) return false;
+    var inBracket = val.slice(bracketStart + 1, cursorPos);
+    return inBracket.length === 0 || inBracket[inBracket.length - 1] === '/';
   }
 
   /* ------------------------------------------------------------------ */
@@ -182,20 +218,22 @@
     ta.parentNode.insertBefore(wrapper, ta);
     wrapper.appendChild(ta);
 
-    /* overlay (テキストエリアの後ろに重ねる) */
+    /* overlay (DOM上は ta の前、CSS z-index:1 で視覚的に前面) */
     var ov = document.createElement('div');
     ov.className = 'editor-hl-overlay';
     ov.setAttribute('aria-hidden', 'true');
-    wrapper.insertBefore(ov, ta); /* ta の前 = DOM上は先 → z-index で後ろに */
+    wrapper.insertBefore(ov, ta);
 
-    /* テキストエリアを透明化 */
     ta.classList.add('editor-hl-textarea');
+
+    /* フォント・パディングは変化しないため一度だけ設定 */
+    initOverlayStaticStyles(ta, ov);
 
     var composing = false;
     var raf = 0;
 
     function render() {
-      syncOverlay(ta, ov);
+      syncOverlaySize(ta, ov);
       ov.innerHTML = convertToColoredHTML(ta.value);
       ov.scrollTop  = ta.scrollTop;
       ov.scrollLeft = ta.scrollLeft;
@@ -206,12 +244,83 @@
       raf = requestAnimationFrame(function () { raf = 0; render(); });
     }
 
-    ta.addEventListener('compositionstart', function () { composing = true; });
-    ta.addEventListener('compositionend',   function () { composing = false; schedule(); });
+    /* ---- IME: 確定前は overlay を非表示・textarea を通常表示 ---- */
+    ta.addEventListener('compositionstart', function () {
+      composing = true;
+      ta.classList.add('editor-hl-composing');
+      ov.style.opacity = '0';
+    });
+    ta.addEventListener('compositionend', function () {
+      composing = false;
+      ta.classList.remove('editor-hl-composing');
+      ov.style.opacity = '';
+      schedule();
+    });
+
     ta.addEventListener('input',  function () { if (!composing) schedule(); });
     ta.addEventListener('scroll', function () {
       ov.scrollTop  = ta.scrollTop;
       ov.scrollLeft = ta.scrollLeft;
+    });
+
+    /* ---- キーボード補助入力 ---- */
+    ta.addEventListener('keydown', function (e) {
+      if (e.isComposing || composing) return;
+
+      var sel    = ta.selectionStart;
+      var selEnd = ta.selectionEnd;
+      var val    = ta.value;
+
+      /* Backspace: ブラケットペアをまとめて削除 */
+      if (e.key === 'Backspace' && sel === selEnd && sel > 0) {
+        var pc = val[sel - 1], nc = val[sel];
+        if ((pc === '[' && nc === ']') || (pc === '{' && nc === '}')) {
+          e.preventDefault();
+          ta.value = val.slice(0, sel - 1) + val.slice(sel + 1);
+          ta.selectionStart = ta.selectionEnd = sel - 1;
+          schedule();
+          return;
+        }
+      }
+
+      /* ] / } : 自動挿入済みならカーソルをスキップ */
+      if ((e.key === ']' && val[sel] === ']') || (e.key === '}' && val[sel] === '}')) {
+        e.preventDefault();
+        ta.selectionStart = ta.selectionEnd = sel + 1;
+        return;
+      }
+
+      /* [ → [] */
+      if (e.key === '[') {
+        e.preventDefault();
+        ta.value = val.slice(0, sel) + '[]' + val.slice(selEnd);
+        ta.selectionStart = ta.selectionEnd = sel + 1;
+        schedule();
+        return;
+      }
+
+      /* { → {} */
+      if (e.key === '{') {
+        e.preventDefault();
+        ta.value = val.slice(0, sel) + '{}' + val.slice(selEnd);
+        ta.selectionStart = ta.selectionEnd = sel + 1;
+        schedule();
+        return;
+      }
+
+      /* [] 内ルート音位置で a-g → A-G */
+      /* ただし A-G の直後の b はフラット記号なので変換しない */
+      if (/^[a-g]$/.test(e.key) && sel === selEnd) {
+        if (isRootPosition(val, sel)) {
+          var isFlat = e.key === 'b' && /[A-G]/.test(val[sel - 1] || '');
+          if (!isFlat) {
+            e.preventDefault();
+            ta.value = val.slice(0, sel) + e.key.toUpperCase() + val.slice(selEnd);
+            ta.selectionStart = ta.selectionEnd = sel + 1;
+            schedule();
+          }
+        }
+      }
     });
 
     if (typeof ResizeObserver === 'function') {

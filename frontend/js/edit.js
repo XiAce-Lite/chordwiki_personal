@@ -417,25 +417,13 @@ function setupChordProLivePreview() {
     });
   }
 
-  // Ctrl+wheel: change font size of textarea and preview independently
+  // Ctrl+wheel: change font size of preview pane only
   const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24];
-  let editorFontIdx = FONT_SIZES.indexOf(13);   // default 13px
-  let previewFontIdx = FONT_SIZES.indexOf(13);  // default 13px (match textarea)
+  let previewFontIdx = FONT_SIZES.indexOf(13);  // default 13px
 
-  const applyEditorFontSize = () => {
-    chordProInput.style.fontSize = FONT_SIZES[editorFontIdx] + 'px';
-  };
   const applyPreviewFontSize = () => {
     previewPaneContentEl.style.fontSize = FONT_SIZES[previewFontIdx] + 'px';
   };
-
-  chordProInput.addEventListener('wheel', (e) => {
-    if (!e.ctrlKey) return;
-    e.preventDefault();
-    if (e.deltaY < 0) editorFontIdx = Math.min(editorFontIdx + 1, FONT_SIZES.length - 1);
-    else editorFontIdx = Math.max(editorFontIdx - 1, 0);
-    applyEditorFontSize();
-  }, { passive: false });
 
   previewPaneContentEl.addEventListener('wheel', (e) => {
     if (!e.ctrlKey) return;

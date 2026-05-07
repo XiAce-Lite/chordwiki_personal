@@ -479,16 +479,23 @@
       overflow-wrap: break-word;
       word-break: break-word;
       color: #1f2937;
-      z-index: 0;
+      z-index: 1; /* overlay を前面に配置 */
+      background: transparent;
       /* top / left / width / height / padding / font は JS で同期 */
     }
     .editor-hl-textarea {
       position: relative;
-      z-index: 1;
+      z-index: 0; /* textarea は背面 */
       background: transparent !important;
-      color: transparent !important;
-      -webkit-text-fill-color: transparent;
+      color: rgba(0, 0, 0, 0.01) !important;
+      -webkit-text-fill-color: rgba(0, 0, 0, 0.01) !important;
       caret-color: #1f2937 !important;
+    }
+    /* IME 確定前: textarea を通常表示・overlay を非表示 (JS で切替) */
+    .editor-hl-textarea.editor-hl-composing {
+      color: #1f2937 !important;
+      -webkit-text-fill-color: #1f2937 !important;
+      background: #fff !important;
     }
 
     /* ===== cm-* トークンカラー (overlay 内にスコープ) ===== */
