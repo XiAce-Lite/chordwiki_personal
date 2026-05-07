@@ -261,7 +261,9 @@ for (let i = 0; i < 12; i++) {
   tokenTagMap[`bass-${i}`] = T.bass[i];
 }
 
-const chordProLanguage = StreamLanguage.define(chordProStreamParser, tokenTagMap);
+chordProStreamParser.tokenTable = tokenTagMap;
+
+const chordProLanguage = StreamLanguage.define(chordProStreamParser);
 
 /* ====================================================================
    5. キーマップ: [ → [] 補完、{ → {} 補完、a-g 大文字変換
