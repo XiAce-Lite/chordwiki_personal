@@ -127,6 +127,15 @@ function parseRoot(s) {
 const chordProStreamParser = {
   name: 'chordpro',
   token(stream, state) {
+    // ChordPro の [ ] { } は1行内で完結する → 行頭で状態をリセット
+    // （閉じ括弧なしで行が終わった場合に次行以降が誤状態で再パースされるのを防ぐ）
+    if (stream.sol()) {
+      state.inChord = false;
+      state.inDirective = false;
+      state.afterColon = false;
+      state.lineStart = true;
+    }
+
     // コメント行 (# で始まる)
     if (state.lineStart && stream.peek() === '#') {
       stream.skipToEnd();
