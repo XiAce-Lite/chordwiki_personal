@@ -118,6 +118,10 @@ function tokenizeLyricsLine(lineText) {
         i = end + 1;
         continue;
       }
+      // 閉じ ] がない → [ 以降を歌詞として扱い終了（無限ループ防止）
+      const rest = line.slice(i);
+      if (rest.length > 0) tokens.push({ kind: "word", text: rest });
+      break;
     }
 
     let j = i;
