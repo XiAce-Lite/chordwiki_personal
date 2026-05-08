@@ -157,6 +157,12 @@
 
       setAria(false);
       menuEl.hidden = true;
+      menuEl.style.removeProperty('display');
+      menuEl.style.removeProperty('visibility');
+      menuEl.style.removeProperty('position');
+      menuEl.style.removeProperty('top');
+      menuEl.style.removeProperty('left');
+      menuEl.style.removeProperty('right');
 
       global.removeEventListener('resize', positionMenu);
       global.removeEventListener('scroll', positionMenu, true);
