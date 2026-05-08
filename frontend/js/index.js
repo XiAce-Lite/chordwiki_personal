@@ -107,8 +107,6 @@ const DEFAULT_PAGE_SIZE = 30;
       updatePaginationSafeSpace,
       loadSongs
     });
-    let songRowMenuOutsideClickBound = false;
-
 function isLocalPreview() {
       return Boolean(window.ChordWikiRuntime?.isLocalPreview?.(window.location))
         || window.location.protocol === 'file:'
@@ -518,7 +516,6 @@ function isLocalPreview() {
       addButton.className = 'song-row-menu-item';
       addButton.textContent = 'セットリストに追加';
       addButton.addEventListener('click', () => {
-        menu.hidden = true;
         if (!setlistUi) {
           return;
         }
@@ -526,23 +523,12 @@ function isLocalPreview() {
         setlistUi.openSetlistSelectionModal(song);
       });
 
-      toggleButton.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const willOpen = menu.hidden;
-        document.querySelectorAll('.song-row-menu').forEach((menuEl) => {
-          menuEl.hidden = true;
-        });
-        menu.hidden = !willOpen;
+      window.ChordWikiFloatingRowMenuController?.createFloatingRowMenuController({
+        triggerEl: toggleButton,
+        menuEl: menu,
+        offsetY: 6,
+        flip: true
       });
-
-      if (!songRowMenuOutsideClickBound) {
-        document.addEventListener('click', () => {
-          document.querySelectorAll('.song-row-menu').forEach((menuEl) => {
-            menuEl.hidden = true;
-          });
-        });
-        songRowMenuOutsideClickBound = true;
-      }
 
       menu.appendChild(addButton);
       wrapper.appendChild(toggleButton);
