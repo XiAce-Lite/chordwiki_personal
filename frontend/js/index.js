@@ -490,6 +490,7 @@ function isLocalPreview() {
       const songList = document.getElementById('song-list');
       const appliedQuery = String(query || '').trim();
       const safePageSize = clampPageSize(pageSize);
+      songList.removeAttribute('data-state');
       songList.innerHTML = '';
 
       if (!Array.isArray(songs) || songs.length === 0) {
@@ -592,7 +593,8 @@ function isLocalPreview() {
         ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${requestPageSize}`
         : `/api/songs/ranking?page=${safePage}&pageSize=${requestPageSize}`);
 
-      songList.textContent = 'Loading...';
+      songList.dataset.state = 'loading';
+      songList.textContent = '読み込み中...';
 
       try {
         const response = await fetch(endpoint, {
@@ -659,6 +661,7 @@ function isLocalPreview() {
           return;
         }
 
+        songList.removeAttribute('data-state');
         songList.textContent = appliedQuery
           ? '検索結果の読み込みに失敗しました。'
           : 'ランキングの読み込みに失敗しました。';

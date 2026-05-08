@@ -296,6 +296,16 @@
       overflow: hidden;
       background: #fff;
     }
+    /* 一覧ローディング中は文言まわりに余白を確保（曲行表示時とは data-state で切り替え） */
+    #song-list[data-state="loading"] {
+      padding: 26px 20px 26px 28px;
+      color: #35506a;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.55;
+      min-height: 4.5em;
+      box-sizing: border-box;
+    }
     .song-item {
       display: flex;
       align-items: center;
