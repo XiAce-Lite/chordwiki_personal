@@ -1,6 +1,6 @@
 window.ChordWikiAuth?.applyRoleVisibility();
 
-const { buildApiUrl, handleUnauthorized } = window.ChordWikiApiUtils;
+const { buildApiUrl } = window.ChordWikiApiUtils;
 const setlistUi = window.ChordWikiSetlistUi;
 
 document.getElementById('add-button').addEventListener('click', () => {
@@ -25,6 +25,10 @@ const DEFAULT_PAGE_SIZE = 30;
     const SONG_SEARCH_TARGET = 'song';
     const TAG_SEARCH_TARGET = 'tag';
     const TAG_SUGGEST_LIMIT = 10;
+    const TOP_STATE_IDLE = 'idle';
+    const TOP_STATE_LOADING = 'loading';
+    const TOP_STATE_READY = 'ready';
+    const TOP_STATE_ERROR = 'error';
     const LOCAL_TEST_SONGS_SCRIPT_PATH = './.local/local-test-songs.js';
     const LOCAL_TEST_SONGS_GLOBAL_KEY = '__LOCAL_TEST_SONGS__';
     const searchInput = document.getElementById('search');
@@ -40,6 +44,7 @@ const DEFAULT_PAGE_SIZE = 30;
     const localSampleLinks = document.getElementById('local-sample-links');
     let currentPageSize = DEFAULT_PAGE_SIZE;
     let resizeDebounceTimer = 0;
+    let topPageState = TOP_STATE_IDLE;
     const localTestSongsState = {
       scriptPromise: null,
       fallbackLogged: false
@@ -334,6 +339,65 @@ function isLocalPreview() {
       return normalizeSearchTarget(params.get('target'));
     }
 
+    function setTopPageState(nextState) {
+      topPageState = nextState;
+      const songList = document.getElementById('song-list');
+      if (!songList) {
+        return;
+      }
+      songList.dataset.state = nextState;
+    }
+
+    function renderTopPageLoading() {
+      const songList = document.getElementById('song-list');
+      if (!songList) {
+        return;
+      }
+      songList.textContent = '読み込み中...';
+    }
+
+    function renderTopPageError(message, retryHandler) {
+      const songList = document.getElementById('song-list');
+      if (!songList) {
+        return;
+      }
+
+      songList.innerHTML = '';
+
+      const container = document.createElement('div');
+      container.style.padding = '14px';
+      container.style.display = 'grid';
+      container.style.gap = '10px';
+      container.style.textAlign = 'left';
+
+      const banner = document.createElement('div');
+      banner.style.background = '#fff4f4';
+      banner.style.border = '1px solid #f3c7c7';
+      banner.style.borderRadius = '8px';
+      banner.style.padding = '10px 12px';
+      banner.style.color = '#7b1c1c';
+      banner.textContent = message || 'データ取得に失敗しました。';
+
+      const retryButton = document.createElement('button');
+      retryButton.type = 'button';
+      retryButton.textContent = '再試行';
+      retryButton.style.width = 'fit-content';
+      retryButton.style.padding = '8px 14px';
+      retryButton.style.border = '1px solid #c8d1dc';
+      retryButton.style.borderRadius = '8px';
+      retryButton.style.background = '#fff';
+      retryButton.style.cursor = 'pointer';
+      retryButton.addEventListener('click', () => {
+        if (typeof retryHandler === 'function') {
+          retryHandler();
+        }
+      });
+
+      container.appendChild(banner);
+      container.appendChild(retryButton);
+      songList.appendChild(container);
+    }
+
     function updatePageUrl(page, query = '', target = SONG_SEARCH_TARGET) {
       const url = new URL(window.location.href);
       const safeQuery = String(query || '').trim();
@@ -593,8 +657,8 @@ function isLocalPreview() {
         ? `/api/songs/search?q=${encodeURIComponent(appliedQuery)}&page=${safePage}&target=${encodeURIComponent(safeTarget)}&pageSize=${requestPageSize}`
         : `/api/songs/ranking?page=${safePage}&pageSize=${requestPageSize}`);
 
-      songList.dataset.state = 'loading';
-      songList.textContent = '読み込み中...';
+      setTopPageState(TOP_STATE_LOADING);
+      renderTopPageLoading();
 
       try {
         const response = await fetch(endpoint, {
@@ -628,6 +692,7 @@ function isLocalPreview() {
         renderSongs(songs, safePage, appliedQuery, effectivePageSize);
         renderPagination(safePage, totalSongs, appliedQuery, safeTarget, effectivePageSize);
         updatePageUrl(safePage, appliedQuery, safeTarget);
+        setTopPageState(TOP_STATE_READY);
       } catch (error) {
         console.error('Error loading songs:', error);
 
@@ -658,13 +723,15 @@ function isLocalPreview() {
           renderSongs(localPayload.songs, safePage, appliedQuery, effectivePageSize);
           renderPagination(safePage, totalSongs, appliedQuery, safeTarget, effectivePageSize);
           updatePageUrl(safePage, appliedQuery, safeTarget);
+          setTopPageState(TOP_STATE_READY);
           return;
         }
 
-        songList.removeAttribute('data-state');
-        songList.textContent = appliedQuery
-          ? '検索結果の読み込みに失敗しました。'
-          : 'ランキングの読み込みに失敗しました。';
+        setTopPageState(TOP_STATE_ERROR);
+        renderTopPageError(
+          appliedQuery ? '検索結果の読み込みに失敗しました。' : 'ランキングの読み込みに失敗しました。',
+          () => loadSongs(safePage, appliedQuery, safeTarget)
+        );
         renderPagination(safePage, 0, appliedQuery, safeTarget, pageSize);
       }
     }
