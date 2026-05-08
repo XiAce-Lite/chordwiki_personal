@@ -381,6 +381,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.ChordWikiAuth?.applyRoleVisibility();
   initializeSongAnnotationsUi();
   initializeAutoScrollUi();
+  initializeVisualMetronomeUi();
   initializeSongExtrasUi();
   initializeDisplayPreferencesUi();
   initializeSongSetlistUi();

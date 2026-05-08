@@ -47,6 +47,23 @@
             <div class="autoscroll-header-main">
               <div class="autoscroll-title">Song Controls</div>
               <div id="autoscroll-status" class="autoscroll-status" aria-live="polite">Stopped</div>
+              <div id="cw-metro-row" class="cw-metro-row is-disabled" aria-label="Visual metronome">
+                <label for="cw-metro-beats" class="cw-metro-beats-wrap">
+                  <span class="cw-metro-label">拍子</span>
+                  <select id="cw-metro-beats" class="cw-metro-beats-select" disabled>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4" selected>4</option>
+                    <option value="5">5</option>
+                    <option value="6">6</option>
+                  </select>
+                </label>
+                <div id="cw-metro-bar" class="cw-metro-bar" aria-hidden="true">
+                  <div id="cw-metro-fader" class="cw-metro-fader"></div>
+                </div>
+                <div id="cw-metro-dots" class="cw-metro-dots" aria-hidden="true"></div>
+                <button id="cw-metro-toggle" type="button" class="cw-metro-toggle" disabled>停止</button>
+              </div>
             </div>
             <button id="autoscroll-collapse-toggle" class="autoscroll-collapse-toggle" type="button" aria-expanded="true" aria-label="Collapse song controls">≫</button>
           </div>

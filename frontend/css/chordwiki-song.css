@@ -1085,6 +1085,109 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   box-shadow: inset 0 0 0 1px #f2cc7a;
 }
 
+.cw-metro-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.cw-metro-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4f647a;
+}
+
+.cw-metro-beats-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.cw-metro-beats-select {
+  width: 48px;
+  min-width: 48px;
+  padding: 2px 4px;
+  border: 1px solid #c4d4e4;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #23415f;
+  background: #fff;
+}
+
+.cw-metro-bar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 88px;
+  height: 10px;
+  border-radius: 999px;
+  background: #e4eef9;
+  overflow: hidden;
+}
+
+.cw-metro-fader {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 16px;
+  height: 6px;
+  border-radius: 999px;
+  background: #0b65c2;
+  transform: translate(0, -50%);
+  transition: background-color 120ms ease;
+}
+
+.cw-metro-row.is-accent .cw-metro-bar {
+  background: #d4e9ff;
+  box-shadow: inset 0 0 0 1px #9fc6ef;
+}
+
+.cw-metro-row.is-accent .cw-metro-fader {
+  background: #005a9c;
+}
+
+.cw-metro-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.cw-metro-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b8c7d8;
+}
+
+.cw-metro-dot.is-active {
+  background: #2577cb;
+}
+
+.cw-metro-dot.is-accent {
+  background: #005a9c;
+  box-shadow: 0 0 0 2px rgba(0, 90, 156, 0.18);
+}
+
+.cw-metro-toggle {
+  flex: 0 0 auto;
+  padding: 2px 7px !important;
+  font-size: 12px !important;
+  line-height: 1.2;
+  border-radius: 999px !important;
+  white-space: nowrap;
+}
+
+.cw-metro-row.is-disabled {
+  opacity: 0.5;
+}
+
 .autoscroll-detail {
   display: flex;
   flex-direction: column;
