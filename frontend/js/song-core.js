@@ -571,6 +571,7 @@ function syncVisualMetronomeBpmFromStartMarker() {
     return;
   }
 
+  const wasRunning = metroState.isRunning;
   const nextBpm = resolveBpmForCurrentStartMarker(originalChordPro);
   const enabled = Number.isFinite(nextBpm);
 
@@ -584,7 +585,13 @@ function syncVisualMetronomeBpmFromStartMarker() {
     return;
   }
 
-  startVisualMetronomeFromFirstBeat();
+  if (wasRunning) {
+    startVisualMetronomeFromFirstBeat();
+    return;
+  }
+
+  stopVisualMetronome();
+  resetMetroVisuals();
 }
 
 function restartVisualMetronomeFromFirstBeat() {
@@ -593,6 +600,14 @@ function restartVisualMetronomeFromFirstBeat() {
   }
 
   startVisualMetronomeFromFirstBeat();
+}
+
+function restartVisualMetronomeFromFirstBeatIfRunning() {
+  if (!metroState.isRunning) {
+    return;
+  }
+
+  restartVisualMetronomeFromFirstBeat();
 }
 
 function initializeVisualMetronomeUi() {
@@ -620,6 +635,7 @@ function initializeVisualMetronomeUi() {
 if (typeof window !== 'undefined') {
   window.syncVisualMetronomeBpmFromStartMarker = syncVisualMetronomeBpmFromStartMarker;
   window.restartVisualMetronomeFromFirstBeat = restartVisualMetronomeFromFirstBeat;
+  window.restartVisualMetronomeFromFirstBeatIfRunning = restartVisualMetronomeFromFirstBeatIfRunning;
 }
 
 function isLocalFilePreview() {

@@ -2205,7 +2205,7 @@ function startAutoScroll() {
 
   autoScrollState.rewindToStartPending = false;
   autoScrollState.startFromMarkerPending = false;
-  window.restartVisualMetronomeFromFirstBeat?.();
+  window.restartVisualMetronomeFromFirstBeatIfRunning?.();
   autoScrollState.isPlaying = true;
   autoScrollState.startedAtMs = performance.now();
   autoScrollState.lastFrameMs = autoScrollState.startedAtMs;
