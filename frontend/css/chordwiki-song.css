@@ -1123,8 +1123,9 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   position: relative;
   display: inline-flex;
   align-items: center;
-  flex: 1 1 auto;
+  flex: 0 1 80%;
   min-width: 88px;
+  max-width: 160px;
   height: 10px;
   border-radius: 999px;
   background: #e4eef9;
@@ -2109,6 +2110,10 @@ body.is-dragging-marker * {
 
 .autoscroll-ui.is-collapsed .autoscroll-status,
 .autoscroll-ui.is-collapsed .control-section {
+  display: none;
+}
+
+.autoscroll-ui.is-collapsed .cw-metro-beats-wrap {
   display: none;
 }
 
