@@ -557,12 +557,7 @@ function isLocalPreview() {
         const mainEl = document.createElement('span');
         const titleEl = document.createElement('a');
         const metaEl = document.createElement('span');
-        const scoreEl = document.createElement('span');
         const artistText = String(song.artist || '').trim();
-        const baseScore = Number(song.score) || 0;
-        const displayScore = Number.isFinite(Number(song.display_score))
-          ? Number(song.display_score)
-          : baseScore;
         const { visible: visibleTags, hasMore, fullText: tagsText } = getVisibleTags(song.tags);
 
         itemEl.className = 'song-item';
@@ -609,15 +604,8 @@ function isLocalPreview() {
         mainEl.appendChild(titleEl);
         mainEl.appendChild(metaEl);
 
-        scoreEl.className = 'song-score';
-        scoreEl.textContent = `Score ${displayScore}`;
-        scoreEl.title = displayScore === baseScore
-          ? `表示スコア ${displayScore}`
-          : `表示スコア ${displayScore}（保存スコア ${baseScore}）`;
-
         itemEl.appendChild(rankEl);
         itemEl.appendChild(mainEl);
-        itemEl.appendChild(scoreEl);
         itemEl.appendChild(createSongRowActions(song));
         songList.appendChild(itemEl);
       });
