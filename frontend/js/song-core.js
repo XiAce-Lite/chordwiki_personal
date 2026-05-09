@@ -245,12 +245,28 @@ function clampMetroBeats(value) {
 }
 
 function parseBpmFromText(text = '') {
-  const match = String(text || '').match(/BPM\s*=\s*([0-9]{1,3})/i);
-  if (!match || !match[1]) {
+  const s = String(text || '');
+  const rangeMatch = s.match(
+    /BPM\s*[=≒≈＝]\s*(\d{1,3})\s*[～〜~\-\u2013\u2014\u2212]\s*(\d{1,3})/i,
+  );
+  if (rangeMatch) {
+    const a = Number.parseInt(rangeMatch[1], 10);
+    const b = Number.parseInt(rangeMatch[2], 10);
+    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+      return null;
+    }
+    if (a < METRO_BPM_MIN || a > METRO_BPM_MAX || b < METRO_BPM_MIN || b > METRO_BPM_MAX) {
+      return null;
+    }
+    return clamp(Math.round((a + b) / 2), METRO_BPM_MIN, METRO_BPM_MAX);
+  }
+
+  const singleMatch = s.match(/BPM\s*[=≒≈＝]\s*(\d{1,3})/i);
+  if (!singleMatch || !singleMatch[1]) {
     return null;
   }
 
-  const bpm = Number.parseInt(match[1], 10);
+  const bpm = Number.parseInt(singleMatch[1], 10);
   if (!Number.isFinite(bpm) || bpm < METRO_BPM_MIN || bpm > METRO_BPM_MAX) {
     return null;
   }
