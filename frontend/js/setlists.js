@@ -75,10 +75,20 @@
     }
   }
 
+  function sortSetlistsByName(setlists) {
+    return [...setlists].sort((a, b) =>
+      String(a?.name || '').localeCompare(String(b?.name || ''), 'ja-JP', {
+        sensitivity: 'base',
+        numeric: true
+      })
+    );
+  }
+
   function readSetlists() {
     state.setlists = setlistStore.readSetlists();
     if (!state.selectedId || !state.setlists.some((item) => item.id === state.selectedId)) {
-      state.selectedId = state.setlists[0]?.id || '';
+      const sortedByName = sortSetlistsByName(state.setlists);
+      state.selectedId = sortedByName[0]?.id || '';
     }
   }
 
@@ -131,12 +141,7 @@
   function renderSelector() {
     selectorEl.innerHTML = '';
 
-    const sortedSetlists = [...state.setlists].sort((a, b) =>
-      String(a?.name || '').localeCompare(String(b?.name || ''), 'ja-JP', {
-        sensitivity: 'base',
-        numeric: true
-      })
-    );
+    const sortedSetlists = sortSetlistsByName(state.setlists);
 
     sortedSetlists.forEach((setlist) => {
       const option = document.createElement('option');
