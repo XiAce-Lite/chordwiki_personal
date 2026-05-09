@@ -19,6 +19,7 @@
     setlists: [],
     selectedId: '',
     songCatalogById: new Map(),
+    catalogTrustworthy: false,
     sortable: null,
     localCatalogLoaded: false,
     isEditor: false
@@ -98,6 +99,7 @@
 
   async function loadSongCatalog() {
     state.songCatalogById.clear();
+    state.catalogTrustworthy = false;
 
     if (typeof buildApiUrl !== 'function') {
       return;
@@ -114,7 +116,7 @@
 
       const songs = await response.json();
       if (!Array.isArray(songs)) {
-        return;
+        throw new Error('Song catalog response was not an array.');
       }
 
       songs.forEach((song) => {
@@ -132,9 +134,69 @@
             : `/song.html?artist=${encodeURIComponent(String(song?.artist || '').trim())}&id=${encodeURIComponent(id)}`
         });
       });
+
+      state.catalogTrustworthy = true;
     } catch (error) {
       console.warn('Failed to load song catalog for setlists page:', error);
       await loadLocalCatalogFallback();
+    }
+  }
+
+  function countEffectiveSongs(setlist) {
+    if (!setlist?.songs?.length) {
+      return 0;
+    }
+
+    if (!state.catalogTrustworthy) {
+      return setlist.songs.length;
+    }
+
+    return setlist.songs.filter((id) => state.songCatalogById.has(id)).length;
+  }
+
+  function getEffectiveSongIds(setlist) {
+    if (!setlist?.songs?.length) {
+      return [];
+    }
+
+    if (!state.catalogTrustworthy) {
+      return setlist.songs;
+    }
+
+    return setlist.songs.filter((id) => state.songCatalogById.has(id));
+  }
+
+  function reconcileGhostSongs() {
+    if (!state.catalogTrustworthy) {
+      return;
+    }
+
+    const setlists = setlistStore.readSetlists();
+    let removedTotal = 0;
+
+    for (const sl of setlists) {
+      if (!setlistStore.isOwnedByActiveUser(sl)) {
+        continue;
+      }
+
+      if (!sl.songs?.length) {
+        continue;
+      }
+
+      const filtered = sl.songs.filter((id) => state.songCatalogById.has(id));
+      if (filtered.length === sl.songs.length) {
+        continue;
+      }
+
+      removedTotal += sl.songs.length - filtered.length;
+      setlistStore.reorderSetlistSongs(sl.id, filtered);
+    }
+
+    if (removedTotal > 0) {
+      setlistUi?.showToast(
+        `サーバーに存在しない曲を ${removedTotal} 件、セットリストから取り除きました`,
+        'success'
+      );
     }
   }
 
@@ -148,7 +210,7 @@
       option.value = setlist.id;
       option.selected = setlist.id === state.selectedId;
       const badge = setlistStore.isOwnedByActiveUser(setlist) ? '' : '[共有] ';
-      option.textContent = `${badge}${setlist.name} (${setlist.songs.length}曲)`;
+      option.textContent = `${badge}${setlist.name} (${countEffectiveSongs(setlist)}曲)`;
       selectorEl.appendChild(option);
     });
   }
@@ -174,13 +236,14 @@
     }
 
     nameInputEl.value = selected.name;
-    songCountEl.textContent = `${selected.songs.length} 曲`;
+    const effectiveSongIds = getEffectiveSongIds(selected);
+    songCountEl.textContent = `${effectiveSongIds.length} 曲`;
 
     if (sharedToggleEl) {
       sharedToggleEl.checked = selected.isShared === true;
     }
 
-    if (selected.songs.length === 0) {
+    if (effectiveSongIds.length === 0) {
       const emptyItem = document.createElement('li');
       emptyItem.className = 'setlists-song-item';
       emptyItem.innerHTML = '<span></span><div><div class="setlists-song-title">曲がありません</div><div class="setlists-song-artist">曲一覧から追加してください</div></div><span></span>';
@@ -188,7 +251,7 @@
       return;
     }
 
-    selected.songs.forEach((songId) => {
+    effectiveSongIds.forEach((songId) => {
       const catalog = state.songCatalogById.get(songId);
       const item = document.createElement('li');
       item.className = 'setlists-song-item';
@@ -287,6 +350,11 @@
 
   function refresh({ keepCatalog = true } = {}) {
     readSetlists();
+    if (state.catalogTrustworthy) {
+      reconcileGhostSongs();
+      readSetlists();
+    }
+
     renderSelector();
     renderEmptyState();
     renderSongs();
@@ -300,7 +368,28 @@
     }
 
     if (!keepCatalog) {
-      void loadSongCatalog().then(() => renderSongs());
+      void loadSongCatalog().then(() => {
+        readSetlists();
+        if (state.catalogTrustworthy) {
+          reconcileGhostSongs();
+          readSetlists();
+        }
+
+        renderSelector();
+        renderEmptyState();
+        renderSongs();
+
+        if (!emptyEl.hidden) {
+          if (state.sortable) {
+            state.sortable.destroy();
+            state.sortable = null;
+          }
+          return;
+        }
+
+        initializeSortable();
+      });
+      return;
     }
 
     initializeSortable();
@@ -423,6 +512,14 @@
     renderEmptyState();
 
     await loadSongCatalog();
+    readSetlists();
+    if (state.catalogTrustworthy) {
+      reconcileGhostSongs();
+      readSetlists();
+    }
+
+    renderSelector();
+    renderEmptyState();
     renderSongs();
 
     if (!emptyEl.hidden) {
