@@ -1828,15 +1828,6 @@ span.chord sup {
   line-height: 1;
 }
 
-body {
-  margin: 10px 0;
-  background: #fff;
-  color: #222;
-  font-family: system-ui, -apple-system, "Segoe UI",
-               "Noto Sans JP", "Hiragino Kaku Gothic ProN",
-               "Yu Gothic", sans-serif;
-}
-
 sup .cw-chord-accidental {
   font-size: 0.85em;
   line-height: 1;
@@ -2344,6 +2335,7 @@ body.is-dragging-marker * {
   }
 
   .autoscroll-ui,
+  .autoscroll-focus-overlay,
   .autoscroll-marker-layer,
   .song-extras-ui,
   .youtube-player-shell,
