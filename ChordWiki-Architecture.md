@@ -111,13 +111,15 @@
 - 一覧 / ランキング / 検索 API
 - 編集 API
 - 閲覧スコア更新 API
-- オートスクロール参考時間推定 API
+- オートスクロール参考時間推定 API（統合エンドポイント `duration/estimate`）
+- セットリスト API
 
 ↓  
 
 [ Azure Cosmos DB（NoSQL） ]
 
-- 曲ドキュメント保存
+- 曲ドキュメント保存（`Songs` コンテナ）
+- セットリスト保存（`setlists` コンテナ）
 - `score` / `last_viewed_at` によるランキング情報保持
 
 ↘（外部参照・保存なし）
@@ -150,14 +152,18 @@
   - `COSMOS_KEY`
   - `COSMOS_DB_NAME`（既定値: `ChordWiki`）
   - `COSMOS_DB_CONTAINER_SONGS`（既定値: `Songs`）
+  - `COSMOS_DB_CONTAINER_SETLISTS`（既定値: `setlists`）
 
 ### 3.3 Azure Cosmos DB（Core SQL / Free Tier 想定）
 
 - Database：`ChordWiki`
-- Container：`Songs`
-- Partition Key：`/artist`
-- 曲 1 件 = 1 ドキュメント
-- ランキングに必要な `score` / `last_viewed_at` を同一ドキュメント内で管理する
+- **曲コンテナ** `Songs`（既定名。環境変数 `COSMOS_DB_CONTAINER_SONGS`）
+  - Partition Key：`/artist`
+  - 曲 1 件 = 1 ドキュメント
+  - ランキングに必要な `score` / `last_viewed_at` を同一ドキュメント内で管理する
+- **セットリストコンテナ** `setlists`（既定名。環境変数 `COSMOS_DB_CONTAINER_SETLISTS`）
+  - Partition Key：`/userId`（API が付与するオーナー ID）
+  - セットリスト 1 件 = 1 ドキュメント（`id`, `userId`, `name`, `songs`, `isShared`, `createdAt`, `updatedAt` など）
 
 ---
 
@@ -186,6 +192,7 @@
 | `/api/edit/*` | `editor` | 更新・削除 API |
 | `/login` | 公開 | `/.auth/login/aad` へリダイレクト |
 | `/logout` | 公開 | `/.auth/logout` へリダイレクト |
+| `/setlists.html` | `authenticated` | セットリスト一覧・編集画面 |
 
 ### 4.4 フロントエンドの権限反映
 
@@ -262,7 +269,12 @@
 | GET | `/api/song` | authenticated | 曲詳細取得 |
 | POST | `/api/songs/{id}/view` | authenticated | 閲覧スコア更新 |
 | POST / PUT / DELETE | `/api/edit/song` | editor | 作成 / 更新 / 削除 |
-| GET | `/api/youtube/search-duration` | authenticated | 参考時間推定 |
+| GET | `/api/duration/estimate` | authenticated | オートスクロール用・参考曲長の統合推定（iTunes → MusicBrainz → YouTube） |
+| GET | `/api/setlists` | authenticated | セットリスト一覧取得（共有分。`editor` かつログイン時は自分の非共有も） |
+| POST | `/api/setlists` | editor | セットリスト新規作成 |
+| PUT | `/api/setlists/{id}` | editor | セットリスト更新 |
+| DELETE | `/api/setlists/{id}` | editor | セットリスト削除 |
+| GET | `/api/youtube/search-duration` | authenticated | （レガシー）YouTube のみの参考時間。フロントの自動推定は `duration/estimate` を使用 |
 
 ### 6.2 曲取得 API
 
@@ -338,25 +350,35 @@
 - `youtube`：`{ id, start }[]` に正規化し、不正データを除外
 - `chordPro`：改行コードを正規化して保存
 
-### 6.7 オートスクロール参考時間推定 API
+### 6.7 オートスクロール参考時間推定 API（統合）
 
-- `GET /api/youtube/search-duration?title=...&artist=...`
+- **フロントの呼び出し先**は `GET /api/duration/estimate?title=...&artist=...`
 - 用途は **参考値取得のみ**。DB には保存しない
-- タイトルは Cosmos DB の `title` を正とし、
-  `（...）`, `(...)`, `【...】`, `[...]` は検索前に除去する
-- アーティスト名は Cosmos DB の `artist` をそのまま使用し、
-  ChordPro の `subtitle` には依存しない
-- YouTube 検索結果を上位数件だけ参照し、
-  以下で簡易スコアリングする
+- タイトル・歌手名はクエリで渡す。サーバー側では括弧書き等の除去・正規化を行う
+- **プロバイダ優先順**（先にヒットした 1 件で返却）:
+  1. iTunes Search API
+  2. MusicBrainz recording 検索
+  3. YouTube 検索結果の簡易スコアリング（`api/youtube-search-duration` と同等のロジックを内部利用）
+- YouTube 段階では、曲タイトル一致・アーティスト一致を優先し、
+  `live`, `cover`, `remix`, `instrumental` などは減点する
+- **レスポンス例（ヒット時）**: `found: true`, `durationSec`（整数秒）, `source`: `itunes` | `musicbrainz` | `youtube`
+- **レスポンス例（不ヒット時）**: `found: false`, `source: "default"`, `durationSec: null`
+- フロントは返却秒にバイアスを掛けて入力欄へ反映し、ステータスに `source` を表示する
+- タイムアウトや解析失敗時も `found: false` で安全にフォールバックする
 
-  - 曲タイトル一致を優先
-  - アーティスト名一致を強く優先
-  - `live`, `cover`, `remix`, `instrumental` などは減点
+#### レガシー: `GET /api/youtube/search-duration`
 
-- 最も妥当な 1 件の `duration` を返し、
-  フロント側で参考時間へ補正する
-- タイムアウトや解析失敗時は `found: false` で
-  安全にフォールバックする
+- YouTube のみを対象にした旧エンドポイント。リポジトリには残すが、
+  **曲ページの自動推定 UI は `duration/estimate` のみを呼ぶ**
+
+### 6.8 セットリスト API
+
+- `GET /api/setlists`：`isShared = true` のセットリストを全ユーザー分返す。
+  `editor` ロールかつログイン済みの場合は、同一レスポンスに自分の非共有リストもマージする
+- `POST /api/setlists`：`editor` のみ。本文 JSON で `id`, `name`, `songs` 等を受け取り、パーティション `userId` に作成
+- `PUT /api/setlists/{id}`：`editor` のみ。既存の自分のリストを upsert（名前・曲順・共有フラグなど）
+- `DELETE /api/setlists/{id}`：`editor` のみ。自分のリストを削除（204）
+- フロントは `frontend/js/shared/setlists.js` によりローカルキャッシュと REST を同期する
 
 ---
 
@@ -368,6 +390,7 @@
 | --- | --- |
 | `/` | トップページ（ランキング / 検索） |
 | `/song.html` | 曲詳細表示 |
+| `/setlists.html` | セットリスト管理（一覧・曲の並べ替え・共有フラグなど） |
 | `/edit.html?mode=add` | 新規登録 |
 | `/edit.html?mode=edit&artist=...&id=...` | 既存曲編集 |
 | `/403.html` | 権限エラー |
@@ -385,6 +408,7 @@
 - `ChordWiki Personal` タイトルと `✕ クリア` から
   ランキング初期表示へ戻れる
 - `editor` ロール時のみ「新規追加」ボタンを表示する
+- 「セットリスト」ボタンから `/setlists.html` へ移動できる
 - ローカルプレビュー時は `runtime-config.js` により
   `http://localhost:7071` を自動参照し、API が使えない場合は
   `.local/local-test-songs.js` へフォールバックする
