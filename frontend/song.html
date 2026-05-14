@@ -9,20 +9,22 @@
   <link rel="icon" href="/favicon-dark.svg" type="image/svg+xml" sizes="any" media="(prefers-color-scheme: dark)" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1" />
   <link rel="stylesheet" href="css/setlists.css?v=20260505-setlists1" />
-  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260509-youtube440" />
+  <link rel="stylesheet" href="css/chordwiki-song.css?v=20260514-songhead1" />
 </head>
 <body>
   <div class="container">
-    <div class="song-header">
-      <a href="/" class="back-link">← Top</a>
-      <h1 id="title" class="song-title"></h1>
-      <div id="song-admin-actions" class="song-admin-actions editor-only" data-display="flex">
-        <a id="edit-link" class="edit-link" href="#">Edit</a>
-        <button id="delete-button" type="button" class="delete-link">Delete</button>
+    <div class="song-head-block">
+      <div class="song-header">
+        <a href="/" class="back-link">← Top</a>
+        <h1 id="title" class="song-title"></h1>
+        <div id="song-admin-actions" class="song-admin-actions editor-only" data-display="flex">
+          <a id="edit-link" class="edit-link" href="#">Edit</a>
+          <button id="delete-button" type="button" class="delete-link">Delete</button>
+        </div>
       </div>
-    </div>
 
-    <div id="artist" class="song-artist"></div>
+      <div id="artist" class="song-artist"></div>
+    </div>
     <div id="song-setlist-adder" class="song-setlist-adder editor-only" data-display="inline-block">
       <button id="song-setlist-toggle" class="song-setlist-toggle" type="button" data-role="setlist-toggle" aria-expanded="false">セットリストに追加 ▼</button>
       <div id="song-setlist-panel" class="song-setlist-panel" data-role="setlist-panel" hidden></div>
