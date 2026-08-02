@@ -871,6 +871,11 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   cursor: pointer;
 }
 
+.display-toggle-option.display-toggle-nested {
+  margin-left: 1.25rem;
+  width: calc(100% - 1.25rem);
+}
+
 .display-toggle-option-with-help {
   width: 100%;
   justify-content: flex-start;
@@ -1957,6 +1962,58 @@ html[data-display-custom="on"] .song-key {
 
 .cw-adjusted-lyric {
   vertical-align: top;
+}
+
+/* 歌詞行の | をコード行まで延伸 / ブロック内小節線揃え */
+.cw-sheet p.line {
+  overflow: visible;
+}
+
+.cw-sheet span.rc-bar-extend {
+  overflow: visible;
+}
+
+.cw-sheet span.rc-bar-extend-glyph {
+  position: relative;
+  display: inline-block;
+  width: 0.35em;
+  height: 1em;
+  margin-left: 0.35em;
+  margin-right: 0.35em;
+  vertical-align: baseline;
+  overflow: visible;
+  color: inherit;
+}
+
+.cw-sheet span.rc-bar-extend-glyph::before {
+  content: '';
+  position: absolute;
+  left: var(--rc-bar-snap-x, 0px);
+  width: var(--rc-bar-hair-w, 1px);
+  bottom: -0.2em;
+  height: calc(1em + var(--rc-bar-extend-up, 1.5em));
+  background: currentColor;
+  pointer-events: none;
+}
+
+.cw-sheet span.rc-measure-bar {
+  display: inline-block;
+  margin-left: 0.35em;
+  margin-right: 0.35em;
+}
+
+.cw-sheet span.rc-measure {
+  display: inline-flex;
+  justify-content: space-between;
+  align-items: baseline;
+  vertical-align: baseline;
+  box-sizing: border-box;
+}
+
+.cw-sheet span.rc-beat {
+  display: inline-flex;
+  align-items: baseline;
+  flex: 0 0 auto;
 }
 
 .autoscroll-marker-layer {

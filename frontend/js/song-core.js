@@ -116,6 +116,8 @@ const mnotoAvailabilityState = {
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
   adjustChordPos: true,
+  extendBarUpward: false,
+  alignMeasureBars: false,
   chordStyle: 'none',
   mnotoEnabled: false,
   superscriptEnabled: false,
@@ -128,6 +130,17 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
   lyricFontWeight: 'normal',
   commentFontWeight: 'bold'
 });
+
+const SCORE_LINE_SELECTOR = 'p.line:not(.blank)';
+const LYRICS_SPAN_SELECTOR = 'span.word, span.wordtop';
+const VOICE_PART_SELECTOR = '.male, .male2, .female, .female2';
+const RC_BAR_EXTEND_CLASS = 'rc-bar-extend';
+const RC_BAR_EXTEND_GLYPH_CLASS = 'rc-bar-extend-glyph';
+const RC_MEASURE_CLASS = 'rc-measure';
+const RC_MEASURE_BAR_CLASS = 'rc-measure-bar';
+const RC_BEAT_CLASS = 'rc-beat';
+const MEASURE_BAR_SELECTOR = `span.${RC_BAR_EXTEND_GLYPH_CLASS}, span.${RC_MEASURE_BAR_CLASS}`;
+const BLOCK_BOUNDARY_SELECTOR = 'p.line.blank, p.comment';
 
 const displayPrefsState = {
   ...DEFAULT_DISPLAY_PREFS
@@ -1017,6 +1030,8 @@ function loadDisplayPreferences() {
 
     displayPrefsState.enabled = storedPrefs.enabled === true;
     displayPrefsState.adjustChordPos = storedPrefs.adjustChordPos !== false;
+    displayPrefsState.extendBarUpward = storedPrefs.extendBarUpward === true;
+    displayPrefsState.alignMeasureBars = storedPrefs.alignMeasureBars === true;
     if (typeof storedPrefs.chordStyle === 'string') {
       displayPrefsState.chordStyle = normalizeChordStyle(storedPrefs.chordStyle);
     } else if (storedPrefs.superscriptEnabled === true) {
@@ -1156,6 +1171,18 @@ function syncDisplayPreferenceUi() {
   if (adjustInput) {
     adjustInput.checked = displayPrefsState.adjustChordPos;
     adjustInput.disabled = !displayPrefsState.enabled;
+  }
+
+  const extendBarInput = document.getElementById('display-extend-bar');
+  if (extendBarInput) {
+    extendBarInput.checked = displayPrefsState.extendBarUpward === true;
+    extendBarInput.disabled = !displayPrefsState.enabled;
+  }
+
+  const alignMeasureInput = document.getElementById('display-align-measure-bars');
+  if (alignMeasureInput) {
+    alignMeasureInput.checked = displayPrefsState.alignMeasureBars === true;
+    alignMeasureInput.disabled = !displayPrefsState.enabled;
   }
 
   if (chordStyleSelect) {
@@ -1591,6 +1618,470 @@ function applyChordDisplayTextTransforms() {
   });
 }
 
+function unwrapMeasureLayout(line) {
+  line.querySelectorAll(`span.${RC_BEAT_CLASS}`).forEach((beat) => {
+    const parent = beat.parentNode;
+    if (!parent) {
+      return;
+    }
+    while (beat.firstChild) {
+      parent.insertBefore(beat.firstChild, beat);
+    }
+    beat.remove();
+  });
+  line.querySelectorAll(`span.${RC_MEASURE_CLASS}`).forEach((measure) => {
+    const parent = measure.parentNode;
+    if (!parent) {
+      return;
+    }
+    while (measure.firstChild) {
+      parent.insertBefore(measure.firstChild, measure);
+    }
+    measure.remove();
+  });
+}
+
+function clearLyricBarExtendMarks(sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root) {
+    return;
+  }
+
+  root.querySelectorAll(SCORE_LINE_SELECTOR).forEach((line) => {
+    unwrapMeasureLayout(line);
+    line.classList.remove('rc-measure-align');
+  });
+  root.querySelectorAll(`span.${RC_BAR_EXTEND_GLYPH_CLASS}`).forEach((glyph) => {
+    glyph.replaceWith(document.createTextNode('|'));
+  });
+  root.querySelectorAll(`span.${RC_MEASURE_BAR_CLASS}`).forEach((glyph) => {
+    glyph.replaceWith(document.createTextNode(glyph.textContent || '|'));
+  });
+  root.querySelectorAll(`span.${RC_BAR_EXTEND_CLASS}`).forEach((span) => {
+    span.classList.remove(RC_BAR_EXTEND_CLASS);
+  });
+}
+
+function wrapPipesInTextNode(textNode, createGlyph) {
+  const text = textNode.nodeValue;
+  if (!text || !text.includes('|') || !textNode.parentNode) {
+    return false;
+  }
+
+  const fragment = document.createDocumentFragment();
+  let remaining = text;
+  while (remaining.length) {
+    const idx = remaining.indexOf('|');
+    if (idx === -1) {
+      fragment.appendChild(document.createTextNode(remaining));
+      break;
+    }
+    if (idx > 0) {
+      fragment.appendChild(document.createTextNode(remaining.slice(0, idx)));
+    }
+    fragment.appendChild(createGlyph());
+    remaining = remaining.slice(idx + 1);
+  }
+  textNode.parentNode.replaceChild(fragment, textNode);
+  return true;
+}
+
+function createExtendBarGlyph() {
+  const glyph = document.createElement('span');
+  glyph.className = RC_BAR_EXTEND_GLYPH_CLASS;
+  glyph.setAttribute('aria-hidden', 'true');
+  return glyph;
+}
+
+function createPlainMeasureBarGlyph() {
+  const glyph = document.createElement('span');
+  glyph.className = RC_MEASURE_BAR_CLASS;
+  glyph.textContent = '|';
+  return glyph;
+}
+
+function wrapAllPipesInLyricSpan(span, createGlyph) {
+  if (!span.textContent.includes('|')) {
+    return;
+  }
+
+  const factory = createGlyph || createExtendBarGlyph;
+  const textNodes = [];
+  const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node.parentElement?.classList.contains(RC_BAR_EXTEND_GLYPH_CLASS)) {
+      continue;
+    }
+    if (node.parentElement?.classList.contains(RC_MEASURE_BAR_CLASS)) {
+      continue;
+    }
+    textNodes.push(node);
+  }
+
+  let wrapped = false;
+  textNodes.forEach((textNode) => {
+    if (!textNode.isConnected) {
+      return;
+    }
+    if (wrapPipesInTextNode(textNode, factory)) {
+      wrapped = true;
+    }
+  });
+  if (wrapped) {
+    span.classList.add(RC_BAR_EXTEND_CLASS);
+  }
+}
+
+function snapLyricBarExtendGlyphs(sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root) {
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const hairW = 1 / dpr;
+  root.querySelectorAll(`span.${RC_BAR_EXTEND_GLYPH_CLASS}`).forEach((glyph) => {
+    glyph.style.setProperty('--rc-bar-hair-w', `${hairW}px`);
+    glyph.style.removeProperty('--rc-bar-snap-x');
+    const left = glyph.getBoundingClientRect().left;
+    const snapped = Math.round(left * dpr) / dpr;
+    glyph.style.setProperty('--rc-bar-snap-x', `${snapped - left}px`);
+  });
+}
+
+function scheduleSnapLyricBarExtendGlyphs(sheetEl) {
+  snapLyricBarExtendGlyphs(sheetEl);
+  requestAnimationFrame(() => {
+    snapLyricBarExtendGlyphs(sheetEl);
+    requestAnimationFrame(() => snapLyricBarExtendGlyphs(sheetEl));
+  });
+}
+
+let barExtendSnapListening = false;
+function ensureBarExtendSnapListeners() {
+  if (barExtendSnapListening) {
+    return;
+  }
+  barExtendSnapListening = true;
+  window.addEventListener('resize', () => scheduleSnapLyricBarExtendGlyphs());
+}
+
+function markLyricBarExtendSpans(enabled, sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root) {
+    return;
+  }
+
+  clearLyricBarExtendMarks(root);
+  if (!enabled) {
+    return;
+  }
+
+  root.querySelectorAll(LYRICS_SPAN_SELECTOR).forEach((span) => {
+    if (span.textContent.includes('|')) {
+      wrapAllPipesInLyricSpan(span, createExtendBarGlyph);
+    }
+  });
+  ensureBarExtendSnapListeners();
+  scheduleSnapLyricBarExtendGlyphs(root);
+}
+
+function markPlainMeasureBarSpans(sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root) {
+    return;
+  }
+
+  root.querySelectorAll(LYRICS_SPAN_SELECTOR).forEach((span) => {
+    if (!span.textContent.includes('|')) {
+      return;
+    }
+    if (span.querySelector(MEASURE_BAR_SELECTOR)) {
+      return;
+    }
+    wrapAllPipesInLyricSpan(span, createPlainMeasureBarGlyph);
+  });
+}
+
+function isMeasureBarElement(el) {
+  return Boolean(
+    el
+    && el.nodeType === Node.ELEMENT_NODE
+    && el.classList
+    && (el.classList.contains(RC_BAR_EXTEND_GLYPH_CLASS) || el.classList.contains(RC_MEASURE_BAR_CLASS))
+  );
+}
+
+function wrapMeasureIntoBeats(measure) {
+  Array.from(measure.querySelectorAll(`:scope > span.${RC_BEAT_CLASS}`)).forEach((beat) => {
+    while (beat.firstChild) {
+      measure.insertBefore(beat.firstChild, beat);
+    }
+    beat.remove();
+  });
+
+  const nodes = Array.from(measure.childNodes);
+  if (!nodes.length) {
+    return;
+  }
+
+  const groups = [];
+  let current = [];
+  const flush = () => {
+    if (!current.length) {
+      return;
+    }
+    groups.push(current);
+    current = [];
+  };
+  const groupHasChord = () =>
+    current.some((n) => n.nodeType === Node.ELEMENT_NODE && n.classList.contains('chord'));
+
+  nodes.forEach((node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!cleanDisplayText(node.textContent)) {
+        if (current.length) {
+          current.push(node);
+        }
+        return;
+      }
+      if (groupHasChord()) {
+        current.push(node);
+      } else {
+        flush();
+        current.push(node);
+      }
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      if (current.length) {
+        current.push(node);
+      }
+      return;
+    }
+
+    const isChord = node.classList.contains('chord');
+    const isWord = node.classList.contains('word') || node.classList.contains('wordtop');
+
+    if (isChord) {
+      flush();
+      current.push(node);
+      return;
+    }
+    if (isWord) {
+      if (groupHasChord() || (current.length && !groupHasChord())) {
+        current.push(node);
+      } else {
+        flush();
+        current.push(node);
+      }
+      return;
+    }
+
+    flush();
+    current.push(node);
+    flush();
+  });
+  flush();
+
+  groups.forEach((group) => {
+    if (!group.length) {
+      return;
+    }
+    if (group.length === 1 && group[0].nodeType === Node.TEXT_NODE && !cleanDisplayText(group[0].textContent)) {
+      return;
+    }
+    const beat = document.createElement('span');
+    beat.className = RC_BEAT_CLASS;
+    group[0].before(beat);
+    group.forEach((n) => beat.appendChild(n));
+  });
+}
+
+function promoteMeasureBars(line) {
+  Array.from(line.querySelectorAll(MEASURE_BAR_SELECTOR)).forEach((bar) => {
+    const parent = bar.parentElement;
+    if (!parent || parent === line) {
+      return;
+    }
+    if (!parent.classList.contains('word') && !parent.classList.contains('wordtop')) {
+      return;
+    }
+
+    if (bar.previousSibling) {
+      const beforeSpan = parent.cloneNode(false);
+      while (bar.previousSibling) {
+        beforeSpan.insertBefore(bar.previousSibling, beforeSpan.firstChild);
+      }
+      if (cleanDisplayText(beforeSpan.textContent) || beforeSpan.querySelector(VOICE_PART_SELECTOR)) {
+        parent.parentNode.insertBefore(beforeSpan, parent);
+      }
+    }
+    parent.parentNode.insertBefore(bar, parent);
+    if (!parent.firstChild || (!cleanDisplayText(parent.textContent) && !parent.querySelector(VOICE_PART_SELECTOR))) {
+      parent.remove();
+    }
+  });
+}
+
+function wrapLineIntoMeasures(line) {
+  unwrapMeasureLayout(line);
+  promoteMeasureBars(line);
+
+  const children = Array.from(line.children);
+  const barIndexes = [];
+  children.forEach((el, idx) => {
+    if (isMeasureBarElement(el)) {
+      barIndexes.push(idx);
+    }
+  });
+  if (barIndexes.length < 2) {
+    return null;
+  }
+
+  for (let b = barIndexes.length - 2; b >= 0; b -= 1) {
+    const start = barIndexes[b];
+    const end = barIndexes[b + 1];
+    const nodes = children.slice(start + 1, end);
+    const wrapper = document.createElement('span');
+    wrapper.className = RC_MEASURE_CLASS;
+    if (nodes.length) {
+      nodes[0].before(wrapper);
+      nodes.forEach((n) => wrapper.appendChild(n));
+    } else {
+      children[start].after(wrapper);
+    }
+    wrapMeasureIntoBeats(wrapper);
+  }
+
+  return {
+    line,
+    bars: Array.from(line.querySelectorAll(`:scope > ${MEASURE_BAR_SELECTOR}`)),
+    measures: Array.from(line.querySelectorAll(`:scope > span.${RC_MEASURE_CLASS}`))
+  };
+}
+
+function hasBlockBoundaryBetween(fromLine, toLine) {
+  let el = fromLine.nextElementSibling;
+  while (el && el !== toLine) {
+    if (el.matches?.(BLOCK_BOUNDARY_SELECTOR)) {
+      return true;
+    }
+    if (el.matches?.(SCORE_LINE_SELECTOR)) {
+      return false;
+    }
+    el = el.nextElementSibling;
+  }
+  return el !== toLine;
+}
+
+function collectScoreLineBlocks(sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root) {
+    return [];
+  }
+
+  const lines = Array.from(root.querySelectorAll(SCORE_LINE_SELECTOR));
+  const blocks = [];
+  let current = [];
+
+  lines.forEach((line) => {
+    if (!current.length) {
+      current.push(line);
+      return;
+    }
+    const prev = current[current.length - 1];
+    if (hasBlockBoundaryBetween(prev, line)) {
+      blocks.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  });
+  if (current.length) {
+    blocks.push(current);
+  }
+  return blocks;
+}
+
+function applyMeasureColumnWidths(parsedLines) {
+  const maxMeasures = Math.max(0, ...parsedLines.map((p) => p.measures.length));
+  if (maxMeasures === 0) {
+    return;
+  }
+
+  const colWidths = Array(maxMeasures).fill(0);
+  parsedLines.forEach((p) => {
+    p.measures.forEach((measure, i) => {
+      measure.style.minWidth = '';
+      measure.style.width = '';
+      const w = measure.getBoundingClientRect().width;
+      if (w > colWidths[i]) {
+        colWidths[i] = w;
+      }
+    });
+  });
+
+  parsedLines.forEach((p) => {
+    p.line.classList.add('rc-measure-align');
+    p.measures.forEach((measure, i) => {
+      const w = Math.ceil(colWidths[i]);
+      measure.style.boxSizing = 'border-box';
+      measure.style.display = 'inline-flex';
+      measure.style.justifyContent = 'space-between';
+      measure.style.alignItems = 'baseline';
+      measure.style.verticalAlign = 'baseline';
+      measure.style.minWidth = `${w}px`;
+      measure.style.width = `${w}px`;
+    });
+  });
+}
+
+function alignMeasureBarsInBlocks(sheetEl) {
+  const blocks = collectScoreLineBlocks(sheetEl);
+  blocks.forEach((lines) => {
+    const parsedLines = [];
+    lines.forEach((line) => {
+      const parsed = wrapLineIntoMeasures(line);
+      if (parsed && parsed.measures.length > 0) {
+        parsedLines.push(parsed);
+      }
+    });
+    if (parsedLines.length < 2) {
+      return;
+    }
+
+    // 小節が少ない行は空小節で埋めず末尾も閉じない。先頭からの列幅だけ揃える
+    applyMeasureColumnWidths(parsedLines);
+  });
+}
+
+function applyMeasureBarDisplayFeatures(sheetEl) {
+  const root = sheetEl || getSheetEl();
+  if (!root || !displayPrefsState.enabled) {
+    return;
+  }
+
+  const extendBarUpward = displayPrefsState.extendBarUpward === true;
+  const alignMeasureBars = displayPrefsState.alignMeasureBars === true;
+  if (!extendBarUpward && !alignMeasureBars) {
+    clearLyricBarExtendMarks(root);
+    return;
+  }
+
+  markLyricBarExtendSpans(extendBarUpward, root);
+  if (alignMeasureBars && !extendBarUpward) {
+    markPlainMeasureBarSpans(root);
+  }
+  if (alignMeasureBars) {
+    alignMeasureBarsInBlocks(root);
+    if (extendBarUpward) {
+      scheduleSnapLyricBarExtendGlyphs(root);
+    }
+  }
+}
+
 function applyChordLayoutAdjustments() {
   const sheetEl = getSheetEl();
   if (!sheetEl) {
@@ -1607,68 +2098,68 @@ function applyChordLayoutAdjustments() {
   applyChordDisplayTextTransforms();
   applyVoiceMarkerSymbolClasses();
 
-  if (!(displayPrefsState.enabled && displayPrefsState.adjustChordPos)) {
-    return;
-  }
+  if (displayPrefsState.enabled && displayPrefsState.adjustChordPos) {
+    sheetEl.querySelectorAll('p.line:not(.blank)').forEach((lineEl) => {
+      const spans = Array.from(lineEl.children);
 
-  sheetEl.querySelectorAll('p.line').forEach((lineEl) => {
-    const spans = Array.from(lineEl.children);
-
-    spans.forEach((spanEl, index) => {
-      if (!spanEl.classList.contains('chord')) {
-        return;
-      }
-
-      const lyricEl = spans.slice(index + 1).find((candidate) => isLyricSpanElement(candidate));
-      if (!lyricEl) {
-        return;
-      }
-
-      const trimmedLyric = cleanDisplayText(lyricEl.textContent);
-      if (!trimmedLyric || /^([>\-]+)$/.test(trimmedLyric) || trimmedLyric.length === 1) {
-        return;
-      }
-
-      const chordText = cleanDisplayText(spanEl.textContent);
-      if (!isChordTextAllowed(chordText)) {
-        return;
-      }
-
-      const chordWidth = Math.ceil(spanEl.getBoundingClientRect().width);
-      const lyricWidth = Math.ceil(lyricEl.getBoundingClientRect().width);
-      if ((chordWidth - lyricWidth) >= 8) {
-        lyricEl.style.display = 'inline-block';
-        lyricEl.style.minWidth = `${chordWidth + 2}px`;
-        lyricEl.classList.add('cw-adjusted-lyric');
-      }
-
-      const chordLeft = spanEl.getBoundingClientRect().left;
-      const lyricLeft = lyricEl.getBoundingClientRect().left;
-      const diff = lyricLeft - chordLeft;
-      if (diff <= 20) {
-        return;
-      }
-
-      const nextChord = spans.slice(index + 1).find((candidate) => candidate.classList?.contains('chord'));
-      const minChordGap = 24;
-      let shift = -diff * 0.75;
-      if (Math.abs(shift) > 20) {
-        shift = shift < 0 ? -16 : 16;
-      }
-
-      if (nextChord) {
-        const nextChordLeft = nextChord.getBoundingClientRect().left;
-        const predictedLeft = lyricLeft + shift;
-        if ((nextChordLeft - predictedLeft) < minChordGap) {
+      spans.forEach((spanEl, index) => {
+        if (!spanEl.classList.contains('chord')) {
           return;
         }
-      }
 
-      const currentMargin = Number.parseFloat(window.getComputedStyle(lyricEl).marginLeft) || 0;
-      lyricEl.style.marginLeft = `${currentMargin + shift}px`;
-      lyricEl.classList.add('cw-shifted-lyric');
+        const lyricEl = spans.slice(index + 1).find((candidate) => isLyricSpanElement(candidate));
+        if (!lyricEl) {
+          return;
+        }
+
+        const trimmedLyric = cleanDisplayText(lyricEl.textContent);
+        if (!trimmedLyric || /^([>\-]+)$/.test(trimmedLyric) || trimmedLyric.length === 1) {
+          return;
+        }
+
+        const chordText = cleanDisplayText(spanEl.textContent);
+        if (!isChordTextAllowed(chordText)) {
+          return;
+        }
+
+        const chordWidth = Math.ceil(spanEl.getBoundingClientRect().width);
+        const lyricWidth = Math.ceil(lyricEl.getBoundingClientRect().width);
+        if ((chordWidth - lyricWidth) >= 8) {
+          lyricEl.style.display = 'inline-block';
+          lyricEl.style.minWidth = `${chordWidth + 2}px`;
+          lyricEl.classList.add('cw-adjusted-lyric');
+        }
+
+        const chordLeft = spanEl.getBoundingClientRect().left;
+        const lyricLeft = lyricEl.getBoundingClientRect().left;
+        const diff = lyricLeft - chordLeft;
+        if (diff <= 20) {
+          return;
+        }
+
+        const nextChord = spans.slice(index + 1).find((candidate) => candidate.classList?.contains('chord'));
+        const minChordGap = 24;
+        let shift = -diff * 0.75;
+        if (Math.abs(shift) > 20) {
+          shift = shift < 0 ? -16 : 16;
+        }
+
+        if (nextChord) {
+          const nextChordLeft = nextChord.getBoundingClientRect().left;
+          const predictedLeft = lyricLeft + shift;
+          if ((nextChordLeft - predictedLeft) < minChordGap) {
+            return;
+          }
+        }
+
+        const currentMargin = Number.parseFloat(window.getComputedStyle(lyricEl).marginLeft) || 0;
+        lyricEl.style.marginLeft = `${currentMargin + shift}px`;
+        lyricEl.classList.add('cw-shifted-lyric');
+      });
     });
-  });
+  }
+
+  applyMeasureBarDisplayFeatures(sheetEl);
 }
 
 function setDisplayPreferencesCollapsed(collapsed) {
@@ -1741,8 +2232,14 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   rootEl.style.setProperty('--user-lyric-gap', `${displayPrefsState.lyricLineGapPx}px`);
   rootEl.style.setProperty('--user-blank-line-height', `${displayPrefsState.blankLineHeightPx}px`);
   rootEl.style.setProperty('--user-comment-gap', `${displayPrefsState.commentLineGapPx}px`);
+  rootEl.style.setProperty(
+    '--rc-bar-extend-up',
+    `calc(1.5em - ${displayPrefsState.chordLineOffsetPx}px)`
+  );
   rootEl.dataset.lyricWeight = displayPrefsState.lyricFontWeight;
   rootEl.dataset.commentWeight = displayPrefsState.commentFontWeight;
+  rootEl.dataset.extendBar = displayPrefsState.enabled && displayPrefsState.extendBarUpward ? 'on' : 'off';
+  rootEl.dataset.alignMeasureBars = displayPrefsState.enabled && displayPrefsState.alignMeasureBars ? 'on' : 'off';
 
   syncDisplayPreferenceUi();
 
