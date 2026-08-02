@@ -871,11 +871,6 @@ html.editor-enabled .editor-only[data-display="inline-flex"] {
   cursor: pointer;
 }
 
-.display-toggle-option.display-toggle-nested {
-  margin-left: 1.25rem;
-  width: calc(100% - 1.25rem);
-}
-
 .display-toggle-option-with-help {
   width: 100%;
   justify-content: flex-start;
