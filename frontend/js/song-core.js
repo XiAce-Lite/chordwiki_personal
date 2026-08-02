@@ -2016,6 +2016,12 @@ function applyMeasureColumnWidths(parsedLines) {
     p.measures.forEach((measure, i) => {
       measure.style.minWidth = '';
       measure.style.width = '';
+      // 自然幅計測時は中身サイズで測る（伸長 flex だと余分に広がる）
+      measure.querySelectorAll(`:scope > span.${RC_BEAT_CLASS}`).forEach((beat) => {
+        beat.style.flex = '0 0 auto';
+        beat.style.minWidth = '';
+        beat.style.whiteSpace = 'nowrap';
+      });
       const w = measure.getBoundingClientRect().width;
       if (w > colWidths[i]) {
         colWidths[i] = w;
@@ -2029,11 +2035,22 @@ function applyMeasureColumnWidths(parsedLines) {
       const w = Math.ceil(colWidths[i]);
       measure.style.boxSizing = 'border-box';
       measure.style.display = 'inline-flex';
-      measure.style.justifyContent = 'space-between';
+      measure.style.justifyContent = 'flex-start';
       measure.style.alignItems = 'baseline';
       measure.style.verticalAlign = 'baseline';
       measure.style.minWidth = `${w}px`;
       measure.style.width = `${w}px`;
+
+      // 余白だけ均等に伸ばす（縮めない／折り返さない）
+      measure.querySelectorAll(`:scope > span.${RC_BEAT_CLASS}`).forEach((beat) => {
+        beat.style.display = 'inline-flex';
+        beat.style.alignItems = 'baseline';
+        beat.style.justifyContent = 'flex-start';
+        beat.style.flex = '1 0 auto';
+        beat.style.minWidth = '';
+        beat.style.whiteSpace = 'nowrap';
+        beat.style.boxSizing = 'border-box';
+      });
     });
   });
 }

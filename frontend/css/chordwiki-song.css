@@ -1999,7 +1999,7 @@ html[data-display-custom="on"] .song-key {
 
 .cw-sheet span.rc-measure {
   display: inline-flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: baseline;
   vertical-align: baseline;
   box-sizing: border-box;
@@ -2008,7 +2008,16 @@ html[data-display-custom="on"] .song-key {
 .cw-sheet span.rc-beat {
   display: inline-flex;
   align-items: baseline;
-  flex: 0 0 auto;
+  justify-content: flex-start;
+  flex: 1 0 auto;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.cw-sheet span.rc-beat > span.word,
+.cw-sheet span.rc-beat > span.wordtop,
+.cw-sheet span.rc-beat > span.chord {
+  white-space: nowrap;
 }
 
 .autoscroll-marker-layer {
