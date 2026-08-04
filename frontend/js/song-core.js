@@ -1908,18 +1908,34 @@ function promoteMeasureBars(line) {
     if (!parent.classList.contains('word') && !parent.classList.contains('wordtop')) {
       return;
     }
+    if (!parent.parentNode) {
+      return;
+    }
 
     if (bar.previousSibling) {
       const beforeSpan = parent.cloneNode(false);
       while (bar.previousSibling) {
         beforeSpan.insertBefore(bar.previousSibling, beforeSpan.firstChild);
       }
-      if (cleanDisplayText(beforeSpan.textContent) || beforeSpan.querySelector(VOICE_PART_SELECTOR)) {
+      const keepBefore = cleanDisplayText(beforeSpan.textContent)
+        || beforeSpan.querySelector(VOICE_PART_SELECTOR)
+        || beforeSpan.querySelector(MEASURE_BAR_SELECTOR);
+      if (keepBefore) {
         parent.parentNode.insertBefore(beforeSpan, parent);
       }
     }
+
+    if (!parent.parentNode) {
+      return;
+    }
     parent.parentNode.insertBefore(bar, parent);
-    if (!parent.firstChild || (!cleanDisplayText(parent.textContent) && !parent.querySelector(VOICE_PART_SELECTOR))) {
+
+    // 延伸グリフは textContent が空なので、残グリフ有無も見てから親を消す
+    const parentStillUseful = cleanDisplayText(parent.textContent)
+      || parent.querySelector(VOICE_PART_SELECTOR)
+      || parent.querySelector(MEASURE_BAR_SELECTOR)
+      || parent.querySelector('span.chord');
+    if (!parent.firstChild || !parentStillUseful) {
       parent.remove();
     }
   });
