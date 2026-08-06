@@ -1378,42 +1378,71 @@ function findPreviousLyricElement(wordtop) {
   return null;
 }
 
-function mergeOverflowTextIntoLine(lineEl, previousWord, overflowText) {
-  if (!lineEl || !overflowText) {
+function isOverflowLyricsText(cleanedText) {
+  return (
+    cleanedText.length > 1
+    && cleanedText.endsWith('|')
+    && /[^|]/.test(cleanedText)
+    && !cleanedText.startsWith('|')
+  );
+}
+
+// 行頭が chord より先の wordtop（コード行に | が残る場合のはみ出し典型）
+function isLineLeadingWordtop(wordtop) {
+  const line = wordtop.parentElement;
+  if (!line || !line.matches?.('p.line') || line.classList.contains('blank')) {
     return false;
   }
 
-  const wordSpans = Array.from(lineEl.querySelectorAll('span.word'));
-  const lyricSpans = Array.from(lineEl.children).filter((child) => isLyricSpanElement(child));
-  let targetSpan = wordSpans[wordSpans.length - 1] || null;
-
-  if (!targetSpan && isLyricSpanElement(previousWord)) {
-    targetSpan = previousWord;
+  for (const child of line.children) {
+    if (child === wordtop) {
+      return true;
+    }
+    if (child.classList?.contains('chord') || isLyricSpanElement(child)) {
+      return false;
+    }
   }
+  return false;
+}
 
-  if (!targetSpan && lyricSpans.length > 0) {
-    targetSpan = lyricSpans[lyricSpans.length - 1];
+function isOverflowWordtopCandidate(wordtop) {
+  const cleanedText = cleanDisplayText(wordtop.textContent);
+  if (!cleanedText || cleanedText === '|') {
+    return false;
   }
-
-  if (!targetSpan) {
-    targetSpan = document.createElement('span');
-    targetSpan.className = lyricSpans.length === 0 ? 'wordtop' : 'word';
-    lineEl.appendChild(targetSpan);
+  if (cleanedText.startsWith('|')) {
+    return false;
   }
-
-  const existingText = String(targetSpan.textContent || '');
-  const trimmedText = existingText.replace(/\s+$/, '');
-
-  if (/\|$/.test(trimmedText)) {
-    const textWithoutBar = trimmedText.replace(/\|+$/, '').replace(/\s+$/, '');
-    const separator = textWithoutBar ? ' ' : '';
-    targetSpan.textContent = `${textWithoutBar}${separator}${overflowText} | `;
+  if (isOverflowLyricsText(cleanedText)) {
     return true;
   }
+  return isLineLeadingWordtop(wordtop) && /[^|]/.test(cleanedText);
+}
 
-  const separator = trimmedText ? ' ' : '';
-  targetSpan.textContent = `${trimmedText}${separator}${overflowText}`;
-  return true;
+function stripTrailingBarFromLyricElement(el) {
+  if (!el) {
+    return;
+  }
+
+  if (el.querySelector(VOICE_PART_SELECTOR) || el.children.length > 0) {
+    for (let node = el.lastChild; node; node = node.previousSibling) {
+      if (node.nodeType !== Node.TEXT_NODE) {
+        continue;
+      }
+      const next = String(node.nodeValue || '').replace(/\|\s*$/, '');
+      if (next !== node.nodeValue) {
+        if (next) {
+          node.nodeValue = next;
+        } else {
+          node.remove();
+        }
+      }
+      break;
+    }
+    return;
+  }
+
+  el.textContent = String(el.textContent || '').replace(/\|\s*$/, '');
 }
 
 function normalizeChordBarSpans() {
@@ -1450,6 +1479,53 @@ function normalizeChordBarSpans() {
   });
 }
 
+// 前行末尾へはみ出し歌詞を載せる（生テキストノードは使わず | を lyrics span 内に残す）
+function appendOverflowLyricsToLine(parentP, overflowText, options = {}) {
+  if (!parentP || !overflowText) {
+    return false;
+  }
+
+  const appendBar = options.appendBar === true;
+  const lastElem = parentP.lastElementChild;
+  let hadTrailingBarOnLyric = false;
+
+  if (
+    lastElem
+    && isLyricSpanElement(lastElem)
+    && lastElem.textContent
+    && /\|\s*$/.test(lastElem.textContent)
+  ) {
+    hadTrailingBarOnLyric = true;
+    stripTrailingBarFromLyricElement(lastElem);
+  }
+
+  let suffix;
+  if (appendBar || hadTrailingBarOnLyric) {
+    suffix = hadTrailingBarOnLyric
+      ? ` ${overflowText} |`
+      : ` ${overflowText} | `;
+  } else {
+    suffix = ` ${overflowText}`;
+  }
+
+  if (
+    lastElem
+    && lastElem.isConnected
+    && isLyricSpanElement(lastElem)
+    && !lastElem.querySelector(VOICE_PART_SELECTOR)
+    && lastElem.children.length === 0
+  ) {
+    lastElem.appendChild(document.createTextNode(suffix));
+    return true;
+  }
+
+  const word = document.createElement('span');
+  word.className = 'word';
+  word.textContent = suffix;
+  parentP.appendChild(word);
+  return true;
+}
+
 function moveOverflowWordtopsToPreviousLine() {
   const sheetEl = getSheetEl();
   if (!sheetEl) {
@@ -1457,13 +1533,20 @@ function moveOverflowWordtopsToPreviousLine() {
   }
 
   Array.from(sheetEl.querySelectorAll('span.wordtop')).forEach((wordtop) => {
+    if (!wordtop.isConnected) {
+      return;
+    }
+    if (wordtop.querySelector(VOICE_PART_SELECTOR)) {
+      return;
+    }
+
     const cleanedText = cleanDisplayText(wordtop.textContent);
     if (cleanedText === '|') {
       wordtop.textContent = '| ';
       return;
     }
 
-    if (!(cleanedText.length > 1 && cleanedText.endsWith('|') && /[^|]/.test(cleanedText) && !cleanedText.startsWith('|'))) {
+    if (!isOverflowWordtopCandidate(wordtop)) {
       return;
     }
 
@@ -1471,8 +1554,14 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
-    const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
-    if (!overflowText || isRhythmMarkerOnlyText(overflowText) || startsWithRhythmMarker(overflowText) || containsVoiceMarkerSymbol(overflowText)) {
+    const hadTrailingBar = /\|+\s*$/.test(String(wordtop.textContent || ''));
+    const overflowText = cleanedText.replace(/\|+\s*$/, '').replace(/　/g, '').trim();
+    if (
+      !overflowText
+      || isRhythmMarkerOnlyText(overflowText)
+      || startsWithRhythmMarker(overflowText)
+      || containsVoiceMarkerSymbol(overflowText)
+    ) {
       return;
     }
 
@@ -1486,11 +1575,19 @@ function moveOverflowWordtopsToPreviousLine() {
       return;
     }
 
-    if (!mergeOverflowTextIntoLine(parentLine, previousWord, overflowText)) {
+    if (!appendOverflowLyricsToLine(parentLine, overflowText, { appendBar: hadTrailingBar })) {
       return;
     }
 
-    wordtop.textContent = '| ';
+    // 延伸・小節揃えが後段で効くよう、| は必ず span.word / wordtop 内に残す
+    if (hadTrailingBar) {
+      while (wordtop.firstChild) {
+        wordtop.removeChild(wordtop.firstChild);
+      }
+      wordtop.appendChild(document.createTextNode('| '));
+    } else {
+      wordtop.remove();
+    }
   });
 }
 
@@ -2071,11 +2168,28 @@ function applyMeasureColumnWidths(parsedLines) {
   });
 }
 
+function stripIdeographicSpacesInLineLyrics(line) {
+  line.querySelectorAll(LYRICS_SPAN_SELECTOR).forEach((span) => {
+    const textNodes = [];
+    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      textNodes.push(node);
+    }
+    textNodes.forEach((tn) => {
+      if (tn.nodeValue && tn.nodeValue.includes('　')) {
+        tn.nodeValue = tn.nodeValue.replace(/　/g, '');
+      }
+    });
+  });
+}
+
 function alignMeasureBarsInBlocks(sheetEl) {
   const blocks = collectScoreLineBlocks(sheetEl);
   blocks.forEach((lines) => {
     const parsedLines = [];
     lines.forEach((line) => {
+      stripIdeographicSpacesInLineLyrics(line);
       const parsed = wrapLineIntoMeasures(line);
       if (parsed && parsed.measures.length > 0) {
         parsedLines.push(parsed);
