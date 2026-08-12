@@ -273,6 +273,7 @@ function insertBracePair(view) {
 /** ] が次の文字と一致する場合はスキップ */
 function skipClosingBracket(view) {
   const pos = view.state.selection.main.from;
+  if (pos >= view.state.doc.length) return false;
   const next = view.state.doc.sliceString(pos, pos + 1);
   if (next === ']' || next === '}') {
     view.dispatch({ selection: { anchor: pos + 1 } });
@@ -457,9 +458,13 @@ const editableCompartment = new Compartment();
           const text = update.state.doc.toString();
           // hidden input を同期
           hiddenInput.value = text;
-          // 登録済みコールバックを呼ぶ
+          // 登録済みコールバックを呼ぶ（同期で重い処理が走らないように外に出す）
           for (const fn of changeListeners) {
-            try { fn(text); } catch (_) {}
+            queueMicrotask(() => {
+              try {
+                fn(text);
+              } catch (_) {}
+            });
           }
         }),
       ],
