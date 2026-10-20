@@ -1991,15 +1991,32 @@ html[data-display-custom="on"] .song-key {
   pointer-events: none;
 }
 
+.cw-sheet span.rc-bar-extend-glyph:has(+ span.rc-bar-extend-glyph) {
+  width: 0.2em;
+  margin-right: 0;
+}
+
+.cw-sheet span.rc-bar-extend-glyph + span.rc-bar-extend-glyph {
+  margin-left: 0;
+}
+
 .cw-sheet span.rc-measure-bar {
   display: inline-block;
   margin-left: 0.35em;
   margin-right: 0.35em;
 }
 
+.cw-sheet span.rc-measure-bar:has(+ span.rc-measure-bar) {
+  margin-right: 0;
+}
+
+.cw-sheet span.rc-measure-bar + span.rc-measure-bar {
+  margin-left: 0;
+}
+
 .cw-sheet span.rc-measure {
   display: inline-flex;
-  justify-content: flex-start;
+  justify-content: space-between;
   align-items: baseline;
   vertical-align: baseline;
   box-sizing: border-box;
@@ -2008,10 +2025,14 @@ html[data-display-custom="on"] .song-key {
 .cw-sheet span.rc-beat {
   display: inline-flex;
   align-items: baseline;
-  justify-content: flex-start;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   white-space: nowrap;
-  box-sizing: border-box;
+}
+
+html[data-display-custom="on"] span.chord.rc-bar-as-lyric {
+  color: inherit;
+  font-family: inherit;
+  font-weight: inherit;
 }
 
 .cw-sheet span.rc-beat > span.word,

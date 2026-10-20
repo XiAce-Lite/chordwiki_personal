@@ -205,6 +205,24 @@
             </div>
 
             <div class="display-toggle-option display-toggle-option-with-help">
+              <input id="display-move-bar-to-lyrics" type="checkbox" />
+              <label for="display-move-bar-to-lyrics" class="display-toggle-label">コード行の|を歌詞行へ移す</label>
+              <span class="display-help">
+                <button type="button" class="display-help-button" aria-label="コード行の|を歌詞行へ移すの説明">?</button>
+                <span class="display-help-tooltip" role="tooltip">[|] で書かれた小節線を歌詞行へ移します。オフにするとコード行に残し、歌詞と同じ色で表示します（延伸・小節揃えはオンのときのみ有効）。</span>
+              </span>
+            </div>
+
+            <div class="display-toggle-option display-toggle-option-with-help">
+              <input id="display-move-overflow-lyrics" type="checkbox" />
+              <label for="display-move-overflow-lyrics" class="display-toggle-label">はみ出し歌詞を前行へ移す</label>
+              <span class="display-help">
+                <button type="button" class="display-help-button" aria-label="はみ出し歌詞を前行へ移すの説明">?</button>
+                <span class="display-help-tooltip" role="tooltip">行頭でコードより前にある歌詞（前の小節からのはみ出し）を、前の行の末尾へ結合します。区切り線・記号だけの行・コードの無いメモ行は対象外です。</span>
+              </span>
+            </div>
+
+            <div class="display-toggle-option display-toggle-option-with-help">
               <input id="display-extend-bar" type="checkbox" />
               <label for="display-extend-bar" class="display-toggle-label">コード行に|を延伸</label>
               <span class="display-help">
@@ -218,7 +236,7 @@
               <label for="display-align-measure-bars" class="display-toggle-label">ブロック内の小節線を揃える</label>
               <span class="display-help">
                 <button type="button" class="display-help-button" aria-label="ブロック内の小節線を揃えるの説明">?</button>
-                <span class="display-help-tooltip" role="tooltip">空行やコメント行で区切られたコード譜を1ブロックとみなし、その中で小節の列幅を揃えます。小節内は余白を拍（コード＋歌詞）へ均等に振り、歌詞は折り返しません。小節数が不揃いな譜面ではオフ推奨です。</span>
+                <span class="display-help-tooltip" role="tooltip">空行やコメント行で区切られたコード譜を1ブロックとみなし、その中で小節の列幅を揃えます。小節内は拍（コード＋歌詞）を両端揃えで配置し、歌詞は折り返しません。小節数が不揃いな譜面ではオフ推奨です。</span>
               </span>
             </div>
 

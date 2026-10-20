@@ -96,6 +96,11 @@ const MARKER_EDGE_SCROLL_POINTER_SPEED_FACTOR = 0.35;
 const LYRIC_SYMBOL_RE = /[\s\u0000-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u00BF\u30FB\u30FC\u2010-\u2027\u2030-\u205E\u2060-\u206F\uFF01-\uFF0F\uFF1A-\uFF20\uFF3B-\uFF40\uFF5B-\uFF65]/g;
 const CHORD_ALLOWED_PATTERN = /^[A-G](#|b)?((?:m|M|maj|min|sus[0-9]*|add[0-9]*|dim|aug)*[0-9]*(?:-[0-9]+)?)(?:\([^)]+\)|\{[^}]+\})*(?:\/[A-G](#|b)?(?:\([^)]+\)|\{[^}]+\})*)?$/i;
 const NARROW_SYMBOL_PATTERN = /^(?:[\-=≫≧＞>!~]+|n\.c\.?)$/i;
+// 長いコード時の歌詞位置調整（穏やか）
+const CHORD_POS_MIN_DIFF_PX = 28;
+const CHORD_POS_SHIFT_RATIO = 0.5;
+const CHORD_POS_MAX_SHIFT_PX = 12;
+const CHORD_POS_MIN_GAP_PX = 24;
 const LOCAL_TEST_SONG_SCRIPT_PATH = './.local/local-test-song.js';
 const LOCAL_TEST_SONG_GLOBAL_KEY = '__LOCAL_TEST_SONG__';
 const LOCAL_TEST_SONG_LIBRARY_GLOBAL_KEY = '__LOCAL_TEST_SONG_LIBRARY__';
@@ -116,6 +121,8 @@ const mnotoAvailabilityState = {
 const DEFAULT_DISPLAY_PREFS = Object.freeze({
   enabled: false,
   adjustChordPos: true,
+  moveBarToLyrics: true,
+  moveOverflowLyrics: true,
   extendBarUpward: false,
   alignMeasureBars: false,
   chordStyle: 'none',
@@ -134,6 +141,7 @@ const DEFAULT_DISPLAY_PREFS = Object.freeze({
 const SCORE_LINE_SELECTOR = 'p.line:not(.blank)';
 const LYRICS_SPAN_SELECTOR = 'span.word, span.wordtop';
 const VOICE_PART_SELECTOR = '.male, .male2, .female, .female2';
+const RC_BAR_AS_LYRIC_CLASS = 'rc-bar-as-lyric';
 const RC_BAR_EXTEND_CLASS = 'rc-bar-extend';
 const RC_BAR_EXTEND_GLYPH_CLASS = 'rc-bar-extend-glyph';
 const RC_MEASURE_CLASS = 'rc-measure';
@@ -1030,6 +1038,8 @@ function loadDisplayPreferences() {
 
     displayPrefsState.enabled = storedPrefs.enabled === true;
     displayPrefsState.adjustChordPos = storedPrefs.adjustChordPos !== false;
+    displayPrefsState.moveBarToLyrics = storedPrefs.moveBarToLyrics !== false;
+    displayPrefsState.moveOverflowLyrics = storedPrefs.moveOverflowLyrics !== false;
     displayPrefsState.extendBarUpward = storedPrefs.extendBarUpward === true;
     displayPrefsState.alignMeasureBars = storedPrefs.alignMeasureBars === true;
     if (typeof storedPrefs.chordStyle === 'string') {
@@ -1173,16 +1183,31 @@ function syncDisplayPreferenceUi() {
     adjustInput.disabled = !displayPrefsState.enabled;
   }
 
+  const moveBarInput = document.getElementById('display-move-bar-to-lyrics');
+  if (moveBarInput) {
+    moveBarInput.checked = displayPrefsState.moveBarToLyrics !== false;
+    moveBarInput.disabled = !displayPrefsState.enabled;
+  }
+
+  const moveOverflowInput = document.getElementById('display-move-overflow-lyrics');
+  if (moveOverflowInput) {
+    moveOverflowInput.checked = displayPrefsState.moveOverflowLyrics !== false;
+    moveOverflowInput.disabled = !displayPrefsState.enabled;
+  }
+
+  // 延伸・小節揃えは | を歌詞行へ移したときだけ有効
+  const barFeaturesAvailable = displayPrefsState.enabled && displayPrefsState.moveBarToLyrics !== false;
+
   const extendBarInput = document.getElementById('display-extend-bar');
   if (extendBarInput) {
     extendBarInput.checked = displayPrefsState.extendBarUpward === true;
-    extendBarInput.disabled = !displayPrefsState.enabled;
+    extendBarInput.disabled = !barFeaturesAvailable;
   }
 
   const alignMeasureInput = document.getElementById('display-align-measure-bars');
   if (alignMeasureInput) {
     alignMeasureInput.checked = displayPrefsState.alignMeasureBars === true;
-    alignMeasureInput.disabled = !displayPrefsState.enabled;
+    alignMeasureInput.disabled = !barFeaturesAvailable;
   }
 
   if (chordStyleSelect) {
@@ -1252,7 +1277,24 @@ function isLyricSpanElement(element) {
 }
 
 function cleanDisplayText(text) {
-  return String(text || '').replace(/　/g, '').trim();
+  return String(text || '').replace(/　/g, ' ').trim();
+}
+
+// 歌詞内の全角スペース（連続含む）を半角スペース 1 つにする
+function normalizeIdeographicSpacesInLyrics(root) {
+  if (!root) {
+    return;
+  }
+
+  root.querySelectorAll(LYRICS_SPAN_SELECTOR).forEach((span) => {
+    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      if (node.nodeValue && node.nodeValue.includes('　')) {
+        node.nodeValue = node.nodeValue.replace(/　+/g, ' ');
+      }
+    }
+  });
 }
 
 function containsVoiceMarkerSymbol(text) {
@@ -1316,9 +1358,15 @@ function removeEmptyLyricSpans() {
   }
 
   sheetEl.querySelectorAll('span.word, span.wordtop').forEach((span) => {
-    if (!cleanDisplayText(span.textContent)) {
-      span.remove();
+    if (cleanDisplayText(span.textContent) || span.querySelector(VOICE_PART_SELECTOR)) {
+      return;
     }
+    // コード直後の空白はコード間の区切りなので半角 1 つ残す
+    if (span.textContent && span.previousElementSibling?.classList.contains('chord')) {
+      span.textContent = ' ';
+      return;
+    }
+    span.remove();
   });
 }
 
@@ -1335,12 +1383,55 @@ function normalizeFirstLyricSpans() {
       span.classList.toggle('wordtop', index === 0);
       span.classList.toggle('word', index !== 0);
 
-      if (index === 0 && typeof span.textContent === 'string') {
-        const normalizedText = span.textContent.replace(/^\s+/, '');
-        span.textContent = cleanDisplayText(normalizedText) === '|' ? '| ' : normalizedText;
+      if (index !== 0) {
+        return;
       }
+
+      // male/female 等の子要素を壊さない（textContent 代入は使わない）
+      if (span.querySelector(VOICE_PART_SELECTOR) || span.children.length > 0) {
+        const first = span.firstChild;
+        if (first && first.nodeType === Node.TEXT_NODE) {
+          first.nodeValue = first.nodeValue.replace(/^\s+/, '');
+        }
+        return;
+      }
+
+      const originalText = String(span.textContent || '');
+      let normalizedText = originalText.replace(/^\s+/, '');
+      if (cleanDisplayText(normalizedText) === '|') {
+        normalizedText = '| ';
+      }
+      // 空白だけの span はコード間の区切りなので半角 1 つ残す
+      if (!normalizedText && originalText) {
+        normalizedText = ' ';
+      }
+      span.textContent = normalizedText;
     });
   });
+}
+
+// 行頭の wordtop| + word| など連続小節線を 1 つの wordtop にまとめる
+function consolidateLineStartBars(lineEl) {
+  const first = lineEl.firstElementChild;
+  if (!first || !isBarOnlyLyricSpan(first)) {
+    return;
+  }
+
+  first.textContent = '| ';
+  first.classList.add('wordtop');
+  first.classList.remove('word');
+
+  let next = first.nextElementSibling;
+  while (next && isBarOnlyLyricSpan(next)) {
+    next.remove();
+    next = first.nextElementSibling;
+  }
+}
+
+function isBarOnlyLyricSpan(span) {
+  return isLyricSpanElement(span)
+    && !span.querySelector(VOICE_PART_SELECTOR)
+    && cleanDisplayText(span.textContent) === '|';
 }
 
 function findPreviousLyricElement(wordtop) {
@@ -1360,22 +1451,34 @@ function findPreviousLyricElement(wordtop) {
     return null;
   }
 
+  // comment は乗り越えるが、空行や歌詞の無い行をまたいで前ブロックへは結合しない
   let previousLine = parentLine.previousElementSibling;
-  while (previousLine) {
-    if (!previousLine.matches('p.line') || previousLine.matches('p.comment')) {
-      previousLine = previousLine.previousElementSibling;
-      continue;
-    }
-
-    const lyricSpans = Array.from(previousLine.children).filter((child) => isLyricSpanElement(child));
-    if (lyricSpans.length > 0) {
-      return lyricSpans[lyricSpans.length - 1];
-    }
-
+  while (previousLine && (!previousLine.matches('p.line') || previousLine.matches('p.comment'))) {
     previousLine = previousLine.previousElementSibling;
   }
+  if (!previousLine || previousLine.classList.contains('blank')) {
+    return null;
+  }
 
-  return null;
+  const lyricSpans = Array.from(previousLine.children).filter((child) => isLyricSpanElement(child));
+  return lyricSpans.length > 0 ? lyricSpans[lyricSpans.length - 1] : null;
+}
+
+// --- / ---- は譜面内でも普通にある。区切り線は 9 連以上の - とみなす
+const LONG_DASH_SEPARATOR_RE = /-{9,}/;
+
+function isLongDashSeparatorText(cleanedText) {
+  const body = cleanedText.replace(/\|+\s*$/, '').trim();
+  return LONG_DASH_SEPARATOR_RE.test(body);
+}
+
+function isBarOnlyChordSpan(span) {
+  return Boolean(span?.classList?.contains('chord')) && /^[|｜]+$/.test(cleanDisplayText(span.textContent));
+}
+
+// [] 由来の実コード（小節線のみの chord は除く）。無ければメモ行とみなす
+function lineHasRealChord(line) {
+  return Array.from(line.querySelectorAll('span.chord')).some((span) => !isBarOnlyChordSpan(span));
 }
 
 function isOverflowLyricsText(cleanedText) {
@@ -1413,10 +1516,29 @@ function isOverflowWordtopCandidate(wordtop) {
   if (cleanedText.startsWith('|')) {
     return false;
   }
-  if (isOverflowLyricsText(cleanedText)) {
-    return true;
+  // 区切り線（--------- 等）は前行へ移さない
+  if (isLongDashSeparatorText(cleanedText)) {
+    return false;
   }
-  return isLineLeadingWordtop(wordtop) && /[^|]/.test(cleanedText);
+  // ---- / >--- / ---- ----|---- ----| 等、延長記号と小節線だけなら歌詞ではない
+  if (/^[\-=~〜ー―─>≫≧＞.・\s|]+$/u.test(cleanedText)) {
+    return false;
+  }
+
+  const line = wordtop.parentElement;
+  if (!line?.matches?.('p.line') || line.matches('p.comment, p.blank')) {
+    return false;
+  }
+  // コード無し行（"<検索用>" や末尾メモ等）ははみ出し扱いにしない
+  if (!lineHasRealChord(line)) {
+    return false;
+  }
+  // [Bm]歌詞| のようにコードの後ろなら 1 小節として完結しており、はみ出しではない
+  if (!isLineLeadingWordtop(wordtop)) {
+    return false;
+  }
+
+  return isOverflowLyricsText(cleanedText) || /[^|]/.test(cleanedText);
 }
 
 function stripTrailingBarFromLyricElement(el) {
@@ -1445,6 +1567,76 @@ function stripTrailingBarFromLyricElement(el) {
   el.textContent = String(el.textContent || '').replace(/\|\s*$/, '');
 }
 
+// [| E] 由来の "| E" を小節線 chord とコード chord に分割する
+function splitPipeBarChordSpans() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return;
+  }
+
+  Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
+    if (span.querySelector(VOICE_PART_SELECTOR)) {
+      return;
+    }
+
+    const match = cleanDisplayText(span.textContent).match(/^[|｜]\s*([^|｜\s].*)$/);
+    if (!match) {
+      return;
+    }
+
+    const barSpan = document.createElement('span');
+    barSpan.className = 'chord';
+    barSpan.textContent = '|';
+
+    const codeSpan = document.createElement('span');
+    codeSpan.className = 'chord';
+    codeSpan.textContent = match[1].trim();
+
+    span.replaceWith(barSpan, codeSpan);
+  });
+}
+
+function findNextLyricElement(fromSpan) {
+  let next = fromSpan.nextElementSibling;
+  while (next) {
+    if (isLyricSpanElement(next)) {
+      return next;
+    }
+    next = next.nextElementSibling;
+  }
+  return null;
+}
+
+// 小節線のみ chord の直後が歌詞の | 始まりなら chord を削除（| と | の連続対策）
+function removeRedundantBarChords() {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return;
+  }
+
+  Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
+    if (!isBarOnlyChordSpan(span)) {
+      return;
+    }
+    const nextLyric = findNextLyricElement(span);
+    if (nextLyric && cleanDisplayText(nextLyric.textContent).startsWith('|')) {
+      span.remove();
+    }
+  });
+}
+
+// | を歌詞行へ移さない場合、コード行に残る小節線を歌詞と同系の見た目にする
+function markChordLineBarSpans(enabled) {
+  const sheetEl = getSheetEl();
+  if (!sheetEl) {
+    return;
+  }
+
+  sheetEl.querySelectorAll('span.chord').forEach((span) => {
+    span.classList.toggle(RC_BAR_AS_LYRIC_CLASS, enabled && isBarOnlyChordSpan(span));
+  });
+}
+
 function normalizeChordBarSpans() {
   const sheetEl = getSheetEl();
   if (!sheetEl) {
@@ -1452,8 +1644,7 @@ function normalizeChordBarSpans() {
   }
 
   Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
-    const text = cleanDisplayText(span.textContent);
-    if (!/^[|｜]+$/.test(text)) {
+    if (!isBarOnlyChordSpan(span)) {
       return;
     }
 
@@ -1479,6 +1670,44 @@ function normalizeChordBarSpans() {
   });
 }
 
+function isEmptyLyricElement(el) {
+  return isLyricSpanElement(el)
+    && !el.querySelector(VOICE_PART_SELECTOR)
+    && !cleanDisplayText(el.textContent);
+}
+
+// 行末の空歌詞と閉じ小節線（歌詞の | / コード行に残った |）を消費する
+function consumeTrailingMeasureBar(parentP) {
+  const trimEmptyLyrics = () => {
+    while (parentP.lastElementChild && isEmptyLyricElement(parentP.lastElementChild)) {
+      parentP.lastElementChild.remove();
+    }
+  };
+
+  trimEmptyLyrics();
+  const last = parentP.lastElementChild;
+  if (!last) {
+    return false;
+  }
+
+  if (isBarOnlyChordSpan(last) || isBarOnlyLyricSpan(last)) {
+    last.remove();
+    trimEmptyLyrics();
+    return true;
+  }
+
+  if (isLyricSpanElement(last) && /\|\s*$/.test(String(last.textContent || ''))) {
+    stripTrailingBarFromLyricElement(last);
+    if (last.isConnected && isEmptyLyricElement(last)) {
+      last.remove();
+    }
+    trimEmptyLyrics();
+    return true;
+  }
+
+  return false;
+}
+
 // 前行末尾へはみ出し歌詞を載せる（生テキストノードは使わず | を lyrics span 内に残す）
 function appendOverflowLyricsToLine(parentP, overflowText, options = {}) {
   if (!parentP || !overflowText) {
@@ -1486,28 +1715,12 @@ function appendOverflowLyricsToLine(parentP, overflowText, options = {}) {
   }
 
   const appendBar = options.appendBar === true;
+  const hadTrailingBarOnLine = consumeTrailingMeasureBar(parentP);
+  const suffix = appendBar || hadTrailingBarOnLine
+    ? ` ${overflowText} | `
+    : ` ${overflowText}`;
+
   const lastElem = parentP.lastElementChild;
-  let hadTrailingBarOnLyric = false;
-
-  if (
-    lastElem
-    && isLyricSpanElement(lastElem)
-    && lastElem.textContent
-    && /\|\s*$/.test(lastElem.textContent)
-  ) {
-    hadTrailingBarOnLyric = true;
-    stripTrailingBarFromLyricElement(lastElem);
-  }
-
-  let suffix;
-  if (appendBar || hadTrailingBarOnLyric) {
-    suffix = hadTrailingBarOnLyric
-      ? ` ${overflowText} |`
-      : ` ${overflowText} | `;
-  } else {
-    suffix = ` ${overflowText}`;
-  }
-
   if (
     lastElem
     && lastElem.isConnected
@@ -1555,7 +1768,7 @@ function moveOverflowWordtopsToPreviousLine() {
     }
 
     const hadTrailingBar = /\|+\s*$/.test(String(wordtop.textContent || ''));
-    const overflowText = cleanedText.replace(/\|+\s*$/, '').replace(/　/g, '').trim();
+    const overflowText = cleanedText.replace(/\|+\s*$/, '').trim();
     if (
       !overflowText
       || isRhythmMarkerOnlyText(overflowText)
@@ -1662,12 +1875,23 @@ function applyChordDisplayTextTransforms() {
     return;
   }
 
+  const moveBarToLyrics = displayPrefsState.moveBarToLyrics !== false;
+
+  normalizeIdeographicSpacesInLyrics(sheetEl);
   removeEmptyLyricSpans();
-  normalizeChordBarSpans();
+  splitPipeBarChordSpans();
+  removeRedundantBarChords();
+  if (moveBarToLyrics) {
+    normalizeChordBarSpans();
+  }
   normalizeFirstLyricSpans();
-  moveOverflowWordtopsToPreviousLine();
+  if (displayPrefsState.moveOverflowLyrics !== false) {
+    moveOverflowWordtopsToPreviousLine();
+  }
   removeEmptyLyricSpans();
   normalizeFirstLyricSpans();
+  sheetEl.querySelectorAll('p.line').forEach(consolidateLineStartBars);
+  markChordLineBarSpans(!moveBarToLyrics);
 
   Array.from(sheetEl.querySelectorAll('span.chord')).forEach((span) => {
     span.classList.remove('cw-narrow-symbol', 'cw-mnoto-chord');
@@ -2057,14 +2281,14 @@ function wrapLineIntoMeasures(line) {
     const start = barIndexes[b];
     const end = barIndexes[b + 1];
     const nodes = children.slice(start + 1, end);
+    // || は複縦線。空小節を作ると列幅まで広がるので小節扱いしない
+    if (!nodes.length) {
+      continue;
+    }
     const wrapper = document.createElement('span');
     wrapper.className = RC_MEASURE_CLASS;
-    if (nodes.length) {
-      nodes[0].before(wrapper);
-      nodes.forEach((n) => wrapper.appendChild(n));
-    } else {
-      children[start].after(wrapper);
-    }
+    nodes[0].before(wrapper);
+    nodes.forEach((n) => wrapper.appendChild(n));
     wrapMeasureIntoBeats(wrapper);
   }
 
@@ -2129,12 +2353,6 @@ function applyMeasureColumnWidths(parsedLines) {
     p.measures.forEach((measure, i) => {
       measure.style.minWidth = '';
       measure.style.width = '';
-      // 自然幅計測時は中身サイズで測る（伸長 flex だと余分に広がる）
-      measure.querySelectorAll(`:scope > span.${RC_BEAT_CLASS}`).forEach((beat) => {
-        beat.style.flex = '0 0 auto';
-        beat.style.minWidth = '';
-        beat.style.whiteSpace = 'nowrap';
-      });
       const w = measure.getBoundingClientRect().width;
       if (w > colWidths[i]) {
         colWidths[i] = w;
@@ -2148,38 +2366,11 @@ function applyMeasureColumnWidths(parsedLines) {
       const w = Math.ceil(colWidths[i]);
       measure.style.boxSizing = 'border-box';
       measure.style.display = 'inline-flex';
-      measure.style.justifyContent = 'flex-start';
+      measure.style.justifyContent = 'space-between';
       measure.style.alignItems = 'baseline';
       measure.style.verticalAlign = 'baseline';
       measure.style.minWidth = `${w}px`;
       measure.style.width = `${w}px`;
-
-      // 余白だけ均等に伸ばす（縮めない／折り返さない）
-      measure.querySelectorAll(`:scope > span.${RC_BEAT_CLASS}`).forEach((beat) => {
-        beat.style.display = 'inline-flex';
-        beat.style.alignItems = 'baseline';
-        beat.style.justifyContent = 'flex-start';
-        beat.style.flex = '1 0 auto';
-        beat.style.minWidth = '';
-        beat.style.whiteSpace = 'nowrap';
-        beat.style.boxSizing = 'border-box';
-      });
-    });
-  });
-}
-
-function stripIdeographicSpacesInLineLyrics(line) {
-  line.querySelectorAll(LYRICS_SPAN_SELECTOR).forEach((span) => {
-    const textNodes = [];
-    const walker = document.createTreeWalker(span, NodeFilter.SHOW_TEXT);
-    let node;
-    while ((node = walker.nextNode())) {
-      textNodes.push(node);
-    }
-    textNodes.forEach((tn) => {
-      if (tn.nodeValue && tn.nodeValue.includes('　')) {
-        tn.nodeValue = tn.nodeValue.replace(/　/g, '');
-      }
     });
   });
 }
@@ -2189,7 +2380,7 @@ function alignMeasureBarsInBlocks(sheetEl) {
   blocks.forEach((lines) => {
     const parsedLines = [];
     lines.forEach((line) => {
-      stripIdeographicSpacesInLineLyrics(line);
+      normalizeIdeographicSpacesInLyrics(line);
       const parsed = wrapLineIntoMeasures(line);
       if (parsed && parsed.measures.length > 0) {
         parsedLines.push(parsed);
@@ -2210,8 +2401,9 @@ function applyMeasureBarDisplayFeatures(sheetEl) {
     return;
   }
 
-  const extendBarUpward = displayPrefsState.extendBarUpward === true;
-  const alignMeasureBars = displayPrefsState.alignMeasureBars === true;
+  const moveBarToLyrics = displayPrefsState.moveBarToLyrics !== false;
+  const extendBarUpward = moveBarToLyrics && displayPrefsState.extendBarUpward === true;
+  const alignMeasureBars = moveBarToLyrics && displayPrefsState.alignMeasureBars === true;
   if (!extendBarUpward && !alignMeasureBars) {
     clearLyricBarExtendMarks(root);
     return;
@@ -2280,21 +2472,20 @@ function applyChordLayoutAdjustments() {
         const chordLeft = spanEl.getBoundingClientRect().left;
         const lyricLeft = lyricEl.getBoundingClientRect().left;
         const diff = lyricLeft - chordLeft;
-        if (diff <= 20) {
+        if (diff <= CHORD_POS_MIN_DIFF_PX) {
           return;
         }
 
         const nextChord = spans.slice(index + 1).find((candidate) => candidate.classList?.contains('chord'));
-        const minChordGap = 24;
-        let shift = -diff * 0.75;
-        if (Math.abs(shift) > 20) {
-          shift = shift < 0 ? -16 : 16;
+        let shift = -diff * CHORD_POS_SHIFT_RATIO;
+        if (Math.abs(shift) > CHORD_POS_MAX_SHIFT_PX) {
+          shift = shift < 0 ? -CHORD_POS_MAX_SHIFT_PX : CHORD_POS_MAX_SHIFT_PX;
         }
 
         if (nextChord) {
           const nextChordLeft = nextChord.getBoundingClientRect().left;
           const predictedLeft = lyricLeft + shift;
-          if ((nextChordLeft - predictedLeft) < minChordGap) {
+          if ((nextChordLeft - predictedLeft) < CHORD_POS_MIN_GAP_PX) {
             return;
           }
         }
@@ -2385,8 +2576,9 @@ function applyDisplayPreferences({ refreshLayout = true } = {}) {
   );
   rootEl.dataset.lyricWeight = displayPrefsState.lyricFontWeight;
   rootEl.dataset.commentWeight = displayPrefsState.commentFontWeight;
-  rootEl.dataset.extendBar = displayPrefsState.enabled && displayPrefsState.extendBarUpward ? 'on' : 'off';
-  rootEl.dataset.alignMeasureBars = displayPrefsState.enabled && displayPrefsState.alignMeasureBars ? 'on' : 'off';
+  const barFeaturesActive = displayPrefsState.enabled && displayPrefsState.moveBarToLyrics !== false;
+  rootEl.dataset.extendBar = barFeaturesActive && displayPrefsState.extendBarUpward ? 'on' : 'off';
+  rootEl.dataset.alignMeasureBars = barFeaturesActive && displayPrefsState.alignMeasureBars ? 'on' : 'off';
 
   syncDisplayPreferenceUi();
 

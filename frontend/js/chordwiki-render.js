@@ -67,12 +67,18 @@ function createSpan(className, text) {
   return s;
 }
 
-const VOICE_MARKER_PATTERN = /[\u2660\u2663\u2665\u2666]/u; // ♠♣♥♦
+// ChordWiki 互換: ♠=male ♣=male2 ♥=female ♦=female2（白塗り・絵文字も拾う）
+const VOICE_MARKER_PATTERN = /[\u2660\u2664\u2663\u2667\u2665\u2661\u2666\u2662\u2764]/u;
 const VOICE_MARKER_CLASS_MAP = Object.freeze({
   '\u2660': 'male',
+  '\u2664': 'male',
   '\u2663': 'male2',
+  '\u2667': 'male2',
   '\u2665': 'female',
-  '\u2666': 'female2'
+  '\u2661': 'female',
+  '\u2666': 'female2',
+  '\u2662': 'female2',
+  '\u2764': 'female'
 });
 
 function applyVoiceMarkers(spanEl) {
@@ -480,6 +486,13 @@ function transposeChordString(chord, semitones = 0, accidentalMode = "none", key
 
   if (normalizeAccidentalMode(accidentalMode) === "none" && semitones === 0) {
     return normalizedChord;
+  }
+
+  // [| E] 形式: 小節線の後ろのコードだけを移調する
+  const barPrefixMatch = trimmed.match(/^([|｜])\s*(.+)$/);
+  if (barPrefixMatch) {
+    const transposedInner = transposeChordString(barPrefixMatch[2], semitones, accidentalMode, keyContext);
+    return `${barPrefixMatch[1]} ${transposedInner}`;
   }
 
   // ()で囲まれた通常コード（例: (Eb), (EbM7), (F#m7)）を処理する
