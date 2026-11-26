@@ -7,8 +7,6 @@
       clampPage,
       clampPageSize,
       rankingPageSize,
-      rankingMaxPages,
-      searchMaxPages,
       updatePaginationSafeSpace,
       loadSongs
     } = options;
@@ -43,8 +41,7 @@
       const safeTarget = normalizeSearchTarget(target);
       const rankingMode = isRankingMode(appliedQuery, safeTarget);
       const safePageSize = rankingMode ? rankingPageSize : clampPageSize(pageSize);
-      const maxPages = rankingMode ? rankingMaxPages : searchMaxPages;
-      const availablePages = Math.max(1, Math.min(maxPages, Math.ceil(songCount / safePageSize)));
+      const availablePages = Math.max(1, Math.ceil(Math.max(0, Number(songCount) || 0) / safePageSize));
       const safePage = clampPage(page, availablePages);
       paginationEl.innerHTML = '';
 

@@ -17,16 +17,21 @@ function mapSongSummary(song, now = Date.now()) {
   }, now);
 }
 
-function rankAndLimitSongs(resources, totalLimit, now = Date.now(), filterFn = null) {
+function rankAndLimitSongs(resources, totalLimit = null, now = Date.now(), filterFn = null) {
   const source = Array.isArray(resources) ? resources : [];
   const filtered = typeof filterFn === 'function'
     ? source.filter(filterFn)
     : source;
 
-  return filtered
+  const ranked = filtered
     .map((song) => mapSongSummary(song, now))
-    .sort((a, b) => compareSongsForRanking(a, b, now))
-    .slice(0, totalLimit);
+    .sort((a, b) => compareSongsForRanking(a, b, now));
+
+  if (totalLimit == null || !Number.isFinite(Number(totalLimit))) {
+    return ranked;
+  }
+
+  return ranked.slice(0, Math.max(0, Number(totalLimit)));
 }
 
 function getPageWindow(items, page, pageSize) {

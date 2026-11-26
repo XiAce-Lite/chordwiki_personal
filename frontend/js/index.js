@@ -14,10 +14,7 @@ document.getElementById('setlists-button')?.addEventListener('click', () => {
 const DEFAULT_PAGE_SIZE = 30;
     const MIN_PAGE_SIZE = 20;
     const MAX_PAGE_SIZE = 60;
-    const SEARCH_MAX_PAGES = 6;
     const RANKING_PAGE_SIZE = 20;
-    const RANKING_MAX_SONGS = 100;
-    const RANKING_MAX_PAGES = 5;
     const TOP_HEADER_MIN_HEIGHT = 64;
     const PAGINATION_MIN_HEIGHT = 56;
     const PAGINATION_SAFE_MARGIN = 24;
@@ -65,9 +62,6 @@ const DEFAULT_PAGE_SIZE = 30;
       clampPage,
       getCurrentPageSize: () => currentPageSize,
       rankingPageSize: RANKING_PAGE_SIZE,
-      rankingMaxPages: RANKING_MAX_PAGES,
-      searchMaxPages: SEARCH_MAX_PAGES,
-      rankingMaxSongs: RANKING_MAX_SONGS,
       buildSongHref,
       localSamplePanel,
       localSampleLinks
@@ -102,8 +96,6 @@ const DEFAULT_PAGE_SIZE = 30;
       clampPage,
       clampPageSize,
       rankingPageSize: RANKING_PAGE_SIZE,
-      rankingMaxPages: RANKING_MAX_PAGES,
-      searchMaxPages: SEARCH_MAX_PAGES,
       updatePaginationSafeSpace,
       loadSongs
     });
@@ -258,14 +250,18 @@ function isLocalPreview() {
       return normalizeSearchTarget(target) === SONG_SEARCH_TARGET && !String(query || '').trim();
     }
 
-    function clampPage(page, maxPages = SEARCH_MAX_PAGES) {
+    function clampPage(page, maxPages = null) {
       const parsed = Number.parseInt(String(page || '1'), 10);
       if (!Number.isFinite(parsed)) {
         return 1;
       }
 
-      const safeMaxPages = Math.max(1, Number(maxPages) || SEARCH_MAX_PAGES);
-      return Math.min(safeMaxPages, Math.max(1, parsed));
+      const pageNumber = Math.max(1, parsed);
+      if (maxPages == null || !Number.isFinite(Number(maxPages))) {
+        return pageNumber;
+      }
+
+      return Math.min(Math.max(1, Number(maxPages)), pageNumber);
     }
 
     function clampPageSize(pageSize) {
@@ -400,10 +396,7 @@ function isLocalPreview() {
       const url = new URL(window.location.href);
       const safeQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
-      const safePage = clampPage(
-        page,
-        isRankingMode(safeQuery, safeTarget) ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES
-      );
+      const safePage = clampPage(page);
 
       if (safeQuery) {
         url.searchParams.set('q', safeQuery);
@@ -615,7 +608,7 @@ function isLocalPreview() {
       const appliedQuery = String(query || '').trim();
       const safeTarget = normalizeSearchTarget(target);
       const rankingMode = isRankingMode(appliedQuery, safeTarget);
-      const safePage = clampPage(page, rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES);
+      const safePage = clampPage(page);
       const songList = document.getElementById('song-list');
 
       if (searchInput && searchInput.value !== appliedQuery) {
@@ -647,14 +640,10 @@ function isLocalPreview() {
         localTestSongsState.fallbackLogged = false;
         const songs = Array.isArray(payload.songs) ? payload.songs : [];
         const effectivePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(payload.pageSize || requestPageSize);
-        const rawTotalSongs = Number.isFinite(Number(payload.totalSongs))
+        const totalSongs = Number.isFinite(Number(payload.totalSongs))
           ? Number(payload.totalSongs)
           : (((safePage - 1) * effectivePageSize) + songs.length);
-        const totalSongs = rankingMode ? Math.min(RANKING_MAX_SONGS, rawTotalSongs) : rawTotalSongs;
-        const availablePages = Math.max(
-          1,
-          Math.min(rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES, Math.ceil(totalSongs / effectivePageSize))
-        );
+        const availablePages = Math.max(1, Math.ceil(totalSongs / effectivePageSize));
 
         currentPageSize = effectivePageSize;
 
@@ -678,14 +667,10 @@ function isLocalPreview() {
           }
 
           const effectivePageSize = rankingMode ? RANKING_PAGE_SIZE : clampPageSize(localPayload.pageSize || requestPageSize);
-          const rawTotalSongs = Number.isFinite(Number(localPayload.totalSongs))
+          const totalSongs = Number.isFinite(Number(localPayload.totalSongs))
             ? Number(localPayload.totalSongs)
             : localPayload.songs.length;
-          const totalSongs = rankingMode ? Math.min(RANKING_MAX_SONGS, rawTotalSongs) : rawTotalSongs;
-          const availablePages = Math.max(
-            1,
-            Math.min(rankingMode ? RANKING_MAX_PAGES : SEARCH_MAX_PAGES, Math.ceil(totalSongs / effectivePageSize))
-          );
+          const availablePages = Math.max(1, Math.ceil(totalSongs / effectivePageSize));
 
           currentPageSize = effectivePageSize;
 

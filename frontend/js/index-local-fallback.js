@@ -15,9 +15,6 @@
       clampPage,
       getCurrentPageSize,
       rankingPageSize,
-      rankingMaxPages,
-      searchMaxPages,
-      rankingMaxSongs,
       buildSongHref,
       localSamplePanel,
       localSampleLinks
@@ -68,21 +65,20 @@
       const safeTarget = normalizeSearchTarget(target);
       const rankingMode = isRankingMode(appliedQuery, safeTarget);
       const safePageSize = rankingMode ? rankingPageSize : clampPageSize(getCurrentPageSize());
-      const safePage = clampPage(page, rankingMode ? rankingMaxPages : searchMaxPages);
       const search = normalizeSearchQuery(appliedQuery);
       const filteredSongs = search.term
         ? localSongs.filter((song) => matchesSearch(song, search, safeTarget))
         : localSongs.slice();
-      const limitedSongs = rankingMode
-        ? filteredSongs.slice(0, rankingMaxSongs)
-        : filteredSongs;
+      const totalSongs = filteredSongs.length;
+      const availablePages = Math.max(1, Math.ceil(totalSongs / safePageSize));
+      const safePage = clampPage(page, availablePages);
       const offset = (safePage - 1) * safePageSize;
 
       return {
         page: safePage,
         pageSize: safePageSize,
-        totalSongs: limitedSongs.length,
-        songs: limitedSongs.slice(offset, offset + safePageSize),
+        totalSongs,
+        songs: filteredSongs.slice(offset, offset + safePageSize),
         isLocalFallback: true
       };
     }

@@ -1,8 +1,7 @@
 const {
-  MAX_PAGES,
   normalizePage,
   normalizePageSize,
-  calculateTotalLimit
+  calculateTotalPages
 } = require('../shared/pagination');
 const { getContainer } = require('../shared/cosmos');
 const { jsonResponse, serverConfigError } = require('../shared/http');
@@ -27,8 +26,6 @@ module.exports = async function (context, req) {
   }
 
   const pageSize = normalizePageSize(req.query.pageSize);
-  const totalLimit = calculateTotalLimit(pageSize);
-  const page = normalizePage(req.query.page, MAX_PAGES);
   const now = Date.now();
   const target = normalizeSearchTarget(req.query.target);
   const search = normalizeSearchQuery(req.query.q);
@@ -43,9 +40,9 @@ module.exports = async function (context, req) {
           suggestions: []
         }
       : {
-          page,
+          page: 1,
           pageSize,
-          totalLimit: totalLimit,
+          totalPages: 1,
           totalSongs: 0,
           songs: []
         });
@@ -58,8 +55,7 @@ module.exports = async function (context, req) {
     };
 
     const { resources } = await container.items.query(query, {
-      enableCrossPartitionQuery: true,
-      maxItemCount: totalLimit
+      enableCrossPartitionQuery: true
     }).fetchAll();
 
     if (isTagSuggest) {
@@ -72,20 +68,23 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const limitedSearchResults = rankAndLimitSongs(
+    const searchResults = rankAndLimitSongs(
       resources,
-      totalLimit,
+      null,
       now,
       (song) => matchesSongSearch(song, search, target)
     );
 
-    const songs = getPageWindow(limitedSearchResults, page, pageSize);
+    const totalSongs = searchResults.length;
+    const totalPages = calculateTotalPages(totalSongs, pageSize);
+    const page = normalizePage(req.query.page, totalPages);
+    const songs = getPageWindow(searchResults, page, pageSize);
 
     context.res = jsonResponse(200, {
       page,
       pageSize,
-      totalLimit: totalLimit,
-      totalSongs: limitedSearchResults.length,
+      totalPages,
+      totalSongs,
       songs
     });
   } catch (error) {

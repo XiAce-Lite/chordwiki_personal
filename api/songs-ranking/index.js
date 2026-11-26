@@ -1,8 +1,7 @@
 const {
-  MAX_PAGES,
   normalizePage,
   normalizePageSize,
-  calculateTotalLimit
+  calculateTotalPages
 } = require('../shared/pagination');
 const { getContainer } = require('../shared/cosmos');
 const { jsonResponse, serverConfigError } = require('../shared/http');
@@ -20,8 +19,6 @@ module.exports = async function (context, req) {
   }
 
   const pageSize = normalizePageSize(req.query.pageSize);
-  const totalLimit = calculateTotalLimit(pageSize);
-  const page = normalizePage(req.query.page, MAX_PAGES);
   const now = Date.now();
 
   try {
@@ -30,20 +27,19 @@ module.exports = async function (context, req) {
     };
 
     const { resources } = await container.items.query(query, {
-      enableCrossPartitionQuery: true,
-      maxItemCount: totalLimit
+      enableCrossPartitionQuery: true
     }).fetchAll();
 
-    const limitedRankedSongs = rankAndLimitSongs(resources, totalLimit, now);
-
-    const songs = getPageWindow(limitedRankedSongs, page, pageSize);
-    const totalSongs = limitedRankedSongs.length; // ranking対象総数（最大300件）
+    const rankedSongs = rankAndLimitSongs(resources, null, now);
+    const totalSongs = rankedSongs.length;
+    const totalPages = calculateTotalPages(totalSongs, pageSize);
+    const page = normalizePage(req.query.page, totalPages);
+    const songs = getPageWindow(rankedSongs, page, pageSize);
 
     context.res = jsonResponse(200, {
       page,
       pageSize,
-      totalLimit: totalLimit,
-      totalPages: MAX_PAGES,
+      totalPages,
       totalSongs,
       songs
     });
